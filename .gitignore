@@ -45,3 +45,7 @@ next-env.d.ts
 
 # supabase cli (local)
 supabase/.temp/
+
+# pre-migration schema backups (created by the dev workflow
+# when changing existing migrations — not part of the repo)
+/.backup-*/

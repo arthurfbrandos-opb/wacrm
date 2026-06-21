@@ -43,12 +43,18 @@
 -- ============================================================
 
 -- ============================================================
--- EXTENSION
--- ============================================================
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
-
--- ============================================================
 -- WHATSAPP_CONNECTIONS (UazAPI-only — Meta stays in whatsapp_config)
+--
+-- Why TEXT (not BYTEA + pgcrypto): the rest of wacrm encrypts
+-- tokens with the Node `crypto` module (lib/whatsapp/encryption.ts)
+-- using the existing `ENCRYPTION_KEY` env var. Introducing pgcrypto
+-- + a second master key would (a) duplicate key material, (b) force
+-- every call site to choose between two incompatible APIs, (c)
+-- require a Postgres role with pgcrypto access (the free tier does
+-- not always have CREATE EXTENSION rights). The ciphertext format
+-- produced by Node crypto (iv:ct:tag in hex) is already
+-- URL-safe-ASCII, so a TEXT column is sufficient. Decryption is
+-- done by the application server with the same key it already holds.
 -- ============================================================
 CREATE TABLE IF NOT EXISTS whatsapp_connections (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -67,13 +73,15 @@ CREATE TABLE IF NOT EXISTS whatsapp_connections (
   -- UazAPI base URL (e.g. https://uazapi.example.com).
   base_url TEXT NOT NULL,
 
-  -- Cifrado simétrico (pgcrypto PGP_SYM_ENCRYPT). The plaintext token
-  -- never lands on disk. Reads require set_config('app.token_key', ...).
-  access_token_enc BYTEA NOT NULL,
+  -- Cifrado simétrico (AES-256-GCM, Node crypto). Plaintext nunca
+  -- toca o disco. Formato: `<iv-hex>:<ct-hex>:<tag-hex>` — mesmo
+  -- formato de `whatsapp_config.access_token` legado, então a chave
+  -- de rotação e o helper de decrypt são compartilhados.
+  access_token_enc TEXT NOT NULL,
 
-  -- Cifrado também — usado pra validar X-Webhook-Token no inbound.
-  -- Separate do access_token pra permitir rotação independente.
-  webhook_token_enc BYTEA,
+  -- Cifrado também — usado pra validar ?token=<X> no inbound.
+  -- Separado do access_token pra permitir rotação independente.
+  webhook_token_enc TEXT,
 
   -- Status do handshake inicial (HTTP probe na base_url). O test de
   -- conexão é disparado pelo app na hora de salvar e atualiza esse
