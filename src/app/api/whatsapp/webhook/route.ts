@@ -5,6 +5,7 @@ import { getMediaUrl, downloadMedia } from '@/lib/whatsapp/meta-api'
 import { normalizePhone } from '@/lib/whatsapp/phone-utils'
 import { findExistingContact, isUniqueViolation } from '@/lib/contacts/dedupe'
 import { verifyWebhookAuth } from '@/lib/whatsapp/webhook-signature'
+import { normalizeUazAPIPayload } from '@/lib/whatsapp/payload-normalizer'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { dispatchInboundToFlows } from '@/lib/flows/engine'
 import {
@@ -180,6 +181,16 @@ export async function POST(request: Request) {
     body = JSON.parse(rawBody)
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+  }
+
+  // UazAPI sends a different shape — translate to Meta's shape so the
+  // rest of the pipeline is provider-agnostic. Meta payloads pass through.
+  if (process.env.WA_PROVIDER === 'uazapi') {
+    const normalized = normalizeUazAPIPayload(body)
+    if (!normalized) {
+      return NextResponse.json({ status: 'ignored' }, { status: 200 })
+    }
+    body = { entry: normalized.entry }
   }
 
   // Process asynchronously so we can ack Meta within their timeout.
