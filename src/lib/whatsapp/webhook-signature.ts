@@ -45,3 +45,43 @@ export function verifyMetaWebhookSignature(
   if (a.length !== b.length) return false
   return crypto.timingSafeEqual(a, b)
 }
+
+/**
+ * Provider-aware webhook auth dispatch.
+ *
+ * Meta: HMAC-SHA256 of raw body in `x-hub-signature-256: sha256=<hex>`.
+ * UazAPI: simple token in `?token=<value>` query param (no HMAC).
+ *
+ * Returns `{ ok: true }` if verified, `{ ok: false, reason }` otherwise.
+ * Fails closed: missing env config → reject.
+ */
+export function verifyWebhookAuth(
+  rawBody: string,
+  signatureHeader: string | null,
+  queryToken: string | null,
+): { ok: boolean; reason?: string } {
+  const provider = process.env.WA_PROVIDER || 'meta'
+
+  if (provider === 'meta') {
+    if (verifyMetaWebhookSignature(rawBody, signatureHeader)) {
+      return { ok: true }
+    }
+    return { ok: false, reason: 'meta_hmac_failed' }
+  }
+
+  if (provider === 'uazapi') {
+    const expected = process.env.UAZAPI_WEBHOOK_TOKEN
+    if (!expected) {
+      console.error('[webhook] UAZAPI_WEBHOOK_TOKEN not set — rejecting.')
+      return { ok: false, reason: 'uazapi_token_not_configured' }
+    }
+    if (!queryToken) {
+      return { ok: false, reason: 'uazapi_token_missing' }
+    }
+    return queryToken === expected
+      ? { ok: true }
+      : { ok: false, reason: 'uazapi_token_mismatch' }
+  }
+
+  return { ok: false, reason: 'unknown_provider' }
+}

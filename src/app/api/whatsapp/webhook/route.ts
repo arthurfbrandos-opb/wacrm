@@ -4,7 +4,8 @@ import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption'
 import { getMediaUrl, downloadMedia } from '@/lib/whatsapp/meta-api'
 import { normalizePhone } from '@/lib/whatsapp/phone-utils'
 import { findExistingContact, isUniqueViolation } from '@/lib/contacts/dedupe'
-import { verifyMetaWebhookSignature } from '@/lib/whatsapp/webhook-signature'
+import { verifyWebhookAuth } from '@/lib/whatsapp/webhook-signature'
+import { normalizeUazAPIPayload } from '@/lib/whatsapp/payload-normalizer'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { dispatchInboundToFlows } from '@/lib/flows/engine'
 import {
@@ -167,12 +168,12 @@ export async function POST(request: Request) {
   const rawBody = await request.text()
   const signature = request.headers.get('x-hub-signature-256')
 
-  if (!verifyMetaWebhookSignature(rawBody, signature)) {
-    // 401 (not 200) — we want Meta's delivery dashboard to show failures
-    // loudly if a misconfiguration causes signatures to stop matching,
-    // rather than silently eating events.
-    console.warn('[webhook] rejected request with invalid signature')
-    return NextResponse.json({ error: 'Invalid signature' }, { status: 401 })
+  const url = new URL(request.url)
+  const queryToken = url.searchParams.get('token')
+  const auth = verifyWebhookAuth(rawBody, signature, queryToken)
+  if (!auth.ok) {
+    console.warn('[webhook] rejected request — auth failed:', auth.reason)
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   let body: { entry?: WhatsAppWebhookEntry[] }
@@ -180,6 +181,16 @@ export async function POST(request: Request) {
     body = JSON.parse(rawBody)
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+  }
+
+  // UazAPI sends a different shape — translate to Meta's shape so the
+  // rest of the pipeline is provider-agnostic. Meta payloads pass through.
+  if (process.env.WA_PROVIDER === 'uazapi') {
+    const normalized = normalizeUazAPIPayload(body)
+    if (!normalized) {
+      return NextResponse.json({ status: 'ignored' }, { status: 200 })
+    }
+    body = { entry: normalized.entry }
   }
 
   // Process asynchronously so we can ack Meta within their timeout.
