@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Clock, Sparkles, Loader2 } from 'lucide-react';
 import { WhatsAppConfig } from './whatsapp-config';
+import { UazapiConnectionsPanel } from './uazapi-connections-panel';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 
@@ -15,15 +16,12 @@ type ProviderInfo = {
 /**
  * Phase 1 / Phase 2 split:
  * - WA_PROVIDER=meta (default) → render the existing <WhatsAppConfig /> form
- * - WA_PROVIDER=uazapi          → render a "Coming soon" placeholder that
- *   tells the user the UazAPI provider is selected but the dedicated UI
- *   hasn't shipped yet. We still surface what the webhook URL will be so
- *   the user can pre-configure it in their UazAPI dashboard.
- *
- * Note: this only swaps the Settings/WhatsApp panel. The /api/whatsapp/webhook
- * already understands WA_PROVIDER=uazapi (per feat/uazapi-adapter), so
- * inbound webhooks will start landing in `messages` as soon as the operator
- * flips the env var on Vercel.
+ * - WA_PROVIDER=uazapi          → render <UazapiConnectionsPanel /> (Phase 2
+ *   UI), which lets a workspace add one or more UazAPI instances and
+ *   activate/deactivate them at runtime. The /api/whatsapp/webhook
+ *   already understands WA_PROVIDER=uazapi (per feat/uazapi-adapter),
+ *   so inbound webhooks land in `messages` as soon as the operator
+ *   flips the env var on Vercel.
  */
 export function WhatsAppConfigGate() {
   const [info, setInfo] = useState<ProviderInfo | null>(null);
@@ -60,13 +58,19 @@ export function WhatsAppConfigGate() {
   }
 
   if (info.provider === 'uazapi') {
-    return <UazapiComingSoon configured={info.uazapi_configured} />;
+    return <UazapiConnectionsPanel />;
   }
 
   return <WhatsAppConfig />;
 }
 
-function UazapiComingSoon({ configured }: { configured: boolean }) {
+/**
+ * Kept exported for backwards-compat with tests that import it.
+ * No longer rendered in the Settings page (the gate handles the
+ * placeholder state internally now), but still useful as a standalone
+ * component if we ever want a "read-only" view in onboarding flows.
+ */
+export function UazapiComingSoon({ configured }: { configured: boolean }) {
   const webhookUrl =
     typeof window !== 'undefined'
       ? `${window.location.origin}/api/whatsapp/webhook`
