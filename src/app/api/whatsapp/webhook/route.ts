@@ -6,6 +6,7 @@ import { normalizePhone } from '@/lib/whatsapp/phone-utils'
 import { findExistingContact, isUniqueViolation } from '@/lib/contacts/dedupe'
 import { verifyWebhookAuth } from '@/lib/whatsapp/webhook-signature'
 import { normalizeUazAPIPayload } from '@/lib/whatsapp/payload-normalizer'
+import { resolveUazapiRoute, type UazapiRoute } from '@/lib/whatsapp/uazapi-routing'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { dispatchInboundToFlows } from '@/lib/flows/engine'
 import {
@@ -170,10 +171,20 @@ export async function POST(request: Request) {
 
   const url = new URL(request.url)
   const queryToken = url.searchParams.get('token')
-  const auth = verifyWebhookAuth(rawBody, signature, queryToken)
-  if (!auth.ok) {
-    console.warn('[webhook] rejected request — auth failed:', auth.reason)
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  // UazAPI: the per-connection webhook token is the tenant key. If it
+  // matches a stored connection, the request is authenticated AND routed
+  // to that account. Otherwise fall back to the global-env auth check.
+  let uazapiRoute: UazapiRoute | null = null
+  if (process.env.WA_PROVIDER === 'uazapi') {
+    uazapiRoute = await resolveUazapiRoute(supabaseAdmin(), queryToken)
+  }
+  if (!uazapiRoute) {
+    const auth = verifyWebhookAuth(rawBody, signature, queryToken)
+    if (!auth.ok) {
+      console.warn('[webhook] rejected request — auth failed:', auth.reason)
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
   }
 
   let body: { entry?: WhatsAppWebhookEntry[] }
@@ -194,14 +205,17 @@ export async function POST(request: Request) {
   }
 
   // Process asynchronously so we can ack Meta within their timeout.
-  processWebhook(body).catch((error) => {
+  processWebhook(body, uazapiRoute).catch((error) => {
     console.error('Error processing webhook:', error)
   })
 
   return NextResponse.json({ status: 'received' }, { status: 200 })
 }
 
-async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
+async function processWebhook(
+  body: { entry?: WhatsAppWebhookEntry[] },
+  route: UazapiRoute | null = null,
+) {
   if (!body.entry) return
 
   for (const entry of body.entry) {
@@ -231,46 +245,60 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
       // Handle incoming messages
       if (!value.messages || !value.contacts) continue
 
-      const phoneNumberId = value.metadata.phone_number_id
+      let accountId: string
+      let ownerUserId: string
+      let decryptedAccessToken: string
 
-      // Find user's config by phone_number_id. `.single()` returns
-      // PGRST116 for both 0 rows AND ≥2 rows — distinguish them so
-      // operators see the real cause in logs. ≥2 rows shouldn't happen
-      // post-migration 013 (UNIQUE constraint), but a row created
-      // before the constraint, or a race, would still surface here.
-      const { data: configRows, error: configError } = await supabaseAdmin()
-        .from('whatsapp_config')
-        .select('*')
-        .eq('phone_number_id', phoneNumberId)
+      if (route) {
+        // UazAPI inbound: account + owner come from the connection matched
+        // by the webhook token (resolveUazapiRoute). No Meta access token —
+        // Graph API media download doesn't apply to this channel.
+        accountId = route.accountId
+        ownerUserId = route.ownerUserId
+        decryptedAccessToken = ''
+      } else {
+        const phoneNumberId = value.metadata.phone_number_id
 
-      if (configError) {
-        console.error(
-          'Error fetching whatsapp_config for phone_number_id:',
-          phoneNumberId,
-          configError
-        )
-        continue
+        // Find user's config by phone_number_id. `.single()` returns
+        // PGRST116 for both 0 rows AND ≥2 rows — distinguish them so
+        // operators see the real cause in logs. ≥2 rows shouldn't happen
+        // post-migration 013 (UNIQUE constraint), but a row created
+        // before the constraint, or a race, would still surface here.
+        const { data: configRows, error: configError } = await supabaseAdmin()
+          .from('whatsapp_config')
+          .select('*')
+          .eq('phone_number_id', phoneNumberId)
+
+        if (configError) {
+          console.error(
+            'Error fetching whatsapp_config for phone_number_id:',
+            phoneNumberId,
+            configError
+          )
+          continue
+        }
+
+        if (!configRows || configRows.length === 0) {
+          console.error('No config found for phone_number_id:', phoneNumberId)
+          continue
+        }
+
+        if (configRows.length > 1) {
+          console.error(
+            `Multiple configs (${configRows.length}) found for phone_number_id:`,
+            phoneNumberId,
+            '— inbound message dropped. Resolve duplicates so each number maps to a single account.',
+            'Account owners:',
+            configRows.map((r: { account_id: string; user_id: string }) => `${r.account_id} (admin ${r.user_id})`)
+          )
+          continue
+        }
+
+        const config = configRows[0]
+        accountId = config.account_id
+        ownerUserId = config.user_id
+        decryptedAccessToken = decrypt(config.access_token)
       }
-
-      if (!configRows || configRows.length === 0) {
-        console.error('No config found for phone_number_id:', phoneNumberId)
-        continue
-      }
-
-      if (configRows.length > 1) {
-        console.error(
-          `Multiple configs (${configRows.length}) found for phone_number_id:`,
-          phoneNumberId,
-          '— inbound message dropped. Resolve duplicates so each number maps to a single account.',
-          'Account owners:',
-          configRows.map((r: { account_id: string; user_id: string }) => `${r.account_id} (admin ${r.user_id})`)
-        )
-        continue
-      }
-
-      const config = configRows[0]
-
-      const decryptedAccessToken = decrypt(config.access_token)
 
       for (let i = 0; i < value.messages.length; i++) {
         const message = value.messages[i]
@@ -281,11 +309,9 @@ async function processWebhook(body: { entry?: WhatsAppWebhookEntry[] }) {
           contact,
           // Tenancy — drives every contact / conversation lookup
           // and the engines' active-row dispatch.
-          config.account_id,
-          // Audit / sender-of-record — used as the user_id on row
-          // inserts that need it for NOT NULL FK compliance. Always
-          // the admin who saved the WhatsApp config.
-          config.user_id,
+          accountId,
+          // Audit / sender-of-record — NOT NULL FK on inserts.
+          ownerUserId,
           decryptedAccessToken
         )
       }

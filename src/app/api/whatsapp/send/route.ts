@@ -7,6 +7,7 @@ import {
   type MediaKind,
 } from '@/lib/whatsapp/meta-api'
 import { decrypt, encrypt, isLegacyFormat } from '@/lib/whatsapp/encryption'
+import { sendUazapiText } from '@/lib/whatsapp/uazapi-send'
 import { supabaseAdmin } from '@/lib/flows/admin-client'
 import {
   sanitizePhoneForMeta,
@@ -163,6 +164,99 @@ export async function POST(request: Request) {
         { error: 'Invalid phone number format' },
         { status: 400 }
       )
+    }
+
+    // ── UazAPI outbound (non-official channel) ──────────────────────
+    // Contacts on the UazAPI channel are sent through their connection's
+    // instance, not the Meta Cloud API. Text only for now; media/template
+    // over UazAPI is a later step. Isolated early-return so the Meta path
+    // below stays untouched.
+    if (contact.provider === 'uazapi') {
+      if (isMediaKind || message_type === 'template' || message_type === 'interactive') {
+        return NextResponse.json(
+          {
+            error:
+              'Envio de mídia/template via WhatsApp Não Oficial (UazAPI) ainda não implementado.',
+          },
+          { status: 400 },
+        )
+      }
+      if (!content_text) {
+        return NextResponse.json({ error: 'content_text is required' }, { status: 400 })
+      }
+
+      // The connection bound to the contact, else the account's active one.
+      const baseConnQuery = supabase
+        .from('whatsapp_connections')
+        .select('*')
+        .eq('account_id', accountId)
+      const { data: conn } = await (contact.connection_id
+        ? baseConnQuery.eq('id', contact.connection_id)
+        : baseConnQuery.eq('is_active_for_crm', true)
+      ).maybeSingle()
+
+      if (!conn) {
+        return NextResponse.json(
+          {
+            error:
+              'Nenhuma conexão UazAPI ativa. Configure em Settings → WhatsApp → Não Oficial.',
+          },
+          { status: 400 },
+        )
+      }
+
+      let uazMessageId: string | null = null
+      try {
+        const sent = await sendUazapiText({
+          baseUrl: conn.base_url,
+          token: decrypt(conn.access_token_enc),
+          number: sanitizedPhone,
+          text: content_text,
+        })
+        uazMessageId = sent.messageId
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Unknown UazAPI error'
+        console.error('[whatsapp/send] UazAPI send failed:', message)
+        return NextResponse.json({ error: message }, { status: 502 })
+      }
+
+      const { data: uazRecord, error: uazMsgError } = await supabase
+        .from('messages')
+        .insert({
+          conversation_id,
+          sender_type: 'agent',
+          content_type: 'text',
+          content_text,
+          message_id: uazMessageId,
+          status: 'sent',
+          reply_to_message_id: reply_to_message_id || null,
+          provider: 'uazapi',
+        })
+        .select()
+        .single()
+
+      if (uazMsgError) {
+        console.error('Error inserting sent UazAPI message:', uazMsgError)
+        return NextResponse.json(
+          { error: 'Mensagem enviada, mas falhou ao salvar no banco.' },
+          { status: 500 },
+        )
+      }
+
+      await supabase
+        .from('conversations')
+        .update({
+          last_message_text: content_text,
+          last_message_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', conversation_id)
+
+      return NextResponse.json({
+        success: true,
+        message_id: uazRecord.id,
+        whatsapp_message_id: uazMessageId,
+      })
     }
 
     // Fetch and decrypt WhatsApp config
