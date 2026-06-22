@@ -19,6 +19,12 @@ export interface PedroBookResult {
   meet_link: string
   synthetic: boolean
 }
+export interface PedroFoundEvent {
+  start_iso: string
+  end_iso: string
+  summary: string
+  meet_link: string
+}
 
 export class PedroClient {
   constructor(
@@ -56,6 +62,12 @@ export class PedroClient {
     lead_name?: string | null
   }): Promise<PedroBookResult> {
     return this.post('/v6/calendar/book', input, 15_000)
+  }
+
+  /** Find the lead's upcoming diagnosis events by email. Contract:
+   *  events come orderBy=startTime asc ⇒ [0] is the nearest. */
+  async calendarFind(email: string, horizonDays = 30): Promise<{ events: PedroFoundEvent[] }> {
+    return this.post('/v6/calendar/find', { email, horizon_days: horizonDays }, 15_000)
   }
 }
 

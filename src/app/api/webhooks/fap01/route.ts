@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server'
 import { createHash } from 'crypto'
 import { supabaseAdmin } from '@/lib/flows/admin-client'
 import { findExistingContact } from '@/lib/contacts/dedupe'
+import { ensureConversationOn, scheduleFirstTouchIfAbsent } from '@/lib/sdr/touches'
+
+// Arthur's decision (2026-06-11): chase/confirm the lead 5 min after the form,
+// leaving room to self-book on Calendly first.
+const FIRST_TOUCH_DELAY_MS = 5 * 60_000
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -161,5 +166,32 @@ export async function POST(request: Request) {
     }
   }
 
-  return NextResponse.json({ ok: true, contact_id: contactId, deal_id: dealId })
+  // Phase C2 — enqueue the outbound-first touch (Pedro reaches out). Only for
+  // gated leads in the SDR pipeline (have a deal). Failure here doesn't fail
+  // the lead: the contact/deal are saved and a re-post is idempotent.
+  let touch = 'skipped-no-deal'
+  if (dealId) {
+    try {
+      const conversationId = await ensureConversationOn(admin, {
+        accountId,
+        userId: ownerUserId,
+        contactId,
+      })
+      await scheduleFirstTouchIfAbsent(admin, {
+        accountId,
+        contactId,
+        dealId,
+        conversationId,
+        phone,
+        email: (lead.contact_email || '').trim().toLowerCase(),
+        dueAt: new Date(Date.now() + FIRST_TOUCH_DELAY_MS).toISOString(),
+      })
+      touch = 'scheduled'
+    } catch (e) {
+      console.error('[fap01] first_touch enqueue failed:', e)
+      touch = 'enqueue-failed'
+    }
+  }
+
+  return NextResponse.json({ ok: true, contact_id: contactId, deal_id: dealId, touch })
 }

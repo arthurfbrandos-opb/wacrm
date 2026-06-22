@@ -9,3 +9,9 @@ export function detUuid(seed: string): string {
 
 export const SDR_PIPELINE = 'pipeline-pre-vendas-sdr'
 export const SDR_PIPELINE_ID = detUuid(`pl:${SDR_PIPELINE}`)
+
+/** Stage ids by slug — the same md5→uuid the FAP01 migration seeded.
+ *  Verified against the DB: primeiro-contato → "Primeiro Contato",
+ *  agendamento-realizado → "Agendamento Realizado". */
+export const SDR_STAGE_PRIMEIRO_CONTATO = detUuid(`st:${SDR_PIPELINE}:primeiro-contato`)
+export const SDR_STAGE_AGENDAMENTO_REALIZADO = detUuid(`st:${SDR_PIPELINE}:agendamento-realizado`)
