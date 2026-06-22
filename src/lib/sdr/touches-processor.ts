@@ -18,6 +18,7 @@ import {
   scheduleReminder,
   conversationHasMessages,
   moveDealToStage,
+  accountHasChannel,
   type SdrTouchRow,
 } from './touches'
 import { chaseBubbles, confirmBubbles, reminder24hBubbles, reminder2hBubbles } from './templates'
@@ -71,6 +72,12 @@ export async function processDueTouches(
   if (running) return { processed: 0, results: [{ skipped: 'tick-overlap' }] }
   running = true
   try {
+    // No sendable channel yet (e.g. FAP01 repointed but no number connected) →
+    // leave touches pending instead of hammering calendarFind + failing the send
+    // every tick. They flush on the first tick after a number is connected.
+    if (!(await accountHasChannel(admin, accountId))) {
+      return { processed: 0, results: [{ skipped: 'no-channel' }] }
+    }
     const due = await listDueTouches(admin, accountId, new Date().toISOString())
     const results: Array<Record<string, string>> = []
     for (const t of due) {

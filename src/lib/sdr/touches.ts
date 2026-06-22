@@ -224,6 +224,32 @@ export async function conversationHasMessages(
   return (data ?? []).length > 0
 }
 
+/**
+ * Whether the account has any channel Pedro can actually send through — an
+ * active UazAPI connection or a Meta config. When false, the touch processor
+ * skips the whole tick: without this, every pending first_touch would call
+ * calendarFind (Google API) each minute and then fail at the send, forever,
+ * until a number is connected (e.g. right after FAP01 is repointed but before
+ * the QR scan).
+ */
+export async function accountHasChannel(admin: Admin, accountId: string): Promise<boolean> {
+  const { data: uaz } = await admin
+    .from('wa_connections')
+    .select('id')
+    .eq('account_id', accountId)
+    .eq('is_active_for_crm', true)
+    .limit(1)
+    .maybeSingle()
+  if (uaz) return true
+  const { data: meta } = await admin
+    .from('whatsapp_config')
+    .select('account_id')
+    .eq('account_id', accountId)
+    .limit(1)
+    .maybeSingle()
+  return !!meta
+}
+
 const STAGE_ID: Record<'primeiro_contato' | 'agendamento_realizado', string> = {
   primeiro_contato: SDR_STAGE_PRIMEIRO_CONTATO,
   agendamento_realizado: SDR_STAGE_AGENDAMENTO_REALIZADO,

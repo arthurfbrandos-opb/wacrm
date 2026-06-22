@@ -15,6 +15,7 @@ vi.mock('./touches', () => ({
   scheduleReminder: vi.fn(async () => {}),
   conversationHasMessages: vi.fn(async () => false),
   moveDealToStage: vi.fn(async () => {}),
+  accountHasChannel: vi.fn(async () => true),
 }))
 
 // Imported after env is set so BUBBLE_DELAY_MS=0 (no real waits between bubbles).
@@ -80,9 +81,22 @@ function makeAdmin(opts: { aiStatus?: string; name?: string } = {}) {
 beforeEach(() => {
   vi.clearAllMocks()
   touches.conversationHasMessages.mockResolvedValue(false)
+  touches.accountHasChannel.mockResolvedValue(true)
 })
 
 describe('processDueTouches', () => {
+  it('skips the whole tick when the account has no sendable channel', async () => {
+    touches.accountHasChannel.mockResolvedValue(false)
+    touches.listDueTouches.mockResolvedValue([makeTouch()])
+    const admin = makeAdmin()
+
+    const res = await processDueTouches(admin, ACCOUNT)
+
+    expect(res.results[0].skipped).toBe('no-channel')
+    expect(touches.listDueTouches).not.toHaveBeenCalled()
+    expect(send.sendText).not.toHaveBeenCalled()
+  })
+
   it('skips a touch when the conversation is not on autopilot (ai_off)', async () => {
     touches.listDueTouches.mockResolvedValue([makeTouch()])
     const admin = makeAdmin({ aiStatus: 'off' })
