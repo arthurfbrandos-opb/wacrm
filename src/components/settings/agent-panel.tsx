@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Bot, Loader2 } from "lucide-react";
+import { Bot, Braces, Cpu, Loader2 } from "lucide-react";
 
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -163,6 +163,75 @@ export function AgentPanel() {
               )}
             </Button>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Variáveis injetadas automaticamente — não vão no prompt, o sistema anexa. */}
+      <Card className="mt-4">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-foreground">
+            <Braces className="size-4 text-primary" />
+            Variáveis disponíveis
+          </CardTitle>
+          <CardDescription className="text-muted-foreground">
+            O sistema anexa estes dados ao prompt a cada mensagem — você
+            <strong> não precisa colocá-los aqui</strong>. O Pedro usa pra
+            confirmar (nunca re-pergunta o que o lead já preencheu).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4 text-sm">
+          <div>
+            <p className="font-medium text-foreground">
+              Cadastro do lead (do formulário FAP01)
+            </p>
+            <ul className="mt-1.5 grid gap-1 text-muted-foreground sm:grid-cols-2">
+              <li>• Nome</li>
+              <li>• Empresa</li>
+              <li>• E-mail</li>
+              <li>• Qualificação (faturamento · nicho · sócio · processo · urgência)</li>
+            </ul>
+          </div>
+          <div>
+            <p className="font-medium text-foreground">Agenda (ao vivo)</p>
+            <ul className="mt-1.5 grid gap-1 text-muted-foreground sm:grid-cols-2">
+              <li>• Data e hora atual (São Paulo)</li>
+              <li>• Horários reais livres do Arthur</li>
+            </ul>
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              Quando o lead confirma um horário da lista, o Pedro agenda
+              sozinho e o link do Meet é anexado automaticamente.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Modelo — read-only: o backend do Pedro faz roteamento por mensagem. */}
+      <Card className="mt-4">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-foreground">
+            <Cpu className="size-4 text-primary" />
+            Modelo
+          </CardTitle>
+          <CardDescription className="text-muted-foreground">
+            O modelo não é fixo: o cérebro do Pedro escolhe por mensagem
+            (definido no backend, não editável aqui).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm text-muted-foreground">
+          <div className="flex items-baseline gap-2">
+            <span className="font-medium text-foreground">Sonnet</span>
+            <span className="font-mono text-xs">claude-sonnet-4-6</span>
+            <span>— raciocínio (SPIN · objeção · gates)</span>
+          </div>
+          <div className="flex items-baseline gap-2">
+            <span className="font-medium text-foreground">Haiku</span>
+            <span className="font-mono text-xs">claude-haiku-4-5</span>
+            <span>— saudação · slots · confirmação</span>
+          </div>
+          <p className="pt-1 text-xs">
+            Fallback automático se a Anthropic falhar (Max OAuth → API key →
+            gpt-4o).
+          </p>
         </CardContent>
       </Card>
     </section>
