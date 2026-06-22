@@ -9,6 +9,7 @@ import { normalizeUazAPIPayload } from '@/lib/whatsapp/payload-normalizer'
 import { resolveUazapiRoute, type UazapiRoute } from '@/lib/whatsapp/uazapi-routing'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { dispatchInboundToFlows } from '@/lib/flows/engine'
+import { runSdrReply, initialAiStatus } from '@/lib/sdr/processor'
 import {
   handleTemplateWebhookChange,
   isTemplateWebhookField,
@@ -632,23 +633,27 @@ async function processMessage(
     .eq('sender_type', 'customer')
   const isFirstInboundMessage = (priorCustomerMsgCount ?? 0) === 0
 
-  const { error: msgError } = await supabaseAdmin().from('messages').insert({
-    conversation_id: conversation.id,
-    sender_type: 'customer',
-    content_type: contentType,
-    content_text: contentText,
-    media_url: mediaUrl,
-    message_id: message.id,
-    status: 'delivered',
-    // Origin channel this message arrived through (migration 024).
-    provider: process.env.WA_PROVIDER === 'uazapi' ? 'uazapi' : 'meta',
-    created_at: new Date(parseInt(message.timestamp) * 1000).toISOString(),
-    reply_to_message_id: replyToInternalId,
-    // Only populated for content_type='interactive'. Migration 010 added
-    // the column; null for every other content_type so existing inserts
-    // behave identically.
-    interactive_reply_id: interactiveReplyId,
-  })
+  const { data: insertedMsg, error: msgError } = await supabaseAdmin()
+    .from('messages')
+    .insert({
+      conversation_id: conversation.id,
+      sender_type: 'customer',
+      content_type: contentType,
+      content_text: contentText,
+      media_url: mediaUrl,
+      message_id: message.id,
+      status: 'delivered',
+      // Origin channel this message arrived through (migration 024).
+      provider: process.env.WA_PROVIDER === 'uazapi' ? 'uazapi' : 'meta',
+      created_at: new Date(parseInt(message.timestamp) * 1000).toISOString(),
+      reply_to_message_id: replyToInternalId,
+      // Only populated for content_type='interactive'. Migration 010 added
+      // the column; null for every other content_type so existing inserts
+      // behave identically.
+      interactive_reply_id: interactiveReplyId,
+    })
+    .select('id')
+    .single()
 
   if (msgError) {
     console.error('Error inserting message:', msgError)
@@ -674,6 +679,37 @@ async function processMessage(
   // so the broadcast's `replied_count` advances (via the aggregate
   // trigger installed in migration 003).
   await flagBroadcastReplyIfAny(accountId, contactRecord.id)
+
+  // ============================================================
+  // SDR autopilot (Pedro).
+  //
+  // When this conversation is on autopilot (ai_status 'on' — set only for
+  // SDR-pipeline / FAP01 leads), Pedro owns the reply. Run the brain loop
+  // and RETURN — flows + automations are suppressed so the lead never gets
+  // a double answer. 'off'/'human' conversations fall through to the normal
+  // wacrm pipeline below.
+  //
+  // Fire-and-forget: the loop has its own try/catch + internal debounce and
+  // never throws, so it can't break the webhook's 200 ack.
+  // ============================================================
+  if (conversation.ai_status === 'on') {
+    void runSdrReply({
+      admin: supabaseAdmin(),
+      accountId,
+      conversationId: conversation.id,
+      contact: {
+        id: contactRecord.id,
+        name: contactRecord.name ?? null,
+        company: contactRecord.company ?? null,
+        email: contactRecord.email ?? null,
+        phone: senderPhone,
+        provider: contactRecord.provider ?? null,
+        connection_id: contactRecord.connection_id ?? null,
+      },
+      inboundMessageId: insertedMsg?.id ?? null,
+    })
+    return
+  }
 
   // ============================================================
   // Flow runner dispatch.
@@ -989,13 +1025,16 @@ async function findOrCreateConversation(
   }
 
   // Create new conversation. Same tenancy + audit split as
-  // findOrCreateContact above.
+  // findOrCreateContact above. ai_status starts 'on' only for SDR-pipeline
+  // leads (FAP01) so Pedro never hijacks the human Meta inbox.
+  const aiStatus = await initialAiStatus(supabaseAdmin(), accountId, contactId)
   const { data: newConv, error: createError } = await supabaseAdmin()
     .from('conversations')
     .insert({
       account_id: accountId,
       user_id: configOwnerUserId,
       contact_id: contactId,
+      ai_status: aiStatus,
     })
     .select()
     .single()
