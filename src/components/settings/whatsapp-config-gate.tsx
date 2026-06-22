@@ -1,137 +1,76 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Clock, Sparkles, Loader2 } from 'lucide-react';
+import { ShieldCheck, Smartphone } from 'lucide-react';
 import { WhatsAppConfig } from './whatsapp-config';
 import { UazapiConnectionsPanel } from './uazapi-connections-panel';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-
-type ProviderInfo = {
-  provider: 'meta' | 'uazapi' | string;
-  uazapi_configured: boolean;
-  meta_api_base: string | null;
-};
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 /**
- * Phase 1 / Phase 2 split:
- * - WA_PROVIDER=meta (default) → render the existing <WhatsAppConfig /> form
- * - WA_PROVIDER=uazapi          → render <UazapiConnectionsPanel /> (Phase 2
- *   UI), which lets a workspace add one or more UazAPI instances and
- *   activate/deactivate them at runtime. The /api/whatsapp/webhook
- *   already understands WA_PROVIDER=uazapi (per feat/uazapi-adapter),
- *   so inbound webhooks land in `messages` as soon as the operator
- *   flips the env var on Vercel.
+ * WhatsApp settings — two coexisting channels, side by side:
+ *
+ *   - "Oficial (API Meta)"   → <WhatsAppConfig />: the WhatsApp Cloud API
+ *     (official Business API; needs a Meta app + a verified number).
+ *   - "Não Oficial (UazAPI)" → <UazapiConnectionsPanel />: connect a plain
+ *     WhatsApp number through a UazAPI instance (endpoint + token), with no
+ *     Meta approval.
+ *
+ * Both can be configured at the same time. Each inbound/outbound message is
+ * stamped with its origin provider, and a contact can be transferred between
+ * the two (handled in the contact detail UI). This panel only CONFIGURES
+ * both channels; the webhook normalizer still keys off WA_PROVIDER per deploy.
  */
 export function WhatsAppConfigGate() {
-  const [info, setInfo] = useState<ProviderInfo | null>(null);
-  const [loadError, setLoadError] = useState(false);
+  const [tab, setTab] = useState<string>('oficial');
 
+  // Land on whichever channel this deploy currently routes through, so the
+  // most relevant config is in front of the user first. Best-effort only.
   useEffect(() => {
     let cancelled = false;
     fetch('/api/whatsapp/provider')
-      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
-      .then((data: ProviderInfo) => {
-        if (!cancelled) setInfo(data);
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!cancelled && d?.provider === 'uazapi') setTab('nao-oficial');
       })
       .catch(() => {
-        if (!cancelled) setLoadError(true);
+        /* default tab is fine */
       });
     return () => {
       cancelled = true;
     };
   }, []);
 
-  if (loadError) {
-    // Fail open: if we can't read the provider, fall back to Meta UI so
-    // the user isn't stuck. The endpoint itself never auths so this
-    // should only fail on a deploy/config bug.
-    return <WhatsAppConfig />;
-  }
-
-  if (!info) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="size-6 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  if (info.provider === 'uazapi') {
-    return <UazapiConnectionsPanel />;
-  }
-
-  return <WhatsAppConfig />;
-}
-
-/**
- * Kept exported for backwards-compat with tests that import it.
- * No longer rendered in the Settings page (the gate handles the
- * placeholder state internally now), but still useful as a standalone
- * component if we ever want a "read-only" view in onboarding flows.
- */
-export function UazapiComingSoon({ configured }: { configured: boolean }) {
-  const webhookUrl =
-    typeof window !== 'undefined'
-      ? `${window.location.origin}/api/whatsapp/webhook`
-      : '';
-
   return (
-    <section className="animate-in fade-in-50 duration-200">
-      <Card className="border-dashed">
-        <CardContent className="flex flex-col items-start gap-4 py-10">
-          <div className="flex items-center gap-2">
-            <Badge
-              variant="outline"
-              className="border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-300"
-            >
-              <Clock className="mr-1 size-3" />
-              Em breve
-            </Badge>
-            <Badge variant="outline">Provider: UazAPI</Badge>
-            {configured && (
-              <Badge variant="outline" className="border-emerald-500/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
-                Webhook token set
-              </Badge>
-            )}
-          </div>
+    <section className="space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold text-foreground">WhatsApp</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Conecte pela API oficial da Meta ou por um número não oficial via
+          UazAPI — você pode manter os dois ativos ao mesmo tempo. Cada conversa
+          fica marcada pela origem, e dá pra transferir um contato de um canal
+          pro outro.
+        </p>
+      </div>
 
-          <div className="flex items-start gap-3">
-            <Sparkles className="mt-0.5 size-5 shrink-0 text-primary" />
-            <div>
-              <h2 className="text-lg font-semibold text-foreground">
-                Painel UazAPI — em construção
-              </h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                O backend já aceita webhooks UazAPI (provider-aware). O que
-                falta é a UI de configuração dedicada: status da conexão,
-                instance name, scan QR, e pareamento de números. Está no
-                roadmap da Phase 2.
-              </p>
-            </div>
-          </div>
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList>
+          <TabsTrigger value="oficial">
+            <ShieldCheck />
+            WhatsApp Oficial (API Meta)
+          </TabsTrigger>
+          <TabsTrigger value="nao-oficial">
+            <Smartphone />
+            WhatsApp Não Oficial (UazAPI)
+          </TabsTrigger>
+        </TabsList>
 
-          {webhookUrl && (
-            <div className="w-full rounded-md border bg-muted/40 px-4 py-3 text-sm">
-              <div className="font-medium text-foreground">
-                Webhook URL (já funciona)
-              </div>
-              <code className="mt-1 block break-all text-xs text-muted-foreground">
-                {webhookUrl}?token=&lt;UAZAPI_WEBHOOK_TOKEN&gt;
-              </code>
-              <p className="mt-2 text-xs text-muted-foreground">
-                Cole essa URL + o token no painel da UazAPI e os eventos{' '}
-                <code className="rounded bg-background px-1">messages.upsert</code>{' '}
-                e{' '}
-                <code className="rounded bg-background px-1">messages.update</code>{' '}
-                já começam a cair na tabela{' '}
-                <code className="rounded bg-background px-1">messages</code> do
-                Supabase.
-              </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        <TabsContent value="oficial" className="pt-4">
+          <WhatsAppConfig />
+        </TabsContent>
+        <TabsContent value="nao-oficial" className="pt-4">
+          <UazapiConnectionsPanel />
+        </TabsContent>
+      </Tabs>
     </section>
   );
 }

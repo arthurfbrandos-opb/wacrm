@@ -376,6 +376,9 @@ export async function POST(request: Request) {
         message_id: waMessageId,
         status: 'sent',
         reply_to_message_id: reply_to_message_id || null,
+        // Outbound is recorded under the contact's current channel so the
+        // conversation keeps a consistent origin (migration 024).
+        provider: contact?.provider || 'meta',
       })
       .select()
       .single()

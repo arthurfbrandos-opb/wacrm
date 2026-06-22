@@ -98,6 +98,11 @@ export interface Contact {
   email?: string;
   company?: string;
   avatar_url?: string;
+  /** WhatsApp channel this contact is handled through (migration 024).
+   *  'meta' = official Cloud API, 'uazapi' = non-official number. */
+  provider?: 'meta' | 'uazapi';
+  /** UazAPI connection this contact is bound to, when provider='uazapi'. */
+  connection_id?: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -33,6 +33,8 @@ import {
   Save,
   X,
   DollarSign,
+  ShieldCheck,
+  Smartphone,
 } from 'lucide-react';
 
 interface ContactDetailViewProps {
@@ -61,6 +63,7 @@ export function ContactDetailView({
   const [editEmail, setEditEmail] = useState('');
   const [editCompany, setEditCompany] = useState('');
   const [savingDetails, setSavingDetails] = useState(false);
+  const [transferring, setTransferring] = useState(false);
 
   // Tags tab
   const [allTags, setAllTags] = useState<Tag[]>([]);
@@ -209,6 +212,31 @@ export function ContactDetailView({
       onUpdated();
     }
     setSavingDetails(false);
+  }
+
+  // Transfer this contact between the official (Meta) and non-official
+  // (UazAPI) WhatsApp channels. Only flips `contacts.provider`; future
+  // messages to/from this contact are recorded under the new channel.
+  async function transferProvider(next: 'meta' | 'uazapi') {
+    if (!contactId || !contact) return;
+    if ((contact.provider ?? 'meta') === next) return;
+    setTransferring(true);
+    const { error } = await supabase
+      .from('contacts')
+      .update({ provider: next, updated_at: new Date().toISOString() })
+      .eq('id', contactId);
+    if (error) {
+      toast.error('Falha ao transferir a origem');
+    } else {
+      toast.success(
+        next === 'uazapi'
+          ? 'Origem transferida para Não Oficial (UazAPI)'
+          : 'Origem transferida para Oficial (Meta)',
+      );
+      fetchContact();
+      onUpdated();
+    }
+    setTransferring(false);
   }
 
   async function toggleTag(tagId: string) {
@@ -379,6 +407,16 @@ export function ContactDetailView({
                         {contact.company}
                       </span>
                     )}
+                    <Badge
+                      variant="outline"
+                      className={`h-5 px-1.5 text-[10px] ${
+                        contact.provider === 'uazapi'
+                          ? 'border-violet-500/50 text-violet-600 dark:text-violet-300'
+                          : 'border-emerald-500/50 text-emerald-600 dark:text-emerald-300'
+                      }`}
+                    >
+                      {contact.provider === 'uazapi' ? 'Não Oficial' : 'Oficial'}
+                    </Badge>
                   </div>
                 </div>
               </div>
@@ -455,6 +493,45 @@ export function ContactDetailView({
                       onChange={(e) => setEditCompany(e.target.value)}
                       className="bg-muted border-border text-foreground h-8 text-sm"
                     />
+                  </div>
+                  <div className="space-y-1.5 border-t border-border/50 pt-3">
+                    <Label className="text-muted-foreground text-xs">
+                      Origem (WhatsApp)
+                    </Label>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={transferring}
+                        onClick={() => transferProvider('meta')}
+                        className={`flex-1 ${
+                          (contact.provider ?? 'meta') === 'meta'
+                            ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                            : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                        }`}
+                      >
+                        <ShieldCheck className="size-3.5" />
+                        Oficial
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={transferring}
+                        onClick={() => transferProvider('uazapi')}
+                        className={`flex-1 ${
+                          contact.provider === 'uazapi'
+                            ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                            : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                        }`}
+                      >
+                        <Smartphone className="size-3.5" />
+                        Não Oficial
+                      </Button>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      Define por qual canal este contato é atendido. Transferir
+                      muda o provedor das próximas mensagens.
+                    </p>
                   </div>
                   <Button
                     onClick={saveDetails}

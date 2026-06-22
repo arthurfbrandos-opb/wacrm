@@ -614,6 +614,8 @@ async function processMessage(
     media_url: mediaUrl,
     message_id: message.id,
     status: 'delivered',
+    // Origin channel this message arrived through (migration 024).
+    provider: process.env.WA_PROVIDER === 'uazapi' ? 'uazapi' : 'meta',
     created_at: new Date(parseInt(message.timestamp) * 1000).toISOString(),
     reply_to_message_id: replyToInternalId,
     // Only populated for content_type='interactive'. Migration 010 added
@@ -921,6 +923,8 @@ async function findOrCreateContact(
       user_id: configOwnerUserId,
       phone,
       name: name || phone,
+      // Stamp the channel this contact first reached us on (migration 024).
+      provider: process.env.WA_PROVIDER === 'uazapi' ? 'uazapi' : 'meta',
     })
     .select()
     .single()
