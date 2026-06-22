@@ -61,6 +61,11 @@ const SECURITY_HEADERS = [
 ] as const;
 
 const nextConfig: NextConfig = {
+  // Self-hosted deploy (VPS, Docker): emit a standalone server bundle
+  // (.next/standalone/server.js) so the runtime image carries only the
+  // traced dependencies instead of the full node_modules.
+  output: "standalone",
+
   /**
    * Cache-Control policy.
    *

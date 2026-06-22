@@ -1,0 +1,27 @@
+# wacrm — self-hosted on the NS VPS, behind the existing Caddy
+# container (motorsales-caddy-1) on the `motorsales_internal` network.
+# Caddy reverse-proxies crm.negocio-simples.com -> wacrm:3000.
+#
+# The same /opt/wacrm/.env file is read twice by compose:
+#   - for ${VAR} interpolation below (build args), and
+#   - as env_file for the running container (runtime secrets).
+services:
+  wacrm:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL}
+    image: wacrm:latest
+    container_name: wacrm
+    restart: unless-stopped
+    env_file: .env
+    expose:
+      - "3000"
+    networks:
+      - motorsales_internal
+
+networks:
+  motorsales_internal:
+    external: true

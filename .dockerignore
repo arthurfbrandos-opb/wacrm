@@ -1,0 +1,11 @@
+node_modules
+.next
+.git
+.env
+.env.*
+.backup-*
+supabase/.temp
+*.log
+npm-debug.log*
+.DS_Store
+.vercel
