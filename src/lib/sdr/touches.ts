@@ -114,6 +114,47 @@ export async function scheduleReminder(
   if (error) throw new Error(`sdr/scheduleReminder: ${error.message}`)
 }
 
+/**
+ * Bring a pending first_touch forward to "now" when the lead self-books on
+ * Calendly (the schedule_confirmed beacon) — the confirmation goes out on the
+ * next tick instead of waiting the 5min. Matches by email or digits-only
+ * phone. No-op (returns false) if there's no pending first_touch; benign if it
+ * has already come due (the cron handles it either way).
+ */
+export async function expediteFirstTouch(
+  admin: Admin,
+  accountId: string,
+  match: { email?: string | null; phone?: string | null },
+): Promise<boolean> {
+  const phone = (match.phone ?? '').replace(/\D/g, '')
+  const email = (match.email ?? '').trim().toLowerCase()
+  if (!phone && !email) return false
+
+  const { data, error } = await admin
+    .from('sdr_touches')
+    .select('id, due_at, email, phone')
+    .eq('account_id', accountId)
+    .eq('type', 'first_touch')
+    .eq('status', 'pending')
+  if (error) throw new Error(`sdr/expediteFirstTouch: ${error.message}`)
+
+  const rows = (data ?? []) as { id: string; due_at: string; email: string; phone: string }[]
+  const t = rows.find(
+    (r) =>
+      (email && (r.email ?? '').toLowerCase() === email) ||
+      (phone && (r.phone ?? '').replace(/\D/g, '') === phone),
+  )
+  if (!t) return false
+  if (new Date(t.due_at).getTime() <= Date.now()) return true // already due — cron has it
+
+  const { error: uErr } = await admin
+    .from('sdr_touches')
+    .update({ due_at: new Date().toISOString() })
+    .eq('id', t.id)
+  if (uErr) throw new Error(`sdr/expediteFirstTouch/update: ${uErr.message}`)
+  return true
+}
+
 export async function resolveTouch(
   admin: Admin,
   id: string,

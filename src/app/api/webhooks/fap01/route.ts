@@ -2,7 +2,11 @@ import { NextResponse } from 'next/server'
 import { createHash } from 'crypto'
 import { supabaseAdmin } from '@/lib/flows/admin-client'
 import { findExistingContact } from '@/lib/contacts/dedupe'
-import { ensureConversationOn, scheduleFirstTouchIfAbsent } from '@/lib/sdr/touches'
+import {
+  ensureConversationOn,
+  scheduleFirstTouchIfAbsent,
+  expediteFirstTouch,
+} from '@/lib/sdr/touches'
 
 // Arthur's decision (2026-06-11): chase/confirm the lead 5 min after the form,
 // leaving room to self-book on Calendly first.
@@ -63,19 +67,42 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Server not configured' }, { status: 500 })
   }
 
-  let lead: Fap01Lead
+  // The n8n funnel posts an envelope, not a bare lead:
+  //   lead_created       → { event_type, source, lead: {...} }
+  //   schedule_confirmed → { event_type, email, phone }  (Calendly beacon)
+  let body: { event_type?: string; lead?: Fap01Lead; email?: string; phone?: string }
   try {
-    lead = (await request.json()) as Fap01Lead
+    body = (await request.json()) as typeof body
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+  }
+
+  const admin = supabaseAdmin()
+
+  // schedule_confirmed: the lead self-booked on Calendly → bring the pending
+  // first_touch forward so Pedro confirms on the next tick (not after 5min).
+  if (body.event_type === 'schedule_confirmed') {
+    try {
+      const expedited = await expediteFirstTouch(admin, accountId, {
+        email: body.email ?? null,
+        phone: body.phone ?? null,
+      })
+      return NextResponse.json({ ok: true, expedited })
+    } catch (e) {
+      console.error('[fap01] expedite failed:', e)
+      return NextResponse.json({ error: 'expedite failed' }, { status: 500 })
+    }
+  }
+
+  const lead = body.lead
+  if (body.event_type !== 'lead_created' || !lead) {
+    return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
   }
 
   const phone = (lead.contact_whatsapp || '').replace(/\D/g, '')
   if (!phone) {
     return NextResponse.json({ error: 'contact_whatsapp is required' }, { status: 400 })
   }
-
-  const admin = supabaseAdmin()
 
   const { data: account } = await admin
     .from('accounts')
