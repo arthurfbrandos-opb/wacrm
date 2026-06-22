@@ -70,7 +70,7 @@ export async function GET(_request: Request, ctx: RouteContext) {
 
   const supabase = await createClient()
   const { data, error } = await supabase
-    .from('whatsapp_connections')
+    .from('wa_connections')
     .select('*')
     .eq('account_id', accountId)
     .eq('id', connId)
@@ -107,7 +107,7 @@ export async function PATCH(request: Request, ctx: RouteContext) {
   // changed (so we re-probe) and we need the existing values
   // for any field the caller didn't pass.
   const { data: existing, error: fetchError } = await supabase
-    .from('whatsapp_connections')
+    .from('wa_connections')
     .select('*')
     .eq('account_id', accountId)
     .eq('id', connId)
@@ -194,7 +194,7 @@ export async function PATCH(request: Request, ctx: RouteContext) {
   // service role).
   if (updates.is_active_for_crm === true) {
     const { error: clearError } = await admin()
-      .from('whatsapp_connections')
+      .from('wa_connections')
       .update({ is_active_for_crm: false, updated_at: new Date().toISOString() })
       .eq('account_id', accountId)
       .eq('is_active_for_crm', true)
@@ -209,7 +209,7 @@ export async function PATCH(request: Request, ctx: RouteContext) {
   }
 
   const { data: row, error: updateError } = await admin()
-    .from('whatsapp_connections')
+    .from('wa_connections')
     .update(updates)
     .eq('id', connId)
     .eq('account_id', accountId)
@@ -243,7 +243,7 @@ export async function DELETE(_request: Request, ctx: RouteContext) {
 
   const supabase = await createClient()
   const { error } = await supabase
-    .from('whatsapp_connections')
+    .from('wa_connections')
     .delete()
     .eq('id', connId)
     .eq('account_id', accountId)

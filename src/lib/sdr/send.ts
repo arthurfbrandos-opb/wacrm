@@ -27,7 +27,7 @@ export async function sendText(
 
   if (opts.provider === 'uazapi') {
     // The connection bound to the contact, else the account's active one.
-    let q = admin.from('whatsapp_connections').select('*').eq('account_id', accountId)
+    let q = admin.from('wa_connections').select('*').eq('account_id', accountId)
     q = opts.connectionId ? q.eq('id', opts.connectionId) : q.eq('is_active_for_crm', true)
     const { data: conn } = await q.maybeSingle()
     if (!conn) throw new Error('no active UazAPI connection for account')
@@ -63,7 +63,7 @@ export async function resolveAccountProvider(
   accountId: string,
 ): Promise<'uazapi' | 'meta'> {
   const { data: active } = await admin
-    .from('whatsapp_connections')
+    .from('wa_connections')
     .select('id')
     .eq('account_id', accountId)
     .eq('is_active_for_crm', true)

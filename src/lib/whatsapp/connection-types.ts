@@ -1,8 +1,10 @@
 // ============================================================
-// whatsapp_connections — TypeScript DTOs.
+// wa_connections — TypeScript DTOs.
 //
-// Shape mirrors the `whatsapp_connections` table from
-// supabase/migrations/024_whatsapp_connections.sql. Two views:
+// Shape mirrors the `wa_connections` table from
+// supabase/migrations/024_whatsapp_connections.sql (created there as
+// `whatsapp_connections`; renamed to `wa_connections` in 026 to dodge
+// the legacy ns-crm table that owns the old name). Two views:
 //   * `WhatsAppConnection` — DB row as stored. Encrypted tokens
 //     are opaque ciphertext strings; the server-side route is
 //     responsible for decrypting before any external HTTP call.

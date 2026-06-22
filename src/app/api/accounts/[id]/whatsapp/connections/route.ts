@@ -57,7 +57,7 @@ function admin() {
 /**
  * Confirms the calling user is authenticated and the URL's
  * account_id is reachable. The actual role check is enforced
- * by RLS policies on `whatsapp_connections` (024 migration):
+ * by RLS policies on `wa_connections` (024 migration):
  *   - SELECT  → any account member
  *   - INSERT/UPDATE/DELETE → 'admin' role
  * So a non-admin will get a 403 from the underlying query, which
@@ -91,7 +91,7 @@ export async function GET(_request: Request, ctx: RouteContext) {
 
   const supabase = await createClient()
   const { data, error } = await supabase
-    .from('whatsapp_connections')
+    .from('wa_connections')
     .select('*')
     .eq('account_id', accountId)
     .order('created_at', { ascending: true })
@@ -171,7 +171,7 @@ export async function POST(request: Request, ctx: RouteContext) {
     // the same session would race. With service role we get a
     // single atomic batch.
     const { error: clearError } = await admin()
-      .from('whatsapp_connections')
+      .from('wa_connections')
       .update({ is_active_for_crm: false, updated_at: new Date().toISOString() })
       .eq('account_id', accountId)
       .eq('is_active_for_crm', true)
@@ -185,7 +185,7 @@ export async function POST(request: Request, ctx: RouteContext) {
   }
 
   const { data: row, error: insertError } = await admin()
-    .from('whatsapp_connections')
+    .from('wa_connections')
     .insert({
       account_id: accountId,
       provider: 'uazapi',

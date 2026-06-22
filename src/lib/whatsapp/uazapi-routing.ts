@@ -7,7 +7,7 @@ import { decrypt } from './encryption'
  * `whatsapp_config`. UazAPI has no such mapping, so we use the webhook
  * token as the tenant key instead:
  *
- *   - Each `whatsapp_connections` row stores its own `webhook_token_enc`
+ *   - Each `wa_connections` row stores its own `webhook_token_enc`
  *     (the value the operator put in the instance's webhook `?token=`).
  *     A request whose `?token=` decrypts-matches a connection is both
  *     AUTHENTICATED and ROUTED to that connection's account.
@@ -54,7 +54,7 @@ export async function resolveUazapiRoute(
   if (!queryToken) return null
 
   const { data: conns } = await admin
-    .from('whatsapp_connections')
+    .from('wa_connections')
     .select('id, account_id, webhook_token_enc, is_active_for_crm')
 
   if (!conns || conns.length === 0) return null

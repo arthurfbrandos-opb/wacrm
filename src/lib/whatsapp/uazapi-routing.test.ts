@@ -14,12 +14,12 @@ type Conn = {
   is_active_for_crm: boolean
 }
 
-// Minimal stub of the supabase service-role client. `whatsapp_connections`
+// Minimal stub of the supabase service-role client. `wa_connections`
 // awaits the select directly; `accounts` chains .eq().maybeSingle().
 function makeAdmin(conns: Conn[], owner: string | null) {
   return {
     from(table: string) {
-      if (table === 'whatsapp_connections') {
+      if (table === 'wa_connections') {
         return { select: () => Promise.resolve({ data: conns }) }
       }
       return {

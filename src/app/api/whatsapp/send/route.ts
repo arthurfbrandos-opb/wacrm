@@ -187,7 +187,7 @@ export async function POST(request: Request) {
 
       // The connection bound to the contact, else the account's active one.
       const baseConnQuery = supabase
-        .from('whatsapp_connections')
+        .from('wa_connections')
         .select('*')
         .eq('account_id', accountId)
       const { data: conn } = await (contact.connection_id
