@@ -88,6 +88,8 @@ export function ContactDealEditor({ contactId, accountId }: ContactDealEditorPro
     if (error) {
       setDeal(prev);
       toast.error("Falha ao mudar o pipeline");
+    } else {
+      toast.success("Alteração salva");
     }
   }
 
@@ -103,6 +105,8 @@ export function ContactDealEditor({ contactId, accountId }: ContactDealEditorPro
     if (error) {
       setDeal(prev);
       toast.error("Falha ao mudar o estágio");
+    } else {
+      toast.success("Alteração salva");
     }
   }
 
