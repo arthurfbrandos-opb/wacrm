@@ -256,6 +256,11 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
                     value={selectedChannelId ?? undefined}
                     onValueChange={handleChannelChange}
                     disabled={switchingChannel || channels.length < 2}
+                    // base-ui needs the value→label map so the trigger shows
+                    // the channel name instead of the raw connection id.
+                    items={Object.fromEntries(
+                      channels.map((c) => [c.id, c.label]),
+                    )}
                   >
                     <SelectTrigger className="w-full border-border bg-muted text-foreground">
                       <SelectValue placeholder="Selecionar canal" />

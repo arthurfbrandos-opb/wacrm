@@ -170,6 +170,8 @@ export function ContactDealEditor({ contactId, accountId }: ContactDealEditorPro
                 value={deal.pipeline_id}
                 onValueChange={changePipeline}
                 disabled={pipelines.length === 0}
+                // value→label map so the trigger shows the pipeline name, not its id.
+                items={Object.fromEntries(pipelines.map((p) => [p.id, p.name]))}
               >
                 <SelectTrigger className="mt-0.5 h-8 w-full border-border bg-muted text-sm">
                   <SelectValue />
@@ -191,6 +193,8 @@ export function ContactDealEditor({ contactId, accountId }: ContactDealEditorPro
                 value={deal.stage_id}
                 onValueChange={changeStage}
                 disabled={stages.length === 0}
+                // value→label map so the trigger shows the stage name, not its id.
+                items={Object.fromEntries(stages.map((s) => [s.id, s.name]))}
               >
                 <SelectTrigger className="mt-0.5 h-8 w-full border-border bg-muted text-sm">
                   <SelectValue />
