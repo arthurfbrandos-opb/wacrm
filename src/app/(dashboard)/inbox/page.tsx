@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 // Remembers the agent's show/hide choice for the desktop contact panel
 // across reloads and sessions (device-scoped, like the theme prefs).
 const CONTACT_PANEL_STORAGE_KEY = "wacrm:inbox:contact-panel-open";
+const LIST_PANEL_STORAGE_KEY = "wacrm:inbox:list-collapsed";
 
 export default function InboxPage() {
   const router = useRouter();
@@ -66,6 +67,31 @@ export default function InboxPage() {
       const next = !prev;
       try {
         localStorage.setItem(CONTACT_PANEL_STORAGE_KEY, String(next));
+      } catch {
+        // Persistence is best-effort; ignore storage failures.
+      }
+      return next;
+    });
+  }, []);
+
+  // Collapsible conversation list (lg+ only — mobile already swaps
+  // list/thread by active conversation). Same hydration-safe pattern as
+  // the contact panel: render expanded, reconcile from storage after mount.
+  const [listCollapsed, setListCollapsed] = useState(false);
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(LIST_PANEL_STORAGE_KEY);
+      if (stored !== null) setListCollapsed(stored === "true");
+    } catch {
+      // localStorage can throw in private-browsing / sandboxed contexts.
+    }
+  }, []);
+
+  const handleToggleList = useCallback(() => {
+    setListCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(LIST_PANEL_STORAGE_KEY, String(next));
       } catch {
         // Persistence is best-effort; ignore storage failures.
       }
@@ -580,6 +606,7 @@ export default function InboxPage() {
           className={cn(
             "flex h-full flex-1 lg:flex-none",
             hasActiveConv ? "hidden lg:flex" : "flex",
+            listCollapsed && "lg:hidden",
           )}
         >
           <ConversationList
@@ -621,6 +648,8 @@ export default function InboxPage() {
             onRefresh={handleManualRefresh}
             contactPanelOpen={contactPanelOpen}
             onToggleContactPanel={handleToggleContactPanel}
+            listCollapsed={listCollapsed}
+            onToggleList={handleToggleList}
           />
         </div>
 

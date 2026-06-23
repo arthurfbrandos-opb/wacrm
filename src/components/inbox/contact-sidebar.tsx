@@ -3,20 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { cn } from "@/lib/utils";
-import type { Contact, Deal, ContactNote, Tag } from "@/types";
-import {
-  Phone,
-  Mail,
-  Copy,
-  Check,
-  User,
-  Tag as TagIcon,
-  DollarSign,
-  StickyNote,
-  Plus,
-  Radio,
-} from "lucide-react";
+import type { Contact, ContactNote } from "@/types";
+import { Phone, Mail, Copy, Check, StickyNote, Plus, Radio } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -32,6 +20,9 @@ import {
   type ChannelOption,
   type UazapiConnectionLike,
 } from "@/lib/whatsapp/channel-options";
+import { ContactFieldsEditor } from "./contact-fields-editor";
+import { ContactTagsEditor } from "./contact-tags-editor";
+import { ContactDealEditor } from "./contact-deal-editor";
 import { toast } from "sonner";
 import { format } from "date-fns";
 
@@ -42,9 +33,7 @@ interface ContactSidebarProps {
 export function ContactSidebar({ contact }: ContactSidebarProps) {
   const { accountId } = useAuth();
   const [copied, setCopied] = useState(false);
-  const [deals, setDeals] = useState<Deal[]>([]);
   const [notes, setNotes] = useState<ContactNote[]>([]);
-  const [tags, setTags] = useState<(Tag & { contact_tag_id: string })[]>([]);
   const [newNote, setNewNote] = useState("");
   const [addingNote, setAddingNote] = useState(false);
   // "Canal de origem" — the registered WhatsApp channels for this account
@@ -57,48 +46,23 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
   const [channelOverride, setChannelOverride] = useState<string | null>(null);
   const [switchingChannel, setSwitchingChannel] = useState(false);
 
-  const fetchContactData = useCallback(async () => {
+  // Notes live here; tags and the deal are owned by their own child
+  // components (each fetches + writes its own slice).
+  const fetchNotes = useCallback(async () => {
     if (!contact) return;
-
     const supabase = createClient();
-
-    // Fetch deals, notes, and tags in parallel
-    const [dealsRes, notesRes, tagsRes] = await Promise.all([
-      supabase
-        .from("deals")
-        .select("*, stage:pipeline_stages(*)")
-        .eq("contact_id", contact.id)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("contact_notes")
-        .select("*")
-        .eq("contact_id", contact.id)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("contact_tags")
-        .select("id, tag_id, tags(*)")
-        .eq("contact_id", contact.id),
-    ]);
-
-    if (dealsRes.data) setDeals(dealsRes.data);
-    if (notesRes.data) setNotes(notesRes.data);
-    if (tagsRes.data) {
-      const mapped = tagsRes.data
-        .filter((ct: Record<string, unknown>) => ct.tags)
-        .map((ct: Record<string, unknown>) => ({
-          ...(ct.tags as Tag),
-          contact_tag_id: ct.id as string,
-        }));
-      setTags(mapped);
-    }
+    const { data } = await supabase
+      .from("contact_notes")
+      .select("*")
+      .eq("contact_id", contact.id)
+      .order("created_at", { ascending: false });
+    if (data) setNotes(data);
   }, [contact]);
 
-  // Load on contact change. setContactData/setTags run inside async
-  // Supabase callbacks, not synchronously in the effect body.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchContactData();
-  }, [fetchContactData]);
+    fetchNotes();
+  }, [fetchNotes]);
 
   const handleCopyPhone = useCallback(async () => {
     if (!contact?.phone) return;
@@ -312,75 +276,21 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
           {/* Divider */}
           <div className="my-4 border-t border-border" />
 
-          {/* Tags */}
-          <div>
-            <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              <TagIcon className="h-3 w-3" />
-              Tags
-            </div>
-            <div className="mt-2 flex flex-wrap gap-1">
-              {tags.length === 0 ? (
-                <p className="px-1 text-xs text-muted-foreground">No tags</p>
-              ) : (
-                tags.map((tag) => (
-                  <span
-                    key={tag.contact_tag_id}
-                    className="rounded-full px-2 py-0.5 text-[10px] font-medium"
-                    style={{
-                      backgroundColor: `${tag.color}20`,
-                      color: tag.color,
-                    }}
-                  >
-                    {tag.name}
-                  </span>
-                ))
-              )}
-            </div>
-          </div>
+          {/* Dados do contato — editable cadastro + quiz fields; UTM/origin
+              shown read-only inside the editor. */}
+          <ContactFieldsEditor contact={contact} />
 
           {/* Divider */}
           <div className="my-4 border-t border-border" />
 
-          {/* Active Deals */}
-          <div>
-            <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              <DollarSign className="h-3 w-3" />
-              Active Deals
-            </div>
-            <div className="mt-2 space-y-2">
-              {deals.length === 0 ? (
-                <p className="px-1 text-xs text-muted-foreground">No deals</p>
-              ) : (
-                deals.map((deal) => (
-                  <div
-                    key={deal.id}
-                    className="rounded-lg bg-muted px-3 py-2"
-                  >
-                    <p className="text-sm font-medium text-foreground">
-                      {deal.title}
-                    </p>
-                    <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
-                      <span>
-                        {deal.currency ?? "$"}
-                        {deal.value.toLocaleString()}
-                      </span>
-                      {deal.stage && (
-                        <span
-                          className="rounded-full px-1.5 py-0.5 text-[10px]"
-                          style={{
-                            backgroundColor: `${deal.stage.color}20`,
-                            color: deal.stage.color,
-                          }}
-                        >
-                          {deal.stage.name}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+          {/* Tags — assign existing + quick-create */}
+          <ContactTagsEditor contactId={contact.id} accountId={accountId} />
+
+          {/* Divider */}
+          <div className="my-4 border-t border-border" />
+
+          {/* Deal — 1 contact = 1 deal; migrate pipeline/stage or create */}
+          <ContactDealEditor contactId={contact.id} accountId={accountId} />
 
           {/* Divider */}
           <div className="my-4 border-t border-border" />

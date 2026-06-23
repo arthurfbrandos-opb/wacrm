@@ -24,6 +24,8 @@ import {
   RefreshCw,
   PanelRightOpen,
   PanelRightClose,
+  PanelLeftOpen,
+  PanelLeftClose,
   Bot,
 } from "lucide-react";
 import { format, isToday, isYesterday, differenceInHours } from "date-fns";
@@ -106,6 +108,13 @@ interface MessageThreadProps {
    */
   contactPanelOpen?: boolean;
   onToggleContactPanel?: () => void;
+  /**
+   * Desktop-only conversation-list collapse. Mirrors the contact-panel
+   * toggle: the page owns the state, the thread reflects it and asks the
+   * page to flip it. Optional so existing callers keep working.
+   */
+  listCollapsed?: boolean;
+  onToggleList?: () => void;
 }
 
 function formatDateSeparator(dateStr: string): string {
@@ -165,6 +174,8 @@ export function MessageThread({
   onRefresh,
   contactPanelOpen,
   onToggleContactPanel,
+  listCollapsed,
+  onToggleList,
 }: MessageThreadProps) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
@@ -858,6 +869,30 @@ export function MessageThread({
               className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground lg:hidden"
             >
               <ArrowLeft className="h-5 w-5" />
+            </button>
+          )}
+          {/* Conversation-list collapse — desktop only, mirrors the contact
+              panel toggle on the right. Reclaims width for the thread when
+              the agent just wants to read and reply. */}
+          {onToggleList && (
+            <button
+              type="button"
+              onClick={onToggleList}
+              aria-label={
+                listCollapsed ? "Mostrar lista de conversas" : "Recolher lista de conversas"
+              }
+              aria-pressed={listCollapsed}
+              title={listCollapsed ? "Mostrar lista" : "Recolher lista"}
+              className={cn(
+                "hidden h-7 w-7 flex-shrink-0 items-center justify-center rounded-md transition-colors hover:bg-muted hover:text-foreground lg:inline-flex",
+                listCollapsed ? "text-primary" : "text-muted-foreground",
+              )}
+            >
+              {listCollapsed ? (
+                <PanelLeftOpen className="h-4 w-4" />
+              ) : (
+                <PanelLeftClose className="h-4 w-4" />
+              )}
             </button>
           )}
           <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground">
