@@ -76,6 +76,8 @@ O normalizer deve: ler `EventType||event`; pegar a mensagem de `evt.message`; re
    ```
 3. Responder do número do lead → conferir no banco que entrou `customer` + o Ian respondeu (`sender_type='agent'`, `provider='uazapi'`).
 
+**Atalho engatilhado:** `scripts/e2e-live-sdr.sh <numero> [nome] [email]` faz os passos 1-2 + lê de volta o que o Ian mandou (confirm se houver booking Calendly com o email; senão chase). As respostas do lead (C1) entram sozinhas pelo webhook. Não limpa — imprime o bloco CLEANUP.
+
 ## Checklist de armadilhas
 
 - ⏳ **free.uazapi é DEMO**: instância morre em ~1h → `401` em tudo. Produção precisa instância persistente.
