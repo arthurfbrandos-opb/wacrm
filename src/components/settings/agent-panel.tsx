@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Bot, Braces, Cpu, Loader2 } from "lucide-react";
+import { AlertTriangle, Bot, Braces, Cpu, Loader2, Plus, Trash2 } from "lucide-react";
 
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -14,18 +14,27 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card";
+import {
+  BUILTIN_VARIABLES,
+  BUILTIN_NAMES,
+  isValidVariableName,
+  unknownTokens,
+  type CustomVariable,
+} from "@/lib/sdr/variables";
 import { SettingsPanelHead } from "./settings-panel-head";
 
+interface CustomField {
+  id: string;
+  field_name: string;
+}
+
 /**
- * SDR agent (Pedro) settings — the system prompt that drives the
- * pre-sales bot. This is the exact text sent to the Pedro backend
- * (`/v6/llm/reply`) as the system prompt; the lead's cadastro and the
- * live agenda slots are appended automatically at reply time. Editing
- * it here changes Pedro's behaviour on the next message.
- *
- * `sdr_config` RLS is read-only for members, so the write goes through
- * the admin-gated `/api/sdr/config` route (PUT). Non-admins get a
- * read-only view.
+ * SDR agent (Pedro) settings — the system prompt that drives the pre-sales bot,
+ * plus the variables it can interpolate. The prompt is the exact text sent to
+ * the Pedro backend (`/v6/llm/reply`); the lead cadastro + live agenda are
+ * appended automatically. `{{variables}}` written in the prompt are substituted
+ * per-lead at send time (built-ins always work; custom ones map to custom
+ * fields). Writes go through the admin-gated `/api/sdr/config` route.
  */
 export function AgentPanel() {
   const { canEditSettings, profileLoading } = useAuth();
@@ -36,6 +45,15 @@ export function AgentPanel() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  const [vars, setVars] = useState<CustomVariable[]>([]);
+  const [loadedVars, setLoadedVars] = useState("[]");
+  const [customFields, setCustomFields] = useState<CustomField[]>([]);
+  const [savingVars, setSavingVars] = useState(false);
+
+  const [newName, setNewName] = useState("");
+  const [newFieldId, setNewFieldId] = useState("");
+  const [newFallback, setNewFallback] = useState("");
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -45,13 +63,18 @@ export function AgentPanel() {
         const data = (await res.json()) as {
           system_prompt: string;
           updated_at: string | null;
+          variables: CustomVariable[];
+          custom_fields: CustomField[];
         };
         if (cancelled) return;
         setLoaded(data.system_prompt);
         setPrompt(data.system_prompt);
         setUpdatedAt(data.updated_at);
+        setVars(data.variables ?? []);
+        setLoadedVars(JSON.stringify(data.variables ?? []));
+        setCustomFields(data.custom_fields ?? []);
       } catch {
-        if (!cancelled) toast.error("Falha ao carregar o prompt do agente");
+        if (!cancelled) toast.error("Falha ao carregar o agente");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -62,8 +85,15 @@ export function AgentPanel() {
   }, []);
 
   const dirty = loaded !== null && prompt !== loaded;
+  const varsDirty = JSON.stringify(vars) !== loadedVars;
+  const readOnly = !canEditSettings || profileLoading;
 
-  async function handleSave() {
+  const unknown = useMemo(
+    () => unknownTokens(prompt, vars.map((v) => v.name)),
+    [prompt, vars],
+  );
+
+  async function handleSavePrompt() {
     if (!dirty || !prompt.trim()) return;
     setSaving(true);
     try {
@@ -73,31 +103,76 @@ export function AgentPanel() {
         body: JSON.stringify({ system_prompt: prompt }),
       });
       if (!res.ok) {
-        const { error } = (await res.json().catch(() => ({}))) as {
-          error?: string;
-        };
+        const { error } = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(error ?? String(res.status));
       }
       setLoaded(prompt);
       setUpdatedAt(new Date().toISOString());
       toast.success("Prompt do Pedro atualizado");
     } catch (e) {
-      toast.error(
-        e instanceof Error ? `Falha ao salvar: ${e.message}` : "Falha ao salvar",
-      );
+      toast.error(e instanceof Error ? `Falha ao salvar: ${e.message}` : "Falha ao salvar");
     } finally {
       setSaving(false);
     }
   }
 
-  const readOnly = !canEditSettings || profileLoading;
+  function handleAddVar() {
+    const name = newName.toLowerCase().trim();
+    if (!isValidVariableName(name)) {
+      toast.error("Nome inválido — use só letras minúsculas, números e _");
+      return;
+    }
+    if (BUILTIN_NAMES.includes(name)) {
+      toast.error(`"${name}" já é uma variável embutida`);
+      return;
+    }
+    if (vars.some((v) => v.name === name)) {
+      toast.error(`"${name}" já existe`);
+      return;
+    }
+    if (!newFieldId) {
+      toast.error("Escolha o campo customizado de origem");
+      return;
+    }
+    setVars([...vars, { name, custom_field_id: newFieldId, fallback: newFallback }]);
+    setNewName("");
+    setNewFieldId("");
+    setNewFallback("");
+  }
+
+  async function handleSaveVars() {
+    if (!varsDirty) return;
+    setSavingVars(true);
+    try {
+      const res = await fetch("/api/sdr/config", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ variables: vars }),
+      });
+      if (!res.ok) {
+        const { error } = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(error ?? String(res.status));
+      }
+      setLoadedVars(JSON.stringify(vars));
+      toast.success("Variáveis salvas");
+    } catch (e) {
+      toast.error(e instanceof Error ? `Falha ao salvar: ${e.message}` : "Falha ao salvar");
+    } finally {
+      setSavingVars(false);
+    }
+  }
+
+  const fieldName = (id: string) =>
+    customFields.find((f) => f.id === id)?.field_name ?? "campo apagado";
 
   return (
     <section className="max-w-2xl animate-in fade-in-50 duration-200">
       <SettingsPanelHead
         title="Agente SDR (Pedro)"
-        description="O prompt que comanda o pré-vendas no WhatsApp. É enviado direto ao cérebro do Pedro a cada resposta."
+        description="O prompt que comanda o pré-vendas no WhatsApp, e as variáveis que ele preenche por lead. Enviado direto ao cérebro do Pedro a cada resposta."
       />
+
+      {/* PROMPT */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-foreground">
@@ -105,10 +180,9 @@ export function AgentPanel() {
             Prompt do sistema
           </CardTitle>
           <CardDescription className="text-muted-foreground">
-            Define como o Pedro qualifica o lead e marca o diagnóstico. Os
-            dados do lead (cadastro) e os horários livres da agenda são
-            anexados automaticamente — não precisa colocar aqui. A mudança
-            vale na próxima mensagem.
+            Define como o Pedro qualifica o lead e marca o diagnóstico. Use{" "}
+            <code className="font-mono text-xs">{"{{variavel}}"}</code> pra inserir
+            dados do lead (veja abaixo). A mudança vale na próxima mensagem.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -129,6 +203,23 @@ export function AgentPanel() {
                 className="w-full rounded-lg border border-border bg-muted px-3 py-2 font-mono text-xs leading-relaxed text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-60"
               />
             )}
+            {unknown.length > 0 && (
+              <div className="flex items-start gap-2 rounded-lg border border-fn-attention/40 bg-fn-attention/10 px-3 py-2 text-xs text-foreground">
+                <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-fn-attention" />
+                <span>
+                  Você usou{" "}
+                  {unknown.map((t, i) => (
+                    <span key={t}>
+                      <code className="font-mono">{`{{${t}}}`}</code>
+                      {i < unknown.length - 1 ? ", " : ""}
+                    </span>
+                  ))}{" "}
+                  mas não {unknown.length > 1 ? "são variáveis" : "é variável"} —
+                  o Pedro vai receber esse texto literal. Crie a variável abaixo ou
+                  corrija o nome.
+                </span>
+              </div>
+            )}
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span>{prompt.length.toLocaleString("pt-BR")} caracteres</span>
               {updatedAt && (
@@ -142,14 +233,14 @@ export function AgentPanel() {
             </div>
             {!canEditSettings && !profileLoading && (
               <p className="text-xs text-muted-foreground">
-                Só admins da conta podem editar o prompt do agente.
+                Só admins da conta podem editar o agente.
               </p>
             )}
           </div>
 
           {canEditSettings && (
             <Button
-              onClick={handleSave}
+              onClick={handleSavePrompt}
               disabled={saving || !dirty || !prompt.trim()}
               className="bg-primary text-primary-foreground hover:bg-primary/90"
             >
@@ -159,53 +250,157 @@ export function AgentPanel() {
                   Salvando…
                 </>
               ) : (
-                "Salvar"
+                "Salvar prompt"
               )}
             </Button>
           )}
         </CardContent>
       </Card>
 
-      {/* Variáveis injetadas automaticamente — não vão no prompt, o sistema anexa. */}
+      {/* VARIÁVEIS */}
       <Card className="mt-4">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-foreground">
             <Braces className="size-4 text-primary" />
-            Variáveis disponíveis
+            Variáveis
           </CardTitle>
           <CardDescription className="text-muted-foreground">
-            O sistema anexa estes dados ao prompt a cada mensagem — você
-            <strong> não precisa colocá-los aqui</strong>. O Pedro usa pra
-            confirmar (nunca re-pergunta o que o lead já preencheu).
+            Escreva <code className="font-mono text-xs">{"{{nome}}"}</code> no
+            prompt — o sistema troca pelo valor daquele lead antes de enviar. Sem
+            valor, usa o fallback (nunca vai o texto cru).
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4 text-sm">
+        <CardContent className="space-y-6 text-sm">
+          {/* Built-in */}
           <div>
-            <p className="font-medium text-foreground">
-              Cadastro do lead (do formulário FAP01)
-            </p>
-            <ul className="mt-1.5 grid gap-1 text-muted-foreground sm:grid-cols-2">
-              <li>• Nome</li>
-              <li>• Empresa</li>
-              <li>• E-mail</li>
-              <li>• Qualificação (faturamento · nicho · sócio · processo · urgência)</li>
+            <p className="font-medium text-foreground">Embutidas (sempre funcionam)</p>
+            <ul className="mt-2 grid gap-1.5">
+              {BUILTIN_VARIABLES.map((v) => (
+                <li key={v.name} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                  <code className="font-mono text-xs text-primary">{`{{${v.name}}}`}</code>
+                  <span className="text-muted-foreground">— {v.label}</span>
+                  <span className="text-xs text-muted-foreground/70">ex: {v.example}</span>
+                </li>
+              ))}
             </ul>
           </div>
-          <div>
-            <p className="font-medium text-foreground">Agenda (ao vivo)</p>
-            <ul className="mt-1.5 grid gap-1 text-muted-foreground sm:grid-cols-2">
-              <li>• Data e hora atual (São Paulo)</li>
-              <li>• Horários reais livres do Arthur</li>
-            </ul>
-            <p className="mt-1.5 text-xs text-muted-foreground">
-              Quando o lead confirma um horário da lista, o Pedro agenda
-              sozinho e o link do Meet é anexado automaticamente.
+
+          {/* Custom */}
+          <div className="space-y-3">
+            <p className="font-medium text-foreground">
+              Customizadas (de campos do contato)
+            </p>
+
+            {vars.length > 0 && (
+              <ul className="space-y-2">
+                {vars.map((v) => (
+                  <li
+                    key={v.name}
+                    className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-border bg-muted/40 px-3 py-2"
+                  >
+                    <code className="font-mono text-xs text-primary">{`{{${v.name}}}`}</code>
+                    <span className="text-muted-foreground">→ {fieldName(v.custom_field_id)}</span>
+                    {v.fallback && (
+                      <span className="text-xs text-muted-foreground/70">
+                        fallback: {v.fallback}
+                      </span>
+                    )}
+                    {canEditSettings && (
+                      <button
+                        type="button"
+                        onClick={() => setVars(vars.filter((x) => x.name !== v.name))}
+                        className="ml-auto text-muted-foreground hover:text-fn-error"
+                        aria-label={`Remover ${v.name}`}
+                      >
+                        <Trash2 className="size-4" />
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {canEditSettings && customFields.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                Você ainda não tem campos customizados. Crie em{" "}
+                <strong>Settings → Fields &amp; tags</strong> pra mapear uma
+                variável a eles.
+              </p>
+            )}
+
+            {canEditSettings && customFields.length > 0 && (
+              <div className="flex flex-wrap items-end gap-2 rounded-lg border border-dashed border-border p-3">
+                <div className="grid gap-1">
+                  <Label className="text-xs text-muted-foreground">Nome</Label>
+                  <input
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    placeholder="plano_atual"
+                    className="h-9 w-40 rounded-lg border border-border bg-muted px-2.5 font-mono text-xs text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+                <div className="grid gap-1">
+                  <Label className="text-xs text-muted-foreground">Campo do contato</Label>
+                  <select
+                    value={newFieldId}
+                    onChange={(e) => setNewFieldId(e.target.value)}
+                    className="h-9 w-44 rounded-lg border border-border bg-muted px-2 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="">escolher…</option>
+                    {customFields.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.field_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="grid gap-1">
+                  <Label className="text-xs text-muted-foreground">Fallback</Label>
+                  <input
+                    value={newFallback}
+                    onChange={(e) => setNewFallback(e.target.value)}
+                    placeholder="(opcional)"
+                    className="h-9 w-32 rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+                <Button type="button" variant="outline" onClick={handleAddVar} className="h-9">
+                  <Plus className="size-4" />
+                  Adicionar
+                </Button>
+              </div>
+            )}
+
+            {canEditSettings && (
+              <Button
+                onClick={handleSaveVars}
+                disabled={savingVars || !varsDirty}
+                className="bg-primary text-primary-foreground hover:bg-primary/90"
+              >
+                {savingVars ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    Salvando…
+                  </>
+                ) : (
+                  "Salvar variáveis"
+                )}
+              </Button>
+            )}
+          </div>
+
+          {/* Auto-injected context (not tokens) */}
+          <div className="border-t border-border pt-4 text-xs text-muted-foreground">
+            <p className="font-medium text-foreground">Anexado automático (não precisa de token)</p>
+            <p className="mt-1">
+              O cadastro do lead (qualificação FAP01) e os horários reais da
+              agenda do Arthur são anexados ao prompt a cada mensagem — o Pedro
+              usa pra confirmar, nunca re-pergunta.
             </p>
           </div>
         </CardContent>
       </Card>
 
-      {/* Modelo — read-only: o backend do Pedro faz roteamento por mensagem. */}
+      {/* MODELO */}
       <Card className="mt-4">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-foreground">
@@ -229,8 +424,7 @@ export function AgentPanel() {
             <span>— saudação · slots · confirmação</span>
           </div>
           <p className="pt-1 text-xs">
-            Fallback automático se a Anthropic falhar (Max OAuth → API key →
-            gpt-4o).
+            Fallback automático se a Anthropic falhar (Max OAuth → API key → gpt-4o).
           </p>
         </CardContent>
       </Card>

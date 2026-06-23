@@ -19,6 +19,8 @@ import {
 import { sendText } from './send'
 import { notifyArthur } from './notify'
 import { SDR_PIPELINE_ID } from './ids'
+import { substituteVariables, type CustomVariable } from './variables'
+import { resolvePromptValues } from './variables-resolve'
 
 const BUBBLE_DELAY_MS = Number(process.env.BUBBLE_DELAY_MS ?? 1500)
 const BRAIN_DEBOUNCE_MS = Number(process.env.BRAIN_DEBOUNCE_MS ?? 2500)
@@ -95,13 +97,27 @@ export async function runSdrReply(args: {
     // System prompt (standalone, per account).
     const { data: cfg } = await admin
       .from('sdr_config')
-      .select('system_prompt')
+      .select('system_prompt, variables')
       .eq('account_id', accountId)
       .maybeSingle()
     if (!cfg?.system_prompt) {
       console.error('[sdr] no sdr_config.system_prompt for account', accountId)
       return
     }
+
+    // Substitute {{variables}} for this lead. No-op (and no extra queries) when
+    // the prompt has no tokens → the prompt is byte-identical to as authored.
+    const varValues = await resolvePromptValues(
+      admin,
+      accountId,
+      cfg.system_prompt,
+      (cfg.variables ?? []) as CustomVariable[],
+      contact,
+    )
+    const basePrompt =
+      Object.keys(varValues).length > 0
+        ? substituteVariables(cfg.system_prompt, varValues)
+        : cfg.system_prompt
 
     // Conversation context (last 20, chronological).
     const { data: rawDesc } = await admin
@@ -132,7 +148,7 @@ export async function runSdrReply(args: {
       .maybeSingle()
 
     const fullSystem =
-      cfg.system_prompt +
+      basePrompt +
       cadastroBlock(
         { name: contact.name, company: contact.company, email: contact.email },
         note?.note_text ?? null,
@@ -143,7 +159,7 @@ export async function runSdrReply(args: {
     const { text } = await pedro.reply(fullSystem, context)
     const { cleanText, agendarSlot, humano } = parseMarkers(text, slots)
 
-    let outText = cleanText
+    const outText = cleanText
 
     // [HUMANO] — hand off: lock the AI and ping Arthur.
     if (humano) {

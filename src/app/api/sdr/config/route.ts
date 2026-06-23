@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { isValidVariableName, BUILTIN_NAMES, type CustomVariable } from '@/lib/sdr/variables'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -65,18 +66,55 @@ export async function GET() {
   const caller = await resolveCaller()
   if (!caller) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data, error } = await supabaseAdmin()
+  const admin = supabaseAdmin()
+  const { data, error } = await admin
     .from('sdr_config')
-    .select('system_prompt, updated_at')
+    .select('system_prompt, updated_at, variables')
     .eq('account_id', caller.accountId)
     .maybeSingle()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  // Custom fields available to map variables onto.
+  const { data: fields } = await admin
+    .from('custom_fields')
+    .select('id, field_name')
+    .eq('account_id', caller.accountId)
+    .order('field_name', { ascending: true })
+
   return NextResponse.json({
     system_prompt: data?.system_prompt ?? '',
     updated_at: data?.updated_at ?? null,
+    variables: (data?.variables ?? []) as CustomVariable[],
+    custom_fields: (fields ?? []) as { id: string; field_name: string }[],
     can_edit: isAdmin(caller.role),
   })
+}
+
+/** Validate + normalise the custom-variable array against the account's fields. */
+function validateVariables(
+  raw: unknown,
+  accountFieldIds: Set<string>,
+): { ok: true; variables: CustomVariable[] } | { ok: false; error: string } {
+  if (!Array.isArray(raw)) return { ok: false, error: 'variables must be an array' }
+  const seen = new Set<string>()
+  const out: CustomVariable[] = []
+  for (const v of raw) {
+    const name = String((v as CustomVariable)?.name ?? '').toLowerCase().trim()
+    if (!isValidVariableName(name)) {
+      return { ok: false, error: `nome de variável inválido: "${name}" (use a-z, 0-9, _)` }
+    }
+    if (BUILTIN_NAMES.includes(name)) {
+      return { ok: false, error: `"${name}" é uma variável embutida — escolha outro nome` }
+    }
+    if (seen.has(name)) return { ok: false, error: `variável duplicada: "${name}"` }
+    seen.add(name)
+    const fieldId = String((v as CustomVariable)?.custom_field_id ?? '')
+    if (!accountFieldIds.has(fieldId)) {
+      return { ok: false, error: `campo customizado não encontrado para "${name}"` }
+    }
+    out.push({ name, custom_field_id: fieldId, fallback: String((v as CustomVariable)?.fallback ?? '') })
+  }
+  return { ok: true, variables: out }
 }
 
 export async function PUT(request: Request) {
@@ -86,31 +124,52 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: 'Admin role required' }, { status: 403 })
   }
 
-  let body: { system_prompt?: unknown }
+  let body: { system_prompt?: unknown; variables?: unknown }
   try {
-    body = (await request.json()) as { system_prompt?: unknown }
+    body = (await request.json()) as { system_prompt?: unknown; variables?: unknown }
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
-  const prompt = body.system_prompt
-  if (typeof prompt !== 'string' || prompt.trim().length === 0) {
-    return NextResponse.json({ error: 'system_prompt must be a non-empty string' }, { status: 400 })
-  }
-  if (prompt.length > PROMPT_MAX_CHARS) {
-    return NextResponse.json(
-      { error: `system_prompt exceeds ${PROMPT_MAX_CHARS} characters` },
-      { status: 400 },
-    )
+
+  const admin = supabaseAdmin()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const patch: Record<string, any> = { updated_at: new Date().toISOString() }
+
+  if (body.system_prompt !== undefined) {
+    const prompt = body.system_prompt
+    if (typeof prompt !== 'string' || prompt.trim().length === 0) {
+      return NextResponse.json({ error: 'system_prompt must be a non-empty string' }, { status: 400 })
+    }
+    if (prompt.length > PROMPT_MAX_CHARS) {
+      return NextResponse.json(
+        { error: `system_prompt exceeds ${PROMPT_MAX_CHARS} characters` },
+        { status: 400 },
+      )
+    }
+    patch.system_prompt = prompt
   }
 
-  const { error } = await supabaseAdmin().from('sdr_config').upsert(
-    {
-      account_id: caller.accountId,
-      system_prompt: prompt,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: 'account_id' },
-  )
+  if (body.variables !== undefined) {
+    const { data: fields } = await admin
+      .from('custom_fields')
+      .select('id')
+      .eq('account_id', caller.accountId)
+    const fieldIds = new Set(((fields ?? []) as { id: string }[]).map((f) => f.id))
+    const v = validateVariables(body.variables, fieldIds)
+    if (!v.ok) return NextResponse.json({ error: v.error }, { status: 400 })
+    patch.variables = v.variables
+  }
+
+  if (patch.system_prompt === undefined && patch.variables === undefined) {
+    return NextResponse.json({ error: 'nothing to update' }, { status: 400 })
+  }
+
+  // The account's sdr_config row is seeded; UPDATE preserves the field not sent
+  // (so saving variables alone never wipes the prompt, and vice-versa).
+  const { error } = await admin
+    .from('sdr_config')
+    .update(patch)
+    .eq('account_id', caller.accountId)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   return NextResponse.json({ ok: true })
