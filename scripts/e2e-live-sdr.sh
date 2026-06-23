@@ -14,6 +14,11 @@
 # Requisitos: ssh srv1571722.hstgr.cloud (secrets em /opt/wacrm/.env) +
 #             SUPABASE_NS_DB_URL no cofre ~/Projects/orchestrator/.env.
 # NÃO limpa nada (pode ser lead real). Pra descartar, rode o bloco CLEANUP impresso no fim.
+#
+# ⚠️ Se o número JÁ tem cadastro real, a rota FAP01 sobrescreve o `fap01_data`
+#    do contato com este payload (mínimo, sem qualificação) — por isso NÃO
+#    mandamos faturamento/nicho/etc.: assim NÃO criamos nota de qualificação e
+#    a nota real existente (que o cérebro C1 lê) é preservada. Prefira número novo.
 set -euo pipefail
 
 VPS=srv1571722.hstgr.cloud
@@ -28,7 +33,7 @@ PSQL() { psql "$SUPABASE_NS_DB_URL" -At -P pager=off "$@"; }
 echo "▸ 1/4 FAP01 lead_created ($NUM)"
 RESP=$(ssh "$VPS" "S=\$(grep '^FAP01_WEBHOOK_SECRET=' /opt/wacrm/.env | cut -d= -f2- | tr -d '\"'); \
   curl -s -X POST 'https://crm.negocio-simples.com/api/webhooks/fap01' -H \"x-webhook-secret: \$S\" -H 'content-type: application/json' \
-  -d '{\"event_type\":\"lead_created\",\"source\":\"e2e-live\",\"lead\":{\"contact_name\":\"$NAME\",\"contact_email\":\"$EMAIL\",\"contact_whatsapp\":\"$NUM\",\"faturamento_range\":\"50k-100k\",\"tem_socio\":false,\"nicho\":\"varejo\",\"processo_foco\":\"vendas\",\"urgencia\":4,\"passed_lowtier_gate\":true}}'")
+  -d '{\"event_type\":\"lead_created\",\"source\":\"e2e-live\",\"lead\":{\"contact_name\":\"$NAME\",\"contact_email\":\"$EMAIL\",\"contact_whatsapp\":\"$NUM\",\"passed_lowtier_gate\":true}}'")
 echo "  $RESP"
 CID=$(printf '%s' "$RESP" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("contact_id",""))')
 [ -n "$CID" ] || { echo "✗ sem contact_id — abortando"; exit 1; }
