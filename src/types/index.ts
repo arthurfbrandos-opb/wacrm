@@ -86,6 +86,29 @@ export interface AccountInvitation {
   accepted_by_user_id: string | null;
 }
 
+/** The FAP01 funnel payload kept on a lead's contact (migration 029):
+ *  qualification (quiz) + lead origin (UTMs/attribution). All optional —
+ *  only set for contacts that came through the FAP01 funnel. */
+export interface Fap01Data {
+  faturamento_range?: string | null;
+  nicho?: string | null;
+  tem_socio?: boolean | null;
+  processo_foco?: string | null;
+  urgencia?: number | null;
+  num_funcionarios?: string | null;
+  mql?: boolean | null;
+  funnel_stage?: string | null;
+  passed_lowtier_gate?: boolean | null;
+  company_city?: string | null;
+  company_state?: string | null;
+  source_utm_source?: string | null;
+  source_utm_medium?: string | null;
+  source_utm_campaign?: string | null;
+  source_referrer?: string | null;
+  attribution?: unknown;
+  [key: string]: unknown;
+}
+
 export interface Contact {
   id: string;
   user_id: string;
@@ -103,6 +126,9 @@ export interface Contact {
   provider?: 'meta' | 'uazapi';
   /** UazAPI connection this contact is bound to, when provider='uazapi'. */
   connection_id?: string | null;
+  /** FAP01 funnel payload (cadastro + quiz + UTMs), when the lead came
+   *  through the funnel (migration 029). */
+  fap01_data?: Fap01Data | null;
   created_at: string;
   updated_at: string;
 }

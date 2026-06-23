@@ -120,14 +120,14 @@ export async function POST(request: Request) {
   const existing = await findExistingContact(admin, accountId, phone)
   if (existing) {
     contactId = existing.id
-    const patch: Record<string, unknown> = {}
+    // Always refresh the full FAP01 payload (cadastro + quiz + UTMs); only
+    // backfill native fields that are still empty.
+    const patch: Record<string, unknown> = { fap01_data: lead }
     if (!existing.name && lead.contact_name) patch.name = lead.contact_name
     if (!existing.email && lead.contact_email) patch.email = lead.contact_email
     if (!existing.company && lead.company_name) patch.company = lead.company_name
-    if (Object.keys(patch).length) {
-      patch.updated_at = new Date().toISOString()
-      await admin.from('contacts').update(patch).eq('id', contactId)
-    }
+    patch.updated_at = new Date().toISOString()
+    await admin.from('contacts').update(patch).eq('id', contactId)
   } else {
     const { data: created, error: cErr } = await admin
       .from('contacts')
@@ -139,6 +139,7 @@ export async function POST(request: Request) {
         email: lead.contact_email || null,
         company: lead.company_name || null,
         provider: 'meta',
+        fap01_data: lead,
       })
       .select('id')
       .single()
