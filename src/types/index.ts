@@ -149,11 +149,16 @@ export interface ContactNote {
 
 export type ConversationStatus = 'open' | 'pending' | 'closed';
 
+/** Autopilot gate for the SDR agent (Pedro). 'on' = the AI answers; 'human' =
+ *  an agent took over (AI silent); 'off' = AI disabled for this conversation. */
+export type AiStatus = 'on' | 'off' | 'human';
+
 export interface Conversation {
   id: string;
   user_id: string;
   contact_id: string;
   status: ConversationStatus;
+  ai_status?: AiStatus;
   assigned_agent_id?: string;
   last_message_text?: string;
   last_message_at?: string;

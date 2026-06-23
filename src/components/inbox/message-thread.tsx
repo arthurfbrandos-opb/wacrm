@@ -10,6 +10,7 @@ import type {
   MessageReaction,
   Contact,
   ConversationStatus,
+  AiStatus,
   MessageTemplate,
   Profile,
 } from "@/types";
@@ -23,6 +24,7 @@ import {
   RefreshCw,
   PanelRightOpen,
   PanelRightClose,
+  Bot,
 } from "lucide-react";
 import { format, isToday, isYesterday, differenceInHours } from "date-fns";
 import { Badge } from "@/components/ui/badge";
@@ -133,6 +135,12 @@ const STATUS_OPTIONS: { label: string; value: ConversationStatus; color: string 
   { label: "Open", value: "open", color: "text-primary" },
   { label: "Pending", value: "pending", color: "text-amber-400" },
   { label: "Closed", value: "closed", color: "text-muted-foreground" },
+];
+
+const AI_STATUS_OPTIONS: { label: string; value: AiStatus; color: string }[] = [
+  { label: "IA respondendo", value: "on", color: "text-primary" },
+  { label: "Você assumiu", value: "human", color: "text-fn-attention" },
+  { label: "IA desligada", value: "off", color: "text-muted-foreground" },
 ];
 
 /**
@@ -572,6 +580,32 @@ export function MessageThread({
     [conversation, onStatusChange]
   );
 
+  // AI autopilot control. `ai_status` gates the SDR agent (Pedro): he only
+  // replies when 'on'. Locally mirrored so the dropdown reflects changes
+  // optimistically; the write persists and reverts on failure.
+  const [aiStatus, setAiStatus] = useState<AiStatus>(conversation?.ai_status ?? "off");
+  useEffect(() => {
+    setAiStatus(conversation?.ai_status ?? "off");
+  }, [conversation?.id, conversation?.ai_status]);
+
+  const handleAiStatusChange = useCallback(
+    async (next: AiStatus) => {
+      if (!conversation || next === aiStatus) return;
+      const prev = aiStatus;
+      setAiStatus(next);
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("conversations")
+        .update({ ai_status: next })
+        .eq("id", conversation.id);
+      if (error) {
+        setAiStatus(prev);
+        toast.error("Falha ao mudar o modo da IA");
+      }
+    },
+    [conversation, aiStatus]
+  );
+
   const handleOpenTemplates = useCallback(() => {
     setTemplateModalOpen(true);
   }, []);
@@ -798,6 +832,7 @@ export function MessageThread({
   const currentStatus = STATUS_OPTIONS.find(
     (s) => s.value === conversation.status
   );
+  const currentAi = AI_STATUS_OPTIONS.find((o) => o.value === aiStatus);
   const assignedAgentId = conversation.assigned_agent_id ?? null;
   const currentAssignee = profiles.find((p) => p.user_id === assignedAgentId);
   const assignLabel = assignedAgentId
@@ -900,6 +935,32 @@ export function MessageThread({
               />
             </button>
           )}
+
+          {/* AI autopilot dropdown — who's driving this conversation */}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              title="Quem responde esta conversa"
+              className={cn(
+                "inline-flex items-center justify-center h-7 gap-1 px-2 text-xs rounded-md border border-border hover:bg-muted",
+                currentAi?.color ?? "text-muted-foreground"
+              )}
+            >
+              <Bot className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">{currentAi?.label ?? "IA"}</span>
+              <ChevronDown className="h-3 w-3" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="border-border bg-popover">
+              {AI_STATUS_OPTIONS.map((opt) => (
+                <DropdownMenuItem
+                  key={opt.value}
+                  onClick={() => handleAiStatusChange(opt.value)}
+                  className={cn("text-sm", opt.color)}
+                >
+                  {opt.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           {/* Status dropdown */}
           <DropdownMenu>
