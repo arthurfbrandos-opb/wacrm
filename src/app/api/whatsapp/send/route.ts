@@ -185,12 +185,37 @@ export async function POST(request: Request) {
       }
     }
 
+    // Decide the outbound channel. Contacts default to provider='meta' (the
+    // FAP01 intake stamps that), but the account may have NO Meta config and
+    // only a UazAPI connection — so a manual reply to such a contact would
+    // dead-end on the Meta path ("WhatsApp not configured"). Fall back to the
+    // account's active UazAPI connection when the contact isn't explicitly
+    // UazAPI and there's no Meta config. Mirrors the SDR's resolveAccountProvider
+    // (route by the account's real channel, not the contact's default stamp).
+    let useUazapi = contact.provider === 'uazapi'
+    if (!useUazapi) {
+      const { data: metaCfg } = await supabase
+        .from('whatsapp_config')
+        .select('account_id')
+        .eq('account_id', accountId)
+        .maybeSingle()
+      if (!metaCfg) {
+        const { data: activeUaz } = await supabase
+          .from('wa_connections')
+          .select('id')
+          .eq('account_id', accountId)
+          .eq('is_active_for_crm', true)
+          .maybeSingle()
+        useUazapi = !!activeUaz
+      }
+    }
+
     // ── UazAPI outbound (non-official channel) ──────────────────────
     // Contacts on the UazAPI channel are sent through their connection's
     // instance, not the Meta Cloud API. Text only for now; media/template
     // over UazAPI is a later step. Isolated early-return so the Meta path
     // below stays untouched.
-    if (contact.provider === 'uazapi') {
+    if (useUazapi) {
       if (isMediaKind || message_type === 'template' || message_type === 'interactive') {
         return NextResponse.json(
           {
