@@ -29,9 +29,9 @@ interface CustomField {
 }
 
 /**
- * SDR agent (Pedro) settings — the system prompt that drives the pre-sales bot,
+ * SDR agent (Ian) settings — the system prompt that drives the pre-sales bot,
  * plus the variables it can interpolate. The prompt is the exact text sent to
- * the Pedro backend (`/v6/llm/reply`); the lead cadastro + live agenda are
+ * the Ian backend (`/v6/llm/reply`); the lead cadastro + live agenda are
  * appended automatically. `{{variables}}` written in the prompt are substituted
  * per-lead at send time (built-ins always work; custom ones map to custom
  * fields). Writes go through the admin-gated `/api/sdr/config` route.
@@ -108,7 +108,7 @@ export function AgentPanel() {
       }
       setLoaded(prompt);
       setUpdatedAt(new Date().toISOString());
-      toast.success("Prompt do Pedro atualizado");
+      toast.success("Prompt do Ian atualizado");
     } catch (e) {
       toast.error(e instanceof Error ? `Falha ao salvar: ${e.message}` : "Falha ao salvar");
     } finally {
@@ -168,8 +168,8 @@ export function AgentPanel() {
   return (
     <section className="max-w-2xl animate-in fade-in-50 duration-200">
       <SettingsPanelHead
-        title="Agente SDR (Pedro)"
-        description="O prompt que comanda o pré-vendas no WhatsApp, e as variáveis que ele preenche por lead. Enviado direto ao cérebro do Pedro a cada resposta."
+        title="Agente SDR (Ian)"
+        description="O prompt que comanda o pré-vendas no WhatsApp, e as variáveis que ele preenche por lead. Enviado direto ao cérebro do Ian a cada resposta."
       />
 
       {/* PROMPT */}
@@ -180,7 +180,7 @@ export function AgentPanel() {
             Prompt do sistema
           </CardTitle>
           <CardDescription className="text-muted-foreground">
-            Define como o Pedro qualifica o lead e marca o diagnóstico. Use{" "}
+            Define como o Ian qualifica o lead e marca o diagnóstico. Use{" "}
             <code className="font-mono text-xs">{"{{variavel}}"}</code> pra inserir
             dados do lead (veja abaixo). A mudança vale na próxima mensagem.
           </CardDescription>
@@ -215,7 +215,7 @@ export function AgentPanel() {
                     </span>
                   ))}{" "}
                   mas não {unknown.length > 1 ? "são variáveis" : "é variável"} —
-                  o Pedro vai receber esse texto literal. Crie a variável abaixo ou
+                  o Ian vai receber esse texto literal. Crie a variável abaixo ou
                   corrija o nome.
                 </span>
               </div>
@@ -393,7 +393,7 @@ export function AgentPanel() {
             <p className="font-medium text-foreground">Anexado automático (não precisa de token)</p>
             <p className="mt-1">
               O cadastro do lead (qualificação FAP01) e os horários reais da
-              agenda do Arthur são anexados ao prompt a cada mensagem — o Pedro
+              agenda do Arthur são anexados ao prompt a cada mensagem — o Ian
               usa pra confirmar, nunca re-pergunta.
             </p>
           </div>
@@ -408,7 +408,7 @@ export function AgentPanel() {
             Modelo
           </CardTitle>
           <CardDescription className="text-muted-foreground">
-            O modelo não é fixo: o cérebro do Pedro escolhe por mensagem
+            O modelo não é fixo: o cérebro do Ian escolhe por mensagem
             (definido no backend, não editável aqui).
           </CardDescription>
         </CardHeader>

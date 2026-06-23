@@ -31,11 +31,15 @@ export async function sendText(
     q = opts.connectionId ? q.eq('id', opts.connectionId) : q.eq('is_active_for_crm', true)
     const { data: conn } = await q.maybeSingle()
     if (!conn) throw new Error('no active UazAPI connection for account')
+    // "Digitando…" — show composing presence proportional to message
+    // length (≈35ms/char, floor 900ms, cap 4s) so Ian reads as a human.
+    const delayMs = Math.min(Math.max(text.length * 35, 900), 4000)
     return sendUazapiText({
       baseUrl: conn.base_url,
       token: decrypt(conn.access_token_enc),
       number,
       text,
+      delayMs,
     })
   }
 

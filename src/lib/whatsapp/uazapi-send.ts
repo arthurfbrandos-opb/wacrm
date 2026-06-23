@@ -14,12 +14,17 @@ export async function sendUazapiText(opts: {
   token: string
   number: string
   text: string
+  /** ms to show the "digitando…" (composing) presence before the text
+   *  lands, so Ian reads like a human typing. Omitted → no delay. */
+  delayMs?: number
 }): Promise<{ messageId: string | null }> {
   const base = opts.baseUrl.replace(/\/+$/, '')
+  const body: Record<string, unknown> = { number: opts.number, text: opts.text }
+  if (opts.delayMs && opts.delayMs > 0) body.delay = Math.round(opts.delayMs)
   const res = await fetch(`${base}/send/text`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', token: opts.token },
-    body: JSON.stringify({ number: opts.number, text: opts.text }),
+    body: JSON.stringify(body),
   })
 
   const raw = await res.text()

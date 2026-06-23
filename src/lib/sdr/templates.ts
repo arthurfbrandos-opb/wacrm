@@ -17,7 +17,7 @@ export function spDayHour(startIso: string): { ddmm: string; hour: string } {
 export function chaseBubbles(name: string): string[] {
   const n = firstName(name)
   return [
-    `Fala ${n}, Pedro da Negócio Simples aqui, tudo certo?`,
+    `Fala ${n}, Ian da Negócio Simples aqui, tudo certo?`,
     'Recebi seu cadastro aqui e queria te fazer 2 ou 3 perguntas rápidas antes de agendar nosso diagnóstico. Pode ser? Jogo rápido.',
   ]
 }
@@ -26,7 +26,7 @@ export function confirmBubbles(name: string, startIso: string): string[] {
   const n = firstName(name)
   const { ddmm, hour } = spDayHour(startIso)
   return [
-    `Fala ${n}, Pedro da Negócio Simples aqui, tudo certo?`,
+    `Fala ${n}, Ian da Negócio Simples aqui, tudo certo?`,
     `Vi que cê marcou o diagnóstico com o Arthur pra ${ddmm} às ${hour}. Tá confirmado, já tá na agenda dele.`,
     'Antes da call, queria só bater dois dados rápidos do seu cadastro contigo. Pode ser?',
   ]

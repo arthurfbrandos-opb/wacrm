@@ -79,7 +79,7 @@ export default function CalendarPage() {
           Calendário
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Reuniões agendadas (diagnósticos marcados pelo Pedro e manuais). Sincronizadas
+          Reuniões agendadas (diagnósticos marcados pelo Ian e manuais). Sincronizadas
           com o Google Agenda do Arthur.
         </p>
       </div>

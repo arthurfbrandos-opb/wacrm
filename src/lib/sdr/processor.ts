@@ -16,7 +16,7 @@ import {
   slotLabel,
   splitBubbles,
 } from './prompt'
-import { sendText } from './send'
+import { sendText, resolveAccountProvider } from './send'
 import { notifyArthur } from './notify'
 import { SDR_PIPELINE_ID } from './ids'
 import { substituteVariables, type CustomVariable } from './variables'
@@ -171,7 +171,7 @@ export async function runSdrReply(args: {
       await notifyArthur(
         admin,
         accountId,
-        `🙋 Pedro passou ${contact.name ?? `+${contact.phone}`} pra você (precisa de humano · +${contact.phone}).`,
+        `🙋 Ian passou ${contact.name ?? `+${contact.phone}`} pra você (precisa de humano · +${contact.phone}).`,
       )
     }
 
@@ -228,7 +228,10 @@ export async function runSdrReply(args: {
       return
     }
 
-    const provider = contact.provider === 'uazapi' ? 'uazapi' : 'meta'
+    // Send via the account's ACTIVE connection (not the contact's stored
+    // provider): a FAP01-migrated lead is stamped provider='meta' but the
+    // account may only have a UazAPI channel. Mirrors the C2 touch path.
+    const provider = await resolveAccountProvider(admin, accountId)
     for (let i = 0; i < bubbles.length; i++) {
       await sendText(
         admin,
