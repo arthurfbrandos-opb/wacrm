@@ -116,18 +116,30 @@ export function SettingsOverview({
     // WhatsApp connection status — slower, independent.
     (async () => {
       setWhatsappLoading(true);
-      const [row, health] = await Promise.allSettled([
+      const [row, health, uaz] = await Promise.allSettled([
         supabase
           .from('whatsapp_config')
           .select('phone_number_id')
           .eq('account_id', acctId)
           .maybeSingle(),
         fetch('/api/whatsapp/config', { cache: 'no-store' }).then((r) => r.json()),
+        // UazAPI channel: an active connection means WhatsApp IS set up even
+        // when there's no Meta `whatsapp_config` — otherwise the tile read
+        // "Not set up yet" for a UazAPI-only account already running Ian.
+        supabase
+          .from('wa_connections')
+          .select('status')
+          .eq('account_id', acctId)
+          .eq('is_active_for_crm', true)
+          .maybeSingle(),
       ]);
       if (cancelled) return;
+      const metaConfigured = row.status === 'fulfilled' && !!row.value.data?.phone_number_id;
+      const metaConnected = health.status === 'fulfilled' && !!health.value?.connected;
+      const uazapiConn = uaz.status === 'fulfilled' ? uaz.value.data : null;
       setWhatsapp({
-        configured: row.status === 'fulfilled' && !!row.value.data?.phone_number_id,
-        connected: health.status === 'fulfilled' && !!health.value?.connected,
+        configured: metaConfigured || !!uazapiConn,
+        connected: metaConnected || uazapiConn?.status === 'connected',
       });
       setWhatsappLoading(false);
     })();

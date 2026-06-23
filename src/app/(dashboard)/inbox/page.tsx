@@ -183,13 +183,28 @@ export default function InboxPage() {
         return;
       }
 
-      const { data } = await supabase
-        .from("whatsapp_config")
-        .select("status")
-        .eq("account_id", accountId)
-        .maybeSingle();
+      // The account can be connected via EITHER channel: the official Meta
+      // Cloud API (`whatsapp_config`) or a UazAPI number (`wa_connections`
+      // active + connected). Checking only Meta showed the "not connected"
+      // banner for UazAPI-only accounts even though Ian was live.
+      const [metaRes, uazRes] = await Promise.all([
+        supabase
+          .from("whatsapp_config")
+          .select("status")
+          .eq("account_id", accountId)
+          .maybeSingle(),
+        supabase
+          .from("wa_connections")
+          .select("status")
+          .eq("account_id", accountId)
+          .eq("is_active_for_crm", true)
+          .eq("status", "connected")
+          .maybeSingle(),
+      ]);
 
-      setWhatsappConnected(data?.status === "connected");
+      const metaConnected = metaRes.data?.status === "connected";
+      const uazapiConnected = !!uazRes.data;
+      setWhatsappConnected(metaConnected || uazapiConnected);
     };
 
     checkConnection();
