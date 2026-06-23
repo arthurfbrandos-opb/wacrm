@@ -166,6 +166,25 @@ export async function POST(request: Request) {
       )
     }
 
+    // A manual agent reply means the human took over this conversation —
+    // flip the SDR (Ian) out of autopilot so it stops auto-replying. Guarded
+    // on ai_status='on' so it's idempotent and never clobbers an already
+    // 'off'/'human' conversation, and a no-op write fires no realtime event.
+    // Mirrors the flow-run "pause-on-agent-send" below ("yield, human is
+    // here"). The inbox switch reflects this via the conversations realtime
+    // subscription. Called from BOTH the UazAPI and Meta success paths.
+    const relinquishAiToHuman = async () => {
+      if (conversation.ai_status !== 'on') return
+      const { error } = await supabase
+        .from('conversations')
+        .update({ ai_status: 'human' })
+        .eq('id', conversation_id)
+        .eq('ai_status', 'on')
+      if (error) {
+        console.error('[whatsapp/send] ai_status on→human failed:', error.message)
+      }
+    }
+
     // ── UazAPI outbound (non-official channel) ──────────────────────
     // Contacts on the UazAPI channel are sent through their connection's
     // instance, not the Meta Cloud API. Text only for now; media/template
@@ -251,6 +270,8 @@ export async function POST(request: Request) {
           updated_at: new Date().toISOString(),
         })
         .eq('id', conversation_id)
+
+      await relinquishAiToHuman()
 
       return NextResponse.json({
         success: true,
@@ -525,6 +546,8 @@ export async function POST(request: Request) {
         err instanceof Error ? err.message : err,
       )
     }
+
+    await relinquishAiToHuman()
 
     return NextResponse.json({
       success: true,

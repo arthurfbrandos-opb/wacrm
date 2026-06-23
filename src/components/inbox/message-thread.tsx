@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { format, isToday, isYesterday, differenceInHours } from "date-fns";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -137,11 +138,6 @@ const STATUS_OPTIONS: { label: string; value: ConversationStatus; color: string 
   { label: "Closed", value: "closed", color: "text-muted-foreground" },
 ];
 
-const AI_STATUS_OPTIONS: { label: string; value: AiStatus; color: string }[] = [
-  { label: "IA respondendo", value: "on", color: "text-primary" },
-  { label: "Você assumiu", value: "human", color: "text-fn-attention" },
-  { label: "IA desligada", value: "off", color: "text-muted-foreground" },
-];
 
 /**
  * WhatsApp-style doodle background applied to the chat area (both the
@@ -832,7 +828,6 @@ export function MessageThread({
   const currentStatus = STATUS_OPTIONS.find(
     (s) => s.value === conversation.status
   );
-  const currentAi = AI_STATUS_OPTIONS.find((o) => o.value === aiStatus);
   const assignedAgentId = conversation.assigned_agent_id ?? null;
   const currentAssignee = profiles.find((p) => p.user_id === assignedAgentId);
   const assignLabel = assignedAgentId
@@ -868,7 +863,12 @@ export function MessageThread({
           <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium text-foreground">
             {displayName.charAt(0).toUpperCase()}
           </div>
-          <div className="min-w-0">
+          {/* Name + phone are redundant when the contact panel is open (it
+              shows the same, richer). Hide them on lg+ in that case; on mobile
+              (< lg) the panel never renders, so they always show there, and on
+              desktop they return when the panel is collapsed. The avatar stays
+              as the visual anchor regardless. */}
+          <div className={cn("min-w-0", contactPanelOpen && "lg:hidden")}>
             <h2 className="truncate text-sm font-semibold text-foreground">{displayName}</h2>
             <p className="truncate text-xs text-muted-foreground">{contact.phone}</p>
           </div>
@@ -936,31 +936,44 @@ export function MessageThread({
             </button>
           )}
 
-          {/* AI autopilot dropdown — who's driving this conversation */}
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              title="Quem responde esta conversa"
-              className={cn(
-                "inline-flex items-center justify-center h-7 gap-1 px-2 text-xs rounded-md border border-border hover:bg-muted",
-                currentAi?.color ?? "text-muted-foreground"
-              )}
+          {/* AI autopilot — a switch toggles the SDR (Ian) on/off. When the
+              human has taken over (ai_status='human', set automatically on a
+              manual reply) the switch sits off and an amber "Você assumiu"
+              badge shows; flipping it back on returns the conversation to the
+              IA. */}
+          <div className="flex items-center gap-1.5">
+            {aiStatus === "human" && (
+              <Badge
+                variant="outline"
+                className="hidden gap-1 border-fn-attention/40 text-[10px] text-fn-attention sm:inline-flex"
+              >
+                Você assumiu
+              </Badge>
+            )}
+            <label
+              className="flex cursor-pointer select-none items-center gap-1.5"
+              title={
+                aiStatus === "on"
+                  ? "IA respondendo — desligue para assumir"
+                  : "IA desligada — ligue para a Ian responder"
+              }
             >
-              <Bot className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">{currentAi?.label ?? "IA"}</span>
-              <ChevronDown className="h-3 w-3" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="border-border bg-popover">
-              {AI_STATUS_OPTIONS.map((opt) => (
-                <DropdownMenuItem
-                  key={opt.value}
-                  onClick={() => handleAiStatusChange(opt.value)}
-                  className={cn("text-sm", opt.color)}
-                >
-                  {opt.label}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+              <Bot
+                className={cn(
+                  "h-3.5 w-3.5",
+                  aiStatus === "on" ? "text-primary" : "text-muted-foreground"
+                )}
+              />
+              <span className="hidden text-xs text-muted-foreground sm:inline">
+                IA
+              </span>
+              <Switch
+                checked={aiStatus === "on"}
+                onCheckedChange={(on) => handleAiStatusChange(on ? "on" : "off")}
+                aria-label="IA respondendo automaticamente"
+              />
+            </label>
+          </div>
 
           {/* Status dropdown */}
           <DropdownMenu>

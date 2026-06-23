@@ -15,9 +15,24 @@ import {
   DollarSign,
   StickyNote,
   Plus,
+  Radio,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  buildChannelOptions,
+  currentChannelId,
+  type ChannelOption,
+  type UazapiConnectionLike,
+} from "@/lib/whatsapp/channel-options";
+import { toast } from "sonner";
 import { format } from "date-fns";
 
 interface ContactSidebarProps {
@@ -32,6 +47,15 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
   const [tags, setTags] = useState<(Tag & { contact_tag_id: string })[]>([]);
   const [newNote, setNewNote] = useState("");
   const [addingNote, setAddingNote] = useState(false);
+  // "Canal de origem" — the registered WhatsApp channels for this account
+  // (official Meta + each UazAPI number) and which one this contact replies
+  // through. `channelOverride` holds the optimistic selection after a switch;
+  // it resets when the contact changes so we fall back to the DB-derived
+  // current channel.
+  const [channels, setChannels] = useState<ChannelOption[]>([]);
+  const [connections, setConnections] = useState<UazapiConnectionLike[]>([]);
+  const [channelOverride, setChannelOverride] = useState<string | null>(null);
+  const [switchingChannel, setSwitchingChannel] = useState(false);
 
   const fetchContactData = useCallback(async () => {
     if (!contact) return;
@@ -115,6 +139,78 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
     setAddingNote(false);
   }, [contact, newNote, accountId]);
 
+  // Load the account's WhatsApp channels (official Meta + each UazAPI
+  // number). RLS lets any account member SELECT both tables. setState runs
+  // inside async callbacks, not synchronously in the effect body.
+  useEffect(() => {
+    if (!accountId) return;
+    let cancelled = false;
+    (async () => {
+      const supabase = createClient();
+      const [cfgRes, connRes] = await Promise.all([
+        supabase
+          .from("whatsapp_config")
+          .select("phone_number_id")
+          .eq("account_id", accountId)
+          .maybeSingle(),
+        supabase
+          .from("wa_connections")
+          .select("id, label, base_url, is_active_for_crm")
+          .eq("account_id", accountId)
+          .order("created_at", { ascending: true }),
+      ]);
+      if (cancelled) return;
+      const conns = (connRes.data ?? []) as UazapiConnectionLike[];
+      setConnections(conns);
+      setChannels(
+        buildChannelOptions({
+          metaConfigured: !!cfgRes.data?.phone_number_id,
+          connections: conns,
+        }),
+      );
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [accountId]);
+
+  // Drop the optimistic selection when switching contacts so the selector
+  // reflects the new contact's stored channel.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setChannelOverride(null);
+  }, [contact?.id]);
+
+  const selectedChannelId =
+    channelOverride ?? currentChannelId(contact ?? {}, channels, connections);
+
+  const handleChannelChange = useCallback(
+    async (id: string | null) => {
+      if (!contact || !id) return;
+      const opt = channels.find((c) => c.id === id);
+      if (!opt) return;
+      setChannelOverride(id);
+      setSwitchingChannel(true);
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("contacts")
+        .update({
+          provider: opt.provider,
+          connection_id: opt.connectionId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", contact.id);
+      setSwitchingChannel(false);
+      if (error) {
+        setChannelOverride(null);
+        toast.error("Falha ao mudar o canal de origem");
+      } else {
+        toast.success(`Origem alterada para ${opt.label}`);
+      }
+    },
+    [channels, contact],
+  );
+
   if (!contact) {
     return (
       <div className="flex h-full w-70 items-center justify-center border-l border-border bg-card">
@@ -173,6 +269,45 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
               </div>
             )}
           </div>
+
+          {/* Canal de origem — which registered number/channel answers this
+              contact. Governs both manual replies and the IA (Ian). Only
+              rendered when the account has at least one channel configured;
+              the picker is disabled when there's only one (nothing to switch
+              to) or a switch is in flight. */}
+          {channels.length > 0 && (
+            <>
+              <div className="my-4 border-t border-border" />
+              <div>
+                <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  <Radio className="h-3 w-3" />
+                  Canal de origem
+                </div>
+                <div className="mt-2">
+                  <Select
+                    value={selectedChannelId ?? undefined}
+                    onValueChange={handleChannelChange}
+                    disabled={switchingChannel || channels.length < 2}
+                  >
+                    <SelectTrigger className="w-full border-border bg-muted text-foreground">
+                      <SelectValue placeholder="Selecionar canal" />
+                    </SelectTrigger>
+                    <SelectContent className="border-border bg-popover">
+                      {channels.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>
+                          {c.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="mt-1 px-1 text-[10px] text-muted-foreground">
+                    Por onde as respostas (suas e da Ian) saem para este
+                    contato.
+                  </p>
+                </div>
+              </div>
+            </>
+          )}
 
           {/* Divider */}
           <div className="my-4 border-t border-border" />
