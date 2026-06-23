@@ -11,7 +11,7 @@
  *   - real `sdr_touches` table instead of a crm_kv blob.
  */
 import { pedroFromEnv } from '@/lib/pkg/pedro/client'
-import { sendText, resolveAccountProvider } from './send'
+import { sendText, resolveAccountProvider, setAccountPresence } from './send'
 import {
   listDueTouches,
   resolveTouch,
@@ -42,9 +42,15 @@ async function sendAndPersist(
   phone: string,
   bubbles: string[],
 ): Promise<void> {
-  for (let i = 0; i < bubbles.length; i++) {
-    await sendText(admin, accountId, { provider, phone }, bubbles[i])
-    if (i < bubbles.length - 1) await new Promise((r) => setTimeout(r, BUBBLE_DELAY_MS))
+  // Online only while responding (human-like).
+  if (provider === 'uazapi') await setAccountPresence(admin, accountId, true)
+  try {
+    for (let i = 0; i < bubbles.length; i++) {
+      await sendText(admin, accountId, { provider, phone }, bubbles[i])
+      if (i < bubbles.length - 1) await new Promise((r) => setTimeout(r, BUBBLE_DELAY_MS))
+    }
+  } finally {
+    if (provider === 'uazapi') await setAccountPresence(admin, accountId, false)
   }
   const fullText = bubbles.join('\n\n')
   await admin.from('messages').insert({

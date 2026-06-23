@@ -56,3 +56,49 @@ export async function sendUazapiText(opts: {
 
   return { messageId }
 }
+
+/**
+ * Best-effort: set the instance's GLOBAL presence (online/offline) so the lead
+ * sees "online" in the chat header. On this uazapiGO build this is a separate
+ * endpoint (`/instance/presence`) — the `/send/text` delay does NOT broadcast
+ * it. Presence is cosmetic, so failures are swallowed (logged), never thrown.
+ */
+export async function setUazapiPresence(opts: {
+  baseUrl: string
+  token: string
+  available: boolean
+}): Promise<void> {
+  const base = opts.baseUrl.replace(/\/+$/, '')
+  try {
+    await fetch(`${base}/instance/presence`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', token: opts.token },
+      body: JSON.stringify({ presence: opts.available ? 'available' : 'unavailable' }),
+    })
+  } catch (e) {
+    console.error('[uazapi] setPresence failed (ignored)', e)
+  }
+}
+
+/**
+ * Best-effort: show "digitando…" (composing) to `number` for `delayMs`. On this
+ * uazapiGO build the typing indicator comes from `/message/presence`, NOT the
+ * `/send/text` delay. Cosmetic → failures swallowed.
+ */
+export async function sendUazapiComposing(opts: {
+  baseUrl: string
+  token: string
+  number: string
+  delayMs: number
+}): Promise<void> {
+  const base = opts.baseUrl.replace(/\/+$/, '')
+  try {
+    await fetch(`${base}/message/presence`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', token: opts.token },
+      body: JSON.stringify({ number: opts.number, presence: 'composing', delay: Math.round(opts.delayMs) }),
+    })
+  } catch (e) {
+    console.error('[uazapi] composing failed (ignored)', e)
+  }
+}

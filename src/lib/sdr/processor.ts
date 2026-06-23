@@ -16,7 +16,7 @@ import {
   slotLabel,
   splitBubbles,
 } from './prompt'
-import { sendText, resolveAccountProvider } from './send'
+import { sendText, resolveAccountProvider, setAccountPresence } from './send'
 import { notifyArthur } from './notify'
 import { SDR_PIPELINE_ID } from './ids'
 import { substituteVariables, type CustomVariable } from './variables'
@@ -232,14 +232,21 @@ export async function runSdrReply(args: {
     // provider): a FAP01-migrated lead is stamped provider='meta' but the
     // account may only have a UazAPI channel. Mirrors the C2 touch path.
     const provider = await resolveAccountProvider(admin, accountId)
-    for (let i = 0; i < bubbles.length; i++) {
-      await sendText(
-        admin,
-        accountId,
-        { provider, phone: contact.phone, connectionId: contact.connection_id },
-        bubbles[i],
-      )
-      if (i < bubbles.length - 1) await new Promise((r) => setTimeout(r, BUBBLE_DELAY_MS))
+    // Appear "online" only while actually responding (human-like): mark
+    // available before the bubbles, back to unavailable after.
+    if (provider === 'uazapi') await setAccountPresence(admin, accountId, true)
+    try {
+      for (let i = 0; i < bubbles.length; i++) {
+        await sendText(
+          admin,
+          accountId,
+          { provider, phone: contact.phone, connectionId: contact.connection_id },
+          bubbles[i],
+        )
+        if (i < bubbles.length - 1) await new Promise((r) => setTimeout(r, BUBBLE_DELAY_MS))
+      }
+    } finally {
+      if (provider === 'uazapi') await setAccountPresence(admin, accountId, false)
     }
 
     const fullText = bubbles.join('\n\n')

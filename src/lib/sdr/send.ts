@@ -5,7 +5,7 @@
  * Routes to the contact's channel: UazAPI instance or Meta Cloud API.
  */
 import { decrypt } from '@/lib/whatsapp/encryption'
-import { sendUazapiText } from '@/lib/whatsapp/uazapi-send'
+import { sendUazapiText, sendUazapiComposing, setUazapiPresence } from '@/lib/whatsapp/uazapi-send'
 import { sendTextMessage } from '@/lib/whatsapp/meta-api'
 import { sanitizePhoneForMeta } from '@/lib/whatsapp/phone-utils'
 
@@ -31,16 +31,16 @@ export async function sendText(
     q = opts.connectionId ? q.eq('id', opts.connectionId) : q.eq('is_active_for_crm', true)
     const { data: conn } = await q.maybeSingle()
     if (!conn) throw new Error('no active UazAPI connection for account')
-    // "Digitando…" — show composing presence proportional to message
-    // length (≈35ms/char, floor 900ms, cap 4s) so Ian reads as a human.
-    const delayMs = Math.min(Math.max(text.length * 35, 900), 4000)
-    return sendUazapiText({
-      baseUrl: conn.base_url,
-      token: decrypt(conn.access_token_enc),
-      number,
-      text,
-      delayMs,
-    })
+    const baseUrl = conn.base_url
+    const token = decrypt(conn.access_token_enc)
+    // "Digitando…" — on this uazapiGO build the typing indicator comes from
+    // /message/presence (the /send/text delay does NOT show it). Emit composing
+    // for a beat proportional to the text (≈35ms/char, floor 900ms, cap 4s),
+    // wait it out so the lead sees typing, then send.
+    const typingMs = Math.min(Math.max(text.length * 35, 900), 4000)
+    await sendUazapiComposing({ baseUrl, token, number, delayMs: typingMs })
+    await new Promise((r) => setTimeout(r, typingMs))
+    return sendUazapiText({ baseUrl, token, number, text })
   }
 
   const { data: config } = await admin
@@ -73,4 +73,25 @@ export async function resolveAccountProvider(
     .eq('is_active_for_crm', true)
     .maybeSingle()
   return active ? 'uazapi' : 'meta'
+}
+
+/**
+ * Set the account's active UazAPI instance online/offline (best-effort). Lets
+ * the SDR appear "online" only while it's actually responding (set true before
+ * the bubbles, false after). No-op when there's no active UazAPI connection
+ * (e.g. Meta-only account) — Meta has no presence concept here.
+ */
+export async function setAccountPresence(
+  admin: Admin,
+  accountId: string,
+  available: boolean,
+): Promise<void> {
+  const { data: conn } = await admin
+    .from('wa_connections')
+    .select('base_url, access_token_enc')
+    .eq('account_id', accountId)
+    .eq('is_active_for_crm', true)
+    .maybeSingle()
+  if (!conn) return
+  await setUazapiPresence({ baseUrl: conn.base_url, token: decrypt(conn.access_token_enc), available })
 }

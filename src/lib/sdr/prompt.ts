@@ -136,20 +136,45 @@ export function parseMarkers(text: string, slots: PedroSlot[] | null): ParsedMar
 }
 
 /**
- * Split a reply into at most 4 WhatsApp bubbles (on blank lines), with an
- * optional Meet-link bubble appended as its own final message.
+ * Split a reply into short WhatsApp bubbles: first on blank lines, then on
+ * sentence boundaries inside each paragraph — so a reply where the model
+ * grouped 2-3 sentences into one paragraph still goes out as separate bubbles
+ * (feels human, not a wall of text). Tiny trailing fragments merge back.
+ * Capped at 6, with an optional Meet-link bubble appended as the final one.
  */
 export function splitBubbles(text: string, meetLink = ''): string[] {
-  let bubbles = text
-    ? text
-        .split(/\n{2,}/)
-        .map((s) => s.trim())
-        .filter(Boolean)
-    : []
-  if (bubbles.length > 4) {
-    const tail = bubbles.splice(3).join('\n\n')
-    bubbles[3] = tail
+  const MAX = 6
+  const paras = (text ?? '')
+    .split(/\n{2,}/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+
+  const bubbles: string[] = []
+  for (const p of paras) bubbles.push(...splitIntoSentences(p))
+
+  if (bubbles.length > MAX) {
+    const tail = bubbles.splice(MAX - 1).join(' ')
+    bubbles[MAX - 1] = tail
   }
   if (meetLink) bubbles.push(`🔗 Link da call (Google Meet): ${meetLink}`)
   return bubbles
+}
+
+/**
+ * One paragraph → one bubble per sentence. Splits only on a sentence ender
+ * followed by whitespace (so decimals like "3.8" or "30min" stay intact), and
+ * merges a very short fragment (e.g. "Né?", "Pode?") back into the previous
+ * bubble so we don't ship one-word messages.
+ */
+function splitIntoSentences(paragraph: string): string[] {
+  const parts = paragraph
+    .split(/(?<=[.!?…])\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+  const out: string[] = []
+  for (const s of parts) {
+    if (out.length > 0 && s.length < 15) out[out.length - 1] += ' ' + s
+    else out.push(s)
+  }
+  return out.length > 0 ? out : [paragraph]
 }

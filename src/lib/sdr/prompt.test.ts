@@ -108,10 +108,31 @@ describe('splitBubbles', () => {
   it('splits on blank lines', () => {
     expect(splitBubbles('a\n\nb\n\nc')).toEqual(['a', 'b', 'c'])
   })
-  it('caps at 4 bubbles, folding the rest into the 4th', () => {
-    const b = splitBubbles('1\n\n2\n\n3\n\n4\n\n5')
-    expect(b).toHaveLength(4)
-    expect(b[3]).toBe('4\n\n5')
+  it('splits a multi-sentence paragraph into one bubble per sentence', () => {
+    expect(splitBubbles('Primeira frase aqui. Segunda frase aqui.')).toEqual([
+      'Primeira frase aqui.',
+      'Segunda frase aqui.',
+    ])
+  })
+  it('keeps two questions as separate bubbles', () => {
+    expect(
+      splitBubbles('Pensa em automatizar prospecção ou follow-up? Ou tá explorando ainda?'),
+    ).toEqual(['Pensa em automatizar prospecção ou follow-up?', 'Ou tá explorando ainda?'])
+  })
+  it('merges a tiny trailing fragment back into the previous bubble', () => {
+    expect(splitBubbles('Beleza, saquei tudo certo. Né?')).toEqual([
+      'Beleza, saquei tudo certo. Né?',
+    ])
+  })
+  it('does not split decimals or times (period not followed by space)', () => {
+    expect(splitBubbles('Custa R$3.8 e leva 30min no total.')).toEqual([
+      'Custa R$3.8 e leva 30min no total.',
+    ])
+  })
+  it('caps at 6 bubbles, folding the rest into the last', () => {
+    const b = splitBubbles('1\n\n2\n\n3\n\n4\n\n5\n\n6\n\n7')
+    expect(b).toHaveLength(6)
+    expect(b[5]).toBe('6 7')
   })
   it('appends the meet link as its own final bubble', () => {
     const b = splitBubbles('confirmado', 'https://meet.google.com/abc')

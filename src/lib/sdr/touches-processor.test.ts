@@ -8,6 +8,7 @@ vi.mock('@/lib/pkg/pedro/client', () => ({
 vi.mock('./send', () => ({
   sendText: vi.fn(async () => ({ messageId: 'm1' })),
   resolveAccountProvider: vi.fn(async () => 'uazapi'),
+  setAccountPresence: vi.fn(async () => {}),
 }))
 vi.mock('./touches', () => ({
   listDueTouches: vi.fn(),
