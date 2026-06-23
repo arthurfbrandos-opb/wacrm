@@ -10,9 +10,13 @@ import type {
   Conversation,
   Deal,
   DealStatus,
+  Pipeline,
   PipelineStage,
   Profile,
 } from "@/types";
+
+/** A pipeline with its stages, as loaded for the pipeline/stage selectors. */
+type PipelineWithStages = Pipeline & { stages: PipelineStage[] };
 import {
   Sheet,
   SheetContent,
@@ -59,7 +63,9 @@ export function DealForm({
   const [value, setValue] = useState("");
   const [currency, setCurrency] = useState(defaultCurrency);
   const [contactId, setContactId] = useState("");
+  const [selectedPipelineId, setSelectedPipelineId] = useState(pipelineId);
   const [stageId, setStageId] = useState("");
+  const [pipelines, setPipelines] = useState<PipelineWithStages[]>([]);
   const [assignedTo, setAssignedTo] = useState("");
   const [expectedCloseDate, setExpectedCloseDate] = useState("");
   const [notes, setNotes] = useState("");
@@ -88,6 +94,7 @@ export function DealForm({
       // contact_id is nullable when the contact has been deleted
       // (migration 004: ON DELETE SET NULL). "" means "no selection".
       setContactId(deal.contact_id ?? "");
+      setSelectedPipelineId(deal.pipeline_id);
       setStageId(deal.stage_id);
       setAssignedTo(deal.assigned_to ?? "");
       setExpectedCloseDate(deal.expected_close_date ?? "");
@@ -97,12 +104,13 @@ export function DealForm({
       setValue("");
       setCurrency(defaultCurrency);
       setContactId("");
+      setSelectedPipelineId(pipelineId);
       setStageId(defaultStageId || stages[0]?.id || "");
       setAssignedTo("");
       setExpectedCloseDate("");
       setNotes("");
     }
-  }, [open, deal, defaultStageId, stages, defaultCurrency]);
+  }, [open, deal, defaultStageId, stages, defaultCurrency, pipelineId]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   // Load supporting data once the sheet is open
@@ -110,13 +118,23 @@ export function DealForm({
     if (!open) return;
     let cancelled = false;
     (async () => {
-      const [c, p] = await Promise.all([
+      const [c, p, pl] = await Promise.all([
         supabase.from("contacts").select("*").order("name"),
         supabase.from("profiles").select("*").order("full_name"),
+        supabase
+          .from("pipelines")
+          .select("*, stages:pipeline_stages(*)")
+          .order("name"),
       ]);
       if (cancelled) return;
       setContacts((c.data ?? []) as Contact[]);
       setProfiles((p.data ?? []) as Profile[]);
+      // Sort each pipeline's stages by position (nested order isn't guaranteed).
+      const loaded = ((pl.data ?? []) as PipelineWithStages[]).map((pipe) => ({
+        ...pipe,
+        stages: [...(pipe.stages ?? [])].sort((a, b) => a.position - b.position),
+      }));
+      setPipelines(loaded);
     })();
     return () => {
       cancelled = true;
@@ -149,6 +167,19 @@ export function DealForm({
     };
   }, [open, contactId, supabase]);
 
+  // Stages for the currently-selected pipeline. Falls back to the prop (the
+  // board's current pipeline) until the full pipeline list finishes loading.
+  const currentStages =
+    pipelines.find((p) => p.id === selectedPipelineId)?.stages ?? stages;
+
+  // Switching pipeline invalidates the old stage — move to the new pipeline's
+  // first stage so we never save a stage that belongs to another pipeline.
+  function handlePipelineChange(newPipelineId: string) {
+    setSelectedPipelineId(newPipelineId);
+    const next = pipelines.find((p) => p.id === newPipelineId)?.stages ?? [];
+    setStageId(next[0]?.id ?? "");
+  }
+
   async function handleSave() {
     if (!title.trim() || !contactId || !stageId) {
       toast.error("Title, contact, and stage are required");
@@ -161,7 +192,7 @@ export function DealForm({
       value: parseFloat(value) || 0,
       currency,
       contact_id: contactId,
-      pipeline_id: pipelineId,
+      pipeline_id: selectedPipelineId,
       stage_id: stageId,
       assigned_to: assignedTo || null,
       notes: notes.trim() || null,
@@ -333,19 +364,38 @@ export function DealForm({
               />
             </div>
 
-            <div className="grid gap-2">
-              <Label className="text-muted-foreground">Stage</Label>
-              <select
-                value={stageId}
-                onChange={(e) => setStageId(e.target.value)}
-                className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary"
-              >
-                {stages.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-2">
+                <Label className="text-muted-foreground">Pipeline</Label>
+                <select
+                  value={selectedPipelineId}
+                  onChange={(e) => handlePipelineChange(e.target.value)}
+                  className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary"
+                >
+                  {pipelines.length === 0 && (
+                    <option value={selectedPipelineId}>Carregando…</option>
+                  )}
+                  {pipelines.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid gap-2">
+                <Label className="text-muted-foreground">Stage</Label>
+                <select
+                  value={stageId}
+                  onChange={(e) => setStageId(e.target.value)}
+                  className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary"
+                >
+                  {currentStages.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div className="grid gap-2">
