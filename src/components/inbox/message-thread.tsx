@@ -230,8 +230,30 @@ export function MessageThread({
     };
   }, []);
 
-  // 24-hour session timer
+  // Does this account have an OFFICIAL Meta channel? The 24h customer-service
+  // window is a Meta-only rule — it must NOT gate UazAPI conversations (Baileys
+  // has no window; you can always send free-form). We enforce it only when
+  // there's a Meta config AND this contact is on the Meta channel.
+  const [hasMetaConfig, setHasMetaConfig] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    createClient()
+      .from("whatsapp_config")
+      .select("phone_number_id")
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled) setHasMetaConfig(!!data?.phone_number_id);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // 24-hour session timer — Meta official channel only.
   const sessionInfo = useMemo(() => {
+    const isOfficialMeta = hasMetaConfig && contact?.provider !== "uazapi";
+    // UazAPI / accounts without a Meta config: no window, always free to send.
+    if (!isOfficialMeta) return { expired: false, remaining: "" };
     if (!messages.length) return { expired: false, remaining: "" };
 
     // Find last customer message
@@ -255,7 +277,7 @@ export function MessageThread({
         : `${Math.floor(hoursLeft * 60)}m remaining`;
 
     return { expired, remaining };
-  }, [messages]);
+  }, [messages, hasMetaConfig, contact?.provider]);
 
   // Store latest callback in a ref so fetchMessages doesn't need to
   // depend on `onMessagesLoaded` — otherwise parent re-renders cause
@@ -909,16 +931,18 @@ export function MessageThread({
           </div>
           {/* Session timer badge — hidden on the narrowest phones so
               the name + back arrow keep their room. */}
-          <Badge
-            variant="outline"
-            className={cn(
-              "ml-1 hidden gap-1 border-border text-[10px] sm:inline-flex sm:ml-2",
-              sessionInfo.expired ? "text-red-400" : "text-primary"
-            )}
-          >
-            <Clock className="h-3 w-3" />
-            {sessionInfo.remaining}
-          </Badge>
+          {sessionInfo.remaining && (
+            <Badge
+              variant="outline"
+              className={cn(
+                "ml-1 hidden gap-1 border-border text-[10px] sm:inline-flex sm:ml-2",
+                sessionInfo.expired ? "text-red-400" : "text-primary"
+              )}
+            >
+              <Clock className="h-3 w-3" />
+              {sessionInfo.remaining}
+            </Badge>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
