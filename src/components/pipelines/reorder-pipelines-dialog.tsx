@@ -83,12 +83,12 @@ export function ReorderPipelinesDialog({
 
     setSaving(false);
     if (results.some((r) => r.error)) {
-      toast.error("Failed to save the new order");
+      toast.error("Falha ao salvar a nova ordem");
       return;
     }
     onReordered();
     onOpenChange(false);
-    toast.success("Order updated");
+    toast.success("Ordem atualizada");
   }
 
   return (
@@ -96,7 +96,7 @@ export function ReorderPipelinesDialog({
       <DialogContent className="sm:max-w-md bg-popover border-border">
         <DialogHeader>
           <DialogTitle className="text-popover-foreground">
-            Reorder pipelines
+            Reordenar funis
           </DialogTitle>
         </DialogHeader>
 
@@ -125,14 +125,14 @@ export function ReorderPipelinesDialog({
             onClick={() => onOpenChange(false)}
             className="border-border text-muted-foreground hover:bg-muted"
           >
-            Cancel
+            Cancelar
           </Button>
           <Button
             onClick={handleSave}
             disabled={saving}
             className="bg-primary text-primary-foreground hover:bg-primary/90"
           >
-            {saving ? "Saving..." : "Save order"}
+            {saving ? "Salvando..." : "Salvar ordem"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -161,7 +161,7 @@ function SortablePipelineRow({ pipeline }: { pipeline: Pipeline }) {
         {...attributes}
         {...listeners}
         className="cursor-grab touch-none text-muted-foreground hover:text-foreground active:cursor-grabbing"
-        aria-label="Drag to reorder"
+        aria-label="Arrastar para reordenar"
       >
         <GripVertical className="h-4 w-4" />
       </button>

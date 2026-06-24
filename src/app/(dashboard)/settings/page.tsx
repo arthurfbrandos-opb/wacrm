@@ -67,11 +67,11 @@ export default function SettingsPage() {
     <div>
       <div>
         <h1 className="font-mono text-2xl font-bold tracking-tight text-foreground">
-          <span className="text-primary">▸</span> settings
+          <span className="text-primary">▸</span> configurações
         </h1>
         <p className="mt-1 font-mono text-sm text-muted-foreground">
-          # everything in one place — your account and your workspace. pick a
-          section to manage it.
+          # tudo em um lugar — sua conta e seu workspace. escolha uma seção pra
+          gerenciar.
         </p>
       </div>
 

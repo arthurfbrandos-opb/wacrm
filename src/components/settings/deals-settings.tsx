@@ -50,7 +50,7 @@ export function DealsSettings() {
       .update({ default_currency: selected })
       .eq("id", accountId);
     if (error) {
-      toast.error("Failed to save default currency");
+      toast.error("Falha ao salvar a moeda padrão");
       setSaving(false);
       return;
     }
@@ -58,22 +58,22 @@ export function DealsSettings() {
     // and every total pick it up without a full reload.
     await refreshProfile();
     setSaving(false);
-    toast.success("Default currency updated");
+    toast.success("Moeda padrão atualizada");
   }
 
   return (
     <section className="max-w-2xl animate-in fade-in-50 duration-200">
       <SettingsPanelHead
-        title="Deals & currency"
-        description="The currency used for new deals and for pipeline and dashboard totals."
+        title="Negócios e moeda"
+        description="A moeda usada nos novos negócios e nos totais do pipeline e do painel."
       />
       <TerminalWindow title="settings/deals">
         <p className="border-b border-border px-5 py-2 font-mono text-xs text-muted-foreground">
-          # new deals default to this currency; pipeline and dashboard totals are shown in it. existing deals keep the currency they were saved with.
+          # novos negócios usam esta moeda por padrão; os totais do pipeline e do painel são exibidos nela. negócios existentes mantêm a moeda com que foram salvos.
         </p>
         <div className="space-y-4 p-5">
           <div className="grid gap-2 sm:max-w-xs">
-            <Label className="text-muted-foreground">Currency</Label>
+            <Label className="text-muted-foreground">Moeda</Label>
             <select
               value={selected}
               onChange={(e) => setSelected(e.target.value)}
@@ -88,7 +88,7 @@ export function DealsSettings() {
             </select>
             {!canEditSettings && (
               <p className="text-xs text-muted-foreground">
-                Only account admins can change the default currency.
+                Apenas administradores da conta podem alterar a moeda padrão.
               </p>
             )}
           </div>
@@ -102,10 +102,10 @@ export function DealsSettings() {
               {saving ? (
                 <>
                   <Loader2 className="size-4 animate-spin" />
-                  Saving...
+                  Salvando…
                 </>
               ) : (
-                "Save"
+                "Salvar"
               )}
             </Button>
           )}

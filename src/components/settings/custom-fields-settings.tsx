@@ -19,12 +19,12 @@ export function CustomFieldsSettings() {
       action={
         <SettingsChip variant="admin" className="font-mono text-xs font-medium">
           <Shield />
-          Admin
+          Administrador
         </SettingsChip>
       }
     >
       <p className="border-b border-border px-5 py-2 font-mono text-xs text-muted-foreground">
-        # extra contact fields (e.g. zip code, lead source). they appear on every contact and in the &quot;update contact field&quot; automation action.
+        # campos extras de contato (ex.: CEP, origem do lead). aparecem em todos os contatos e na ação de automação &quot;atualizar campo do contato&quot;.
       </p>
       <div className="p-5">
         <CustomFieldsPanel />

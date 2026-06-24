@@ -22,7 +22,7 @@ export function PipelineDonut({ data, loading, currency }: PipelineDonutProps) {
       bodyClassName="flex flex-col"
     >
       <p className="border-b border-border px-5 py-2 font-mono text-xs text-muted-foreground">
-        # open deals by stage
+        # negócios abertos por etapa
       </p>
 
       <div className="flex flex-1 flex-col p-5">
@@ -31,8 +31,8 @@ export function PipelineDonut({ data, loading, currency }: PipelineDonutProps) {
         ) : data.stages.length === 0 ? (
           <EmptyState
             icon={GitBranch}
-            title="No open deals yet"
-            hint="Create deals in Pipelines to see stage breakdowns here."
+            title="Nenhum negócio aberto ainda"
+            hint="Crie negócios em Funis para ver a distribuição por etapa aqui."
           />
         ) : (
           <>
@@ -47,7 +47,7 @@ export function PipelineDonut({ data, loading, currency }: PipelineDonutProps) {
                   />
                   <span className="flex-1 truncate text-muted-foreground">{s.name}</span>
                   <span className="text-muted-foreground tabular-nums">
-                    {s.dealCount} deal{s.dealCount === 1 ? '' : 's'}
+                    {s.dealCount} negócio{s.dealCount === 1 ? '' : 's'}
                   </span>
                   <span className="w-20 text-right text-muted-foreground tabular-nums">
                     {formatCurrencyShort(s.totalValue, currency)}
@@ -98,7 +98,7 @@ function Donut({ data, currency }: { data: PipelineDonutData; currency: string }
 
   return (
     <div className="flex items-center justify-center">
-      <svg viewBox={`0 0 ${size} ${size}`} className="h-48 w-48" role="img" aria-label="Pipeline value by stage">
+      <svg viewBox={`0 0 ${size} ${size}`} className="h-48 w-48" role="img" aria-label="Valor do funil por etapa">
         {/* background ring */}
         <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--muted)" strokeWidth={ringWidth} />
         {segments.map((seg) => (
@@ -118,7 +118,7 @@ function Donut({ data, currency }: { data: PipelineDonutData; currency: string }
           textAnchor="middle"
           className="fill-muted-foreground text-[11px]"
         >
-          Total
+          Total  {/* "Total" is universal — kept in both langs */}
         </text>
         <text
           x={cx}

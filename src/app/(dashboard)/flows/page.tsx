@@ -56,9 +56,9 @@ interface FlowRow {
 }
 
 const STATUS_LABELS: Record<FlowRow["status"], string> = {
-  draft: "Draft",
-  active: "Active",
-  archived: "Archived",
+  draft: "Rascunho",
+  active: "Ativo",
+  archived: "Arquivado",
 };
 
 const STATUS_COLORS: Record<FlowRow["status"], string> = {
@@ -101,7 +101,7 @@ export default function FlowsPage() {
           fetch("/api/flows/templates"),
         ]);
         if (!flowsRes.ok) {
-          throw new Error(`Failed to load flows: ${flowsRes.status}`);
+          throw new Error(`Falha ao carregar fluxos: ${flowsRes.status}`);
         }
         const flowsJson = (await flowsRes.json()) as { flows: FlowRow[] };
         if (!cancelled) setFlows(flowsJson.flows ?? []);
@@ -116,7 +116,7 @@ export default function FlowsPage() {
       } catch (err) {
         if (!cancelled) {
           console.error(err);
-          toast.error("Couldn't load flows.");
+          toast.error("Não foi possível carregar os fluxos.");
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -140,14 +140,14 @@ export default function FlowsPage() {
           trigger_config: { keywords: [] },
         }),
       });
-      if (!res.ok) throw new Error(`Create failed: ${res.status}`);
+      if (!res.ok) throw new Error(`Falha ao criar: ${res.status}`);
       const json = (await res.json()) as { flow: FlowRow };
       setCreateOpen(false);
       setNewName("");
       router.push(`/flows/${json.flow.id}`);
     } catch (err) {
       console.error(err);
-      toast.error("Couldn't create flow.");
+      toast.error("Não foi possível criar o fluxo.");
     } finally {
       setCreating(false);
     }
@@ -163,13 +163,13 @@ export default function FlowsPage() {
       });
       if (!res.ok) {
         const json = await res.json().catch(() => ({}));
-        throw new Error(json.error ?? `Clone failed: ${res.status}`);
+        throw new Error(json.error ?? `Falha ao clonar: ${res.status}`);
       }
       const json = (await res.json()) as { flow: FlowRow };
       setCreateOpen(false);
       router.push(`/flows/${json.flow.id}`);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Clone failed";
+      const msg = err instanceof Error ? err.message : "Falha ao clonar";
       toast.error(msg);
     } finally {
       setCreating(false);
@@ -178,17 +178,17 @@ export default function FlowsPage() {
 
   async function handleDelete(flow: FlowRow) {
     const yes = window.confirm(
-      `Delete "${flow.name}"? Any active runs will end immediately.`,
+      `Excluir "${flow.name}"? Quaisquer execuções ativas serão encerradas imediatamente.`,
     );
     if (!yes) return;
     try {
       const res = await fetch(`/api/flows/${flow.id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error(`Delete failed: ${res.status}`);
+      if (!res.ok) throw new Error(`Falha ao excluir: ${res.status}`);
       setFlows((prev) => prev.filter((f) => f.id !== flow.id));
-      toast.success("Flow deleted.");
+      toast.success("Fluxo excluído.");
     } catch (err) {
       console.error(err);
-      toast.error("Couldn't delete flow.");
+      toast.error("Não foi possível excluir o fluxo.");
     }
   }
 
@@ -211,16 +211,16 @@ export default function FlowsPage() {
             </span>
           </div>
           <p className="mt-1 text-sm font-mono text-muted-foreground">
-            # build branching, button-driven whatsapp conversations.
+            # crie conversas whatsapp ramificadas e interativas com botões.
           </p>
         </div>
         <GatedButton
           canAct={canCreate}
-          gateReason="create flows"
+          gateReason="criar fluxos"
           onClick={() => setCreateOpen(true)}
         >
           <Plus className="h-4 w-4" />
-          New flow
+          Novo fluxo
         </GatedButton>
       </header>
 
@@ -251,16 +251,16 @@ export default function FlowsPage() {
             sm-scoped 384px wins at every real desktop breakpoint. */}
         <DialogContent className="sm:max-w-4xl bg-popover text-popover-foreground">
           <DialogHeader>
-            <DialogTitle>Create a new flow</DialogTitle>
+            <DialogTitle>Criar um novo fluxo</DialogTitle>
             <DialogDescription className="text-muted-foreground">
-              Start from a template or build from scratch.
+              Comece a partir de um modelo ou crie do zero.
             </DialogDescription>
           </DialogHeader>
 
           {templates.length > 0 && (
             <div className="space-y-3">
               <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                Start from a template
+                Começar a partir de um modelo
               </p>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {templates.map((t) => {
@@ -281,7 +281,7 @@ export default function FlowsPage() {
                         {t.description}
                       </span>
                       <span className="mt-auto border-t border-border pt-2 text-[11px] text-muted-foreground">
-                        {t.node_count} {t.node_count === 1 ? "node" : "nodes"}
+                        {t.node_count} {t.node_count === 1 ? "nó" : "nós"}
                       </span>
                     </button>
                   );
@@ -292,12 +292,12 @@ export default function FlowsPage() {
 
           <div className="space-y-2 border-t border-border pt-4">
             <p className="text-xs uppercase tracking-wide text-muted-foreground">
-              Or start blank
+              Ou comece em branco
             </p>
             <Input
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              placeholder="e.g. Welcome menu"
+              placeholder="ex: Menu de boas-vindas"
               className="bg-muted"
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleCreate();
@@ -311,11 +311,11 @@ export default function FlowsPage() {
               onClick={() => setCreateOpen(false)}
               disabled={creating}
             >
-              Cancel
+              Cancelar
             </Button>
             <Button onClick={handleCreate} disabled={!newName.trim() || creating}>
               {creating && <Loader2 className="h-4 w-4 animate-spin" />}
-              Create blank flow
+              Criar fluxo em branco
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -337,12 +337,11 @@ function EmptyState({
         <Workflow className="h-6 w-6 text-muted-foreground" />
       </div>
       <h2 className="mt-4 text-base font-medium text-foreground">
-        No flows yet
+        Nenhum fluxo ainda
       </h2>
       <p className="mt-1 max-w-md text-sm text-muted-foreground">
-        Build your first conversation — a welcome menu, an order lookup, an FAQ
-        bot. Customers tap buttons; the bot routes them to the right answer (or
-        the right agent).
+        Crie sua primeira conversa — um menu de boas-vindas, uma consulta de pedido, um bot de FAQ.
+        Os clientes tocam nos botões; o bot os direciona para a resposta certa (ou o agente certo).
       </p>
       <GatedButton
         canAct={canCreate}
@@ -351,7 +350,7 @@ function EmptyState({
         className="mt-5"
       >
         <Plus className="h-4 w-4" />
-        Create your first flow
+        Criar seu primeiro fluxo
       </GatedButton>
     </div>
   );
@@ -401,14 +400,14 @@ function FlowCard({
       <div className="mt-4 flex items-center gap-3 text-[11px] text-muted-foreground">
         <span className="inline-flex items-center gap-1">
           <MessageSquare className="h-3 w-3" />
-          {flow.execution_count} {flow.execution_count === 1 ? "run" : "runs"}
+          {flow.execution_count} {flow.execution_count === 1 ? "execução" : "execuções"}
         </span>
       </div>
 
       <div className="mt-4 flex items-center justify-end gap-2 border-t border-border pt-3">
         <Button variant="ghost" size="sm" onClick={onEdit}>
           <Pencil className="h-3.5 w-3.5" />
-          Edit
+          Editar
         </Button>
         <Button
           variant="ghost"
@@ -417,7 +416,7 @@ function FlowCard({
           className="text-red-400 hover:bg-red-500/10 hover:text-red-300"
         >
           <Trash2 className="h-3.5 w-3.5" />
-          Delete
+          Excluir
         </Button>
       </div>
     </div>
@@ -429,11 +428,11 @@ function describeTrigger(flow: FlowRow): string {
     const keywords = Array.isArray(flow.trigger_config.keywords)
       ? (flow.trigger_config.keywords as string[])
       : [];
-    if (keywords.length === 0) return "Triggers on keyword (none set)";
-    return `Triggers on: ${keywords.join(", ")}`;
+    if (keywords.length === 0) return "Gatilho por palavra-chave (nenhuma definida)";
+    return `Gatilho em: ${keywords.join(", ")}`;
   }
   if (flow.trigger_type === "first_inbound_message") {
-    return "Triggers on a contact's first-ever inbound message";
+    return "Gatilho na primeira mensagem de um contato";
   }
-  return "Manual trigger";
+  return "Gatilho manual";
 }

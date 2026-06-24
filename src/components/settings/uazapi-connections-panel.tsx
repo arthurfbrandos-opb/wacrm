@@ -83,14 +83,14 @@ export function UazapiConnectionsPanel() {
       );
       const json = await res.json();
       if (!res.ok) {
-        setError(json.error ?? 'Failed to load connections');
+        setError(json.error ?? 'Falha ao carregar as conexões');
         setConnections([]);
         return;
       }
       setConnections((json.connections ?? []).map(toPublicConnection));
     } catch (err) {
       console.error('load connections failed', err);
-      setError('Could not reach the connections endpoint.');
+      setError('Não foi possível alcançar o endpoint de conexões.');
     } finally {
       setStatus('idle');
     }
@@ -116,13 +116,13 @@ export function UazapiConnectionsPanel() {
       );
       const json = await res.json();
       if (!res.ok) {
-        toast.error(json.error ?? 'Failed to create connection');
+        toast.error(json.error ?? 'Falha ao criar a conexão');
         return;
       }
       toast.success(
         json.connection?.status === 'connected'
-          ? 'Connection created and reachable.'
-          : 'Connection saved, but the probe could not reach it. Check the URL/token.',
+          ? 'Conexão criada e acessível.'
+          : 'Conexão salva, mas a sondagem não conseguiu alcançá-la. Verifique a URL e o token.',
       );
       await load(accountId);
     } finally {
@@ -144,13 +144,13 @@ export function UazapiConnectionsPanel() {
       );
       const json = await res.json();
       if (!res.ok) {
-        toast.error(json.error ?? 'Failed to toggle connection');
+        toast.error(json.error ?? 'Falha ao alternar a conexão');
         return;
       }
       toast.success(
         conn.is_active_for_crm
-          ? 'Connection deactivated. Inbound events will be ignored.'
-          : 'Connection activated. Inbound events will be processed.',
+          ? 'Conexão desativada. Eventos de entrada serão ignorados.'
+          : 'Conexão ativada. Eventos de entrada serão processados.',
       );
       await load(accountId);
     } finally {
@@ -162,7 +162,7 @@ export function UazapiConnectionsPanel() {
     if (!accountId) return;
       if (
       !confirm(
-        `Remove the connection "${conn.label}"? This deletes the stored token.`,
+        `Remover a conexão "${conn.label}"? Isso excluirá o token armazenado.`,
       )
     ) {
       return;
@@ -175,10 +175,10 @@ export function UazapiConnectionsPanel() {
       );
       const json = await res.json();
       if (!res.ok) {
-        toast.error(json.error ?? 'Failed to delete connection');
+        toast.error(json.error ?? 'Falha ao excluir a conexão');
         return;
       }
-      toast.success('Connection removed.');
+      toast.success('Conexão removida.');
       await load(accountId);
     } finally {
       setStatus('idle');
@@ -201,11 +201,11 @@ export function UazapiConnectionsPanel() {
       );
       const json = await res.json();
       if (!res.ok) {
-        toast.error(json.error ?? 'Probe failed');
+        toast.error(json.error ?? 'Sondagem falhou');
         return;
       }
       toast.success(
-        `Status: ${json.connection?.status ?? 'unknown'}`,
+        `Status: ${json.connection?.status ?? 'desconhecido'}`,
       );
       await load(accountId);
     } finally {
@@ -223,7 +223,7 @@ export function UazapiConnectionsPanel() {
     <section className="animate-in fade-in-50 duration-200">
       <SettingsPanelHead
         title="WhatsApp · UazAPI"
-        description="Connect one or more UazAPI instances to this workspace. Each connection stores its own endpoint and token; only one can be active for the CRM at a time."
+        description="Conecte uma ou mais instâncias UazAPI a este workspace. Cada conexão armazena seu próprio endpoint e token; apenas uma pode estar ativa para o CRM por vez."
         action={
           <AddConnectionDialog
             disabled={status === 'saving'}
@@ -237,14 +237,14 @@ export function UazapiConnectionsPanel() {
           <Zap className="mt-0.5 size-4 shrink-0 text-primary" />
           <div className="min-w-0 flex-1">
             <AlertTitle className="mb-1 text-foreground">
-              Webhook URL
+              URL do Webhook
             </AlertTitle>
             <AlertDescription className="text-muted-foreground">
-              Configure this URL in your UazAPI dashboard for the events
+              Configure esta URL no painel do UazAPI para os eventos
               <code className="mx-1 rounded bg-muted px-1 text-xs">
                 messages.upsert
               </code>
-              and
+              e
               <code className="mx-1 rounded bg-muted px-1 text-xs">
                 messages.update
               </code>
@@ -255,9 +255,8 @@ export function UazapiConnectionsPanel() {
               {webhookUrl ? '?token=<UAZAPI_WEBHOOK_TOKEN>' : ''}
             </code>
             <p className="mt-2 text-xs text-muted-foreground">
-              The <code>UAZAPI_WEBHOOK_TOKEN</code> is set per deployment in
-              Vercel env vars — share it with whoever configures the UazAPI
-              dashboard.
+              O <code>UAZAPI_WEBHOOK_TOKEN</code> é definido por deploy nas
+              variáveis de ambiente do Vercel — compartilhe com quem configurar o painel do UazAPI.
             </p>
           </div>
         </div>
@@ -266,7 +265,7 @@ export function UazapiConnectionsPanel() {
       {error && (
         <Alert className="mb-4 border-red-600/40 bg-red-950/30">
           <XCircle className="size-4 text-red-400" />
-          <AlertTitle className="text-red-200">Failed to load</AlertTitle>
+          <AlertTitle className="text-red-200">Falha ao carregar</AlertTitle>
           <AlertDescription className="text-red-100/80 text-sm">
             {error}
           </AlertDescription>
@@ -276,7 +275,7 @@ export function UazapiConnectionsPanel() {
       <TerminalWindow title="settings/whatsapp/connections">
         <div className="p-6">
           <p className="mb-4 font-mono text-xs text-muted-foreground">
-            # one row per UazAPI instance — the active one routes inbound events into the CRM
+            # uma linha por instância UazAPI — a ativa roteia eventos de entrada para o CRM
           </p>
           {isLoading && connections.length === 0 ? (
             <div className="flex items-center justify-center py-10">
@@ -288,11 +287,11 @@ export function UazapiConnectionsPanel() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
+                  <TableHead>Nome</TableHead>
                   <TableHead>Endpoint</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Active for CRM</TableHead>
-                  <TableHead className="w-[160px] text-right">Actions</TableHead>
+                  <TableHead>Ativa para o CRM</TableHead>
+                  <TableHead className="w-[160px] text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -320,8 +319,8 @@ function EmptyState() {
     <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
       <Power className="size-6 text-muted-foreground" />
       <p className="text-sm text-muted-foreground">
-        No connections yet. Click <strong>Add connection</strong> to wire up
-        your first UazAPI instance.
+        Nenhuma conexão ainda. Clique em <strong>Adicionar conexão</strong> para configurar
+        sua primeira instância UazAPI.
       </p>
     </div>
   );
@@ -367,7 +366,7 @@ function ConnectionRow({
             variant="ghost"
             onClick={onTest}
             disabled={busy}
-            title="Re-check status"
+            title="Verificar status novamente"
           >
             <RefreshCcw className="size-4" />
           </Button>
@@ -376,7 +375,7 @@ function ConnectionRow({
             variant="ghost"
             onClick={onDelete}
             disabled={busy}
-            title="Remove"
+            title="Remover"
             className="text-red-500 hover:text-red-600"
           >
             <Trash2 className="size-4" />
@@ -394,7 +393,7 @@ function StatusBadge({ status }: { status: WhatsAppConnectionPublic['status'] })
         variant="outline"
         className="border-emerald-500/50 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
       >
-        <CheckCircle2 className="mr-1 size-3" /> Connected
+        <CheckCircle2 className="mr-1 size-3" /> Conectado
       </Badge>
     );
   }
@@ -404,7 +403,7 @@ function StatusBadge({ status }: { status: WhatsAppConnectionPublic['status'] })
         variant="outline"
         className="border-red-500/50 bg-red-500/10 text-red-700 dark:text-red-300"
       >
-        <XCircle className="mr-1 size-3" /> Failed
+        <XCircle className="mr-1 size-3" /> Falhou
       </Badge>
     );
   }
@@ -413,7 +412,7 @@ function StatusBadge({ status }: { status: WhatsAppConnectionPublic['status'] })
       variant="outline"
       className="border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-300"
     >
-      <Loader2 className="mr-1 size-3" /> Unknown
+      <Loader2 className="mr-1 size-3" /> Desconhecido
     </Badge>
   );
 }
@@ -441,7 +440,7 @@ function AddConnectionDialog({
 
   async function handleSubmit() {
     if (!name.trim() || !baseUrl.trim() || !token.trim()) {
-      toast.error('Name, endpoint and token are all required.');
+      toast.error('Nome, endpoint e token são obrigatórios.');
       return;
     }
     setSubmitting(true);
@@ -463,31 +462,31 @@ function AddConnectionDialog({
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger>
         <Button disabled={disabled}>
-          <Plus className="size-4" /> Add connection
+          <Plus className="size-4" /> Adicionar conexão
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Add UazAPI connection</DialogTitle>
+          <DialogTitle>Adicionar conexão UazAPI</DialogTitle>
           <DialogDescription>
-            We&apos;ll probe the endpoint with your token and store it encrypted.
+            Vamos sondar o endpoint com seu token e armazená-lo de forma criptografada.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="conn-name">Name</Label>
+            <Label htmlFor="conn-name">Nome</Label>
             <Input
               id="conn-name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Loja Principal · UazAPI"
+              placeholder="ex.: Loja Principal · UazAPI"
               autoComplete="off"
             />
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="conn-url">Endpoint (base URL)</Label>
+            <Label htmlFor="conn-url">Endpoint (URL base)</Label>
             <Input
               id="conn-url"
               value={baseUrl}
@@ -497,14 +496,14 @@ function AddConnectionDialog({
               inputMode="url"
             />
             <p className="text-xs text-muted-foreground">
-              No trailing slash. The probe will hit{' '}
+              Sem barra no final. A sondagem acessará{' '}
               <code className="rounded bg-muted px-1">&lt;base_url&gt;</code>{' '}
-              with your token.
+              com seu token.
             </p>
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="conn-token">API token</Label>
+            <Label htmlFor="conn-token">Token da API</Label>
             <div className="flex gap-2">
               <Input
                 id="conn-token"
@@ -520,29 +519,29 @@ function AddConnectionDialog({
                 variant="outline"
                 size="icon"
                 onClick={() => setShowToken((v) => !v)}
-                title={showToken ? 'Hide token' : 'Show token'}
+                title={showToken ? 'Ocultar token' : 'Mostrar token'}
               >
                 {showToken ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Stored encrypted with <code>ENCRYPTION_KEY</code>; never returned
-              to the client.
+              Armazenado criptografado com <code>ENCRYPTION_KEY</code>; nunca retornado
+              ao cliente.
             </p>
           </div>
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)} disabled={submitting}>
-            Cancel
+            Cancelar
           </Button>
           <Button onClick={handleSubmit} disabled={submitting}>
             {submitting ? (
               <>
-                <Loader2 className="size-4 animate-spin" /> Saving…
+                <Loader2 className="size-4 animate-spin" /> Salvando…
               </>
             ) : (
-              <>Save & probe</>
+              <>Salvar e sondar</>
             )}
           </Button>
         </DialogFooter>

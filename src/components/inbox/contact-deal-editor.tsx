@@ -87,7 +87,7 @@ export function ContactDealEditor({ contactId, accountId }: ContactDealEditorPro
       .eq("id", deal.id);
     if (error) {
       setDeal(prev);
-      toast.error("Falha ao mudar o pipeline");
+      toast.error("Falha ao mudar o funil");
     } else {
       toast.success("Alteração salva");
     }
@@ -104,7 +104,7 @@ export function ContactDealEditor({ contactId, accountId }: ContactDealEditorPro
       .eq("id", deal.id);
     if (error) {
       setDeal(prev);
-      toast.error("Falha ao mudar o estágio");
+      toast.error("Falha ao mudar a etapa");
     } else {
       toast.success("Alteração salva");
     }
@@ -115,7 +115,7 @@ export function ContactDealEditor({ contactId, accountId }: ContactDealEditorPro
     const pipeline = pipelines[0];
     const firstStage = pipeline?.stages[0];
     if (!pipeline || !firstStage) {
-      toast.error("Crie um pipeline primeiro em Pipelines");
+      toast.error("Crie um funil primeiro em Funis");
       return;
     }
     setBusy(true);
@@ -131,7 +131,7 @@ export function ContactDealEditor({ contactId, accountId }: ContactDealEditorPro
         contact_id: contactId,
         pipeline_id: pipeline.id,
         stage_id: firstStage.id,
-        title: "Novo deal",
+        title: "Novo negócio",
         value: 0,
         currency: "BRL",
         status: "open",
@@ -140,18 +140,18 @@ export function ContactDealEditor({ contactId, accountId }: ContactDealEditorPro
       .single();
     setBusy(false);
     if (error || !data) {
-      toast.error("Falha ao criar o deal");
+      toast.error("Falha ao criar o negócio");
       return;
     }
     setDeal(data as Deal);
-    toast.success("Deal criado");
+    toast.success("Negócio criado");
   }
 
   return (
     <div>
       <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
         <DollarSign className="h-3 w-3" />
-        Deal
+        Negócio
       </div>
       <div className="mt-2">
         {loading ? (
@@ -162,13 +162,13 @@ export function ContactDealEditor({ contactId, accountId }: ContactDealEditorPro
             disabled={busy}
             className="w-full rounded-md border border-border px-2 py-1.5 text-xs text-foreground hover:bg-muted disabled:opacity-50"
           >
-            {busy ? "Criando…" : "Criar deal"}
+            {busy ? "Criando…" : "Criar negócio"}
           </button>
         ) : (
           <div className="space-y-2">
             <label className="block px-1">
               <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                Pipeline
+                Funil
               </span>
               <Select
                 value={deal.pipeline_id}
@@ -191,7 +191,7 @@ export function ContactDealEditor({ contactId, accountId }: ContactDealEditorPro
             </label>
             <label className="block px-1">
               <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                Estágio
+                Etapa
               </span>
               <Select
                 value={deal.stage_id}

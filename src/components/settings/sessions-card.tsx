@@ -29,12 +29,12 @@ export function SessionsCard() {
       // triggers the usual redirect.
       const { error } = await supabase.auth.signOut({ scope: 'global' });
       if (error) {
-        toast.error(`Sign-out failed: ${error.message}`);
+        toast.error(`Falha ao sair: ${error.message}`);
         return;
       }
       window.location.href = '/login';
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Unknown error';
+      const msg = err instanceof Error ? err.message : 'Erro desconhecido';
       toast.error(msg);
     } finally {
       setSigningOut(false);
@@ -45,7 +45,7 @@ export function SessionsCard() {
     <>
       <TerminalWindow title="settings/security/sessions">
         <p className="border-b border-border px-5 py-2 font-mono text-xs text-muted-foreground">
-          # sign out of every device where you&apos;re logged in — useful if you lost a laptop or shared your password.
+          # sair de todos os dispositivos onde você está conectado — útil se perdeu um notebook ou compartilhou sua senha.
         </p>
         <div className="p-5">
           <Button
@@ -54,7 +54,7 @@ export function SessionsCard() {
             onClick={() => setOpen(true)}
           >
             <LogOut className="size-4" />
-            Sign out of all devices
+            Sair de todos os dispositivos
           </Button>
         </div>
       </TerminalWindow>
@@ -62,11 +62,11 @@ export function SessionsCard() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Sign out everywhere?</DialogTitle>
+            <DialogTitle>Sair em todos os lugares?</DialogTitle>
             <DialogDescription>
-              Every device logged into this account will be signed out and
-              will need to log in again. You will be redirected to the login
-              page.
+              Todos os dispositivos conectados a esta conta serão desconectados
+              e precisarão entrar novamente. Você será redirecionado para a página
+              de login.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -76,16 +76,16 @@ export function SessionsCard() {
               onClick={() => setOpen(false)}
               disabled={signingOut}
             >
-              Cancel
+              Cancelar
             </Button>
             <Button type="button" onClick={onConfirm} disabled={signingOut}>
               {signingOut ? (
                 <>
                   <Loader2 className="size-4 animate-spin" />
-                  Signing out…
+                  Saindo…
                 </>
               ) : (
-                'Sign out everywhere'
+                'Sair em todos os lugares'
               )}
             </Button>
           </DialogFooter>
