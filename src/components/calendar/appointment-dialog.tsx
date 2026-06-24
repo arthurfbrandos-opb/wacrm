@@ -80,6 +80,9 @@ export function AppointmentDialog({
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // Two-click inline confirm instead of window.confirm (which ignores the
+  // dark theme and isn't keyboard/screen-reader friendly).
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const isEdit = !!appointment;
 
@@ -87,6 +90,7 @@ export function AppointmentDialog({
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!open) return;
+    setConfirmDelete(false);
     if (appointment) {
       const { date: d, time: t } = isoToSpParts(appointment.scheduled_at);
       setContactId(appointment.contact_id);
@@ -174,7 +178,10 @@ export function AppointmentDialog({
 
   async function handleDelete() {
     if (!appointment) return;
-    if (!confirm("Excluir este agendamento?")) return;
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
     setDeleting(true);
     const { error } = await supabase
       .from("appointments")
@@ -205,7 +212,7 @@ export function AppointmentDialog({
             <select
               value={contactId}
               onChange={(e) => setContactId(e.target.value)}
-              className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+              className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus-visible:border-primary focus-visible:ring-1 focus-visible:ring-primary"
             >
               <option value="">Selecione um contato</option>
               {contacts.map((c) => (
@@ -223,7 +230,7 @@ export function AppointmentDialog({
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus-visible:border-primary focus-visible:ring-1 focus-visible:ring-primary"
               />
             </div>
             <div className="grid gap-2">
@@ -232,7 +239,7 @@ export function AppointmentDialog({
                 type="time"
                 value={time}
                 onChange={(e) => setTime(e.target.value)}
-                className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus-visible:border-primary focus-visible:ring-1 focus-visible:ring-primary"
               />
             </div>
           </div>
@@ -243,7 +250,7 @@ export function AppointmentDialog({
               <select
                 value={dealId}
                 onChange={(e) => setDealId(e.target.value)}
-                className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                className="h-9 w-full rounded-lg border border-border bg-muted px-2.5 text-sm text-foreground outline-none focus-visible:border-primary focus-visible:ring-1 focus-visible:ring-primary"
               >
                 <option value="">Nenhum</option>
                 {deals.map((d) => (
@@ -272,10 +279,18 @@ export function AppointmentDialog({
               variant="outline"
               onClick={handleDelete}
               disabled={deleting || saving}
-              className="border-border text-red-400 hover:bg-red-500/10 hover:text-red-400"
+              className={
+                confirmDelete
+                  ? "border-red-500/40 bg-red-500/10 text-red-300 hover:bg-red-500/20 hover:text-red-300"
+                  : "border-border text-red-400 hover:bg-red-500/10 hover:text-red-400"
+              }
             >
               <Trash2 className="h-4 w-4" />
-              {deleting ? "Excluindo..." : "Excluir"}
+              {deleting
+                ? "Excluindo..."
+                : confirmDelete
+                  ? "Confirmar exclusão"
+                  : "Excluir"}
             </Button>
           ) : (
             <span />

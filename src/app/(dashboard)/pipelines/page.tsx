@@ -7,6 +7,7 @@ import { PipelineBoard } from "@/components/pipelines/pipeline-board";
 import { PipelineSettings } from "@/components/pipelines/pipeline-settings";
 import { ReorderPipelinesDialog } from "@/components/pipelines/reorder-pipelines-dialog";
 import { DealForm } from "@/components/pipelines/deal-form";
+import { DealDetailDialog } from "@/components/pipelines/deal-detail-dialog";
 import { PipelineAnalytics } from "@/components/pipelines/pipeline-analytics";
 import { Button } from "@/components/ui/button";
 import {
@@ -67,6 +68,9 @@ export default function PipelinesPage() {
   // Deal form state is lifted here so both the top-bar "Add Deal" and
   // the per-column "+" trigger the same Sheet.
   const [dealFormOpen, setDealFormOpen] = useState(false);
+  // Opening an existing card uses the richer detail dialog (contact + cadastro
+  // tabs); the "Adicionar negócio" CTA still uses the lean creation Sheet.
+  const [dealDetailOpen, setDealDetailOpen] = useState(false);
   const [editingDeal, setEditingDeal] = useState<Deal | null>(null);
   const [defaultStageId, setDefaultStageId] = useState<string>("");
 
@@ -245,7 +249,7 @@ export default function PipelinesPage() {
   const handleEditDeal = useCallback((deal: Deal) => {
     setEditingDeal(deal);
     setDefaultStageId(deal.stage_id);
-    setDealFormOpen(true);
+    setDealDetailOpen(true);
   }, []);
 
   async function handleCreatePipeline() {
@@ -382,7 +386,7 @@ export default function PipelinesPage() {
           <GatedButton
             variant="outline"
             canAct={canEditSettings}
-            gateReason="create pipelines"
+            gateReason="criar funis"
             onClick={() => setNewPipelineOpen(true)}
             className="border-border bg-card text-foreground hover:bg-muted"
           >
@@ -391,7 +395,7 @@ export default function PipelinesPage() {
           </GatedButton>
           <GatedButton
             canAct={canCreateDeals}
-            gateReason="create deals"
+            gateReason="criar negócios"
             disabled={!selectedPipelineId || stages.length === 0}
             onClick={() => handleAddDeal()}
             className="bg-primary text-primary-foreground hover:bg-primary/90"
@@ -414,7 +418,7 @@ export default function PipelinesPage() {
           </p>
           <GatedButton
             canAct={canEditSettings}
-            gateReason="create pipelines"
+            gateReason="criar funis"
             onClick={() => setNewPipelineOpen(true)}
             className="mt-4 bg-primary text-primary-foreground hover:bg-primary/90"
           >
@@ -499,10 +503,22 @@ export default function PipelinesPage() {
         onReordered={refreshPipelines}
       />
 
-      {/* Deal Form (Sheet) */}
+      {/* Deal creation (Sheet) — used by the "Adicionar negócio" CTA. */}
       <DealForm
         open={dealFormOpen}
         onOpenChange={setDealFormOpen}
+        deal={null}
+        pipelineId={selectedPipelineId}
+        stages={stages}
+        defaultStageId={defaultStageId}
+        onSaved={refreshDeals}
+      />
+
+      {/* Deal detail (centered popup) — opened by clicking an existing card.
+          Tabs: Negócio (edit) + Cadastro (contact FAP01 quiz + UTMs). */}
+      <DealDetailDialog
+        open={dealDetailOpen}
+        onOpenChange={setDealDetailOpen}
         deal={editingDeal}
         pipelineId={selectedPipelineId}
         stages={stages}

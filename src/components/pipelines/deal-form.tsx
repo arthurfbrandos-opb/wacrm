@@ -47,7 +47,14 @@ interface DealFormProps {
   onSaved: () => void;
 }
 
-export function DealForm({
+/**
+ * The deal form fields + footer actions, without any surrounding chrome.
+ * Renders a fragment (scrollable fields + bottom action bar) so it can live
+ * inside either the right-side Sheet (`DealForm`, used for new deals) or a tab
+ * of the centered `DealDetailDialog` (used when opening an existing card).
+ * The parent must provide a flex-column container with a bounded height.
+ */
+export function DealFormBody({
   open,
   onOpenChange,
   deal,
@@ -275,18 +282,7 @@ export function DealForm({
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        className="bg-popover border-border text-popover-foreground sm:max-w-lg w-full p-0"
-      >
-        <div className="flex h-full flex-col">
-          <SheetHeader className="border-b border-border/50 p-4">
-            <SheetTitle className="text-popover-foreground">
-              {deal ? "Editar Negócio" : "Novo Negócio"}
-            </SheetTitle>
-          </SheetHeader>
-
+    <>
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             <div className="grid gap-2">
               <Label className="text-muted-foreground">Título</Label>
@@ -528,6 +524,24 @@ export function DealForm({
                 </button>
               ))}
           </div>
+        </>
+  );
+}
+
+export function DealForm(props: DealFormProps) {
+  return (
+    <Sheet open={props.open} onOpenChange={props.onOpenChange}>
+      <SheetContent
+        side="right"
+        className="bg-popover border-border text-popover-foreground sm:max-w-lg w-full p-0"
+      >
+        <div className="flex h-full flex-col">
+          <SheetHeader className="border-b border-border/50 p-4">
+            <SheetTitle className="text-popover-foreground">
+              {props.deal ? "Editar Negócio" : "Novo Negócio"}
+            </SheetTitle>
+          </SheetHeader>
+          <DealFormBody {...props} />
         </div>
       </SheetContent>
     </Sheet>

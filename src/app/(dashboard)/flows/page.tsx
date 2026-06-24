@@ -345,7 +345,7 @@ function EmptyState({
       </p>
       <GatedButton
         canAct={canCreate}
-        gateReason="create flows"
+        gateReason="criar fluxos"
         onClick={onCreate}
         className="mt-5"
       >
