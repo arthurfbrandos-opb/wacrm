@@ -106,14 +106,19 @@ export async function POST(request: Request) {
 
   const { data: account } = await admin
     .from('accounts')
-    .select('owner_user_id')
+    .select('owner_user_id, default_currency')
     .eq('id', accountId)
     .maybeSingle()
-  const ownerUserId = (account as { owner_user_id?: string } | null)?.owner_user_id
+  const acct = account as { owner_user_id?: string; default_currency?: string } | null
+  const ownerUserId = acct?.owner_user_id
   if (!ownerUserId) {
     console.error('[fap01] account not found:', accountId)
     return NextResponse.json({ error: 'Account not found' }, { status: 500 })
   }
+  // Use the account's configured currency so SDR deals match the rest of the
+  // CRM. The deals.currency column defaults to 'USD' at the DB level, which is
+  // wrong for a BRL account — leaving it unset showed USD on every card.
+  const accountCurrency = acct?.default_currency || 'USD'
 
   // Upsert contact (dedup by phone).
   let contactId: string
@@ -188,6 +193,7 @@ export async function POST(request: Request) {
         contact_id: contactId,
         title: `${lead.contact_name || phone} · MQL`,
         value: 0,
+        currency: accountCurrency,
         status: 'open',
       })
       .select('id')
