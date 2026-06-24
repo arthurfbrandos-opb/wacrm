@@ -156,7 +156,7 @@ export default function CalendarPage() {
             <button
               type="button"
               onClick={() => setView(new Date(today.getFullYear(), today.getMonth(), 1))}
-              className="rounded-md border border-border px-2.5 py-1 font-mono text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+              className="rounded-md border border-border px-2.5 py-1 font-mono text-xs text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
             >
               hoje
             </button>
@@ -164,7 +164,7 @@ export default function CalendarPage() {
               type="button"
               aria-label="Mês anterior"
               onClick={() => setView(new Date(view.getFullYear(), view.getMonth() - 1, 1))}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
             >
               <ChevronLeft className="size-4" />
             </button>
@@ -172,7 +172,7 @@ export default function CalendarPage() {
               type="button"
               aria-label="Próximo mês"
               onClick={() => setView(new Date(view.getFullYear(), view.getMonth() + 1, 1))}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+              className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
             >
               <ChevronRight className="size-4" />
             </button>
@@ -208,8 +208,9 @@ export default function CalendarPage() {
                   type="button"
                   key={key + i}
                   onClick={() => openCreate(key)}
+                  aria-label={`Novo agendamento em ${d.toLocaleDateString("pt-BR", { day: "numeric", month: "long" })}`}
                   className={[
-                    "min-h-24 border-b border-r border-border p-1.5 text-left align-top transition-colors hover:bg-muted/40",
+                    "min-h-24 border-b border-r border-border p-1.5 text-left align-top transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/50",
                     i % 7 === 0 ? "border-l" : "",
                     inMonth ? "" : "bg-muted/20",
                   ].join(" ")}
@@ -232,6 +233,7 @@ export default function CalendarPage() {
                         key={a.id}
                         role="button"
                         tabIndex={0}
+                        aria-label={`Agendamento ${spTime(a.scheduled_at)} — ${a.contact?.name || a.contact?.phone || "sem nome"}`}
                         onClick={(e) => {
                           e.stopPropagation();
                           openEdit(a);
@@ -242,7 +244,7 @@ export default function CalendarPage() {
                             openEdit(a);
                           }
                         }}
-                        className="block truncate rounded bg-primary-soft px-1.5 py-0.5 font-mono text-[11px] text-primary hover:bg-primary-soft-2"
+                        className="block truncate rounded bg-primary-soft px-1.5 py-0.5 font-mono text-[11px] text-primary hover:bg-primary-soft-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
                       >
                         {spTime(a.scheduled_at)} {a.contact?.name || a.contact?.phone || "—"}
                       </span>

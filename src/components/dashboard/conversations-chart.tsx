@@ -58,8 +58,10 @@ export function ConversationsChart({ series, loading, range, onRangeChange }: Co
               key={r}
               type="button"
               onClick={() => onRangeChange(r as RangeDays)}
+              aria-label={`Últimos ${r} dias`}
+              aria-pressed={range === r}
               className={cn(
-                'rounded-sm px-2 py-0.5 font-mono text-xs transition-colors',
+                'rounded-sm px-2 py-0.5 font-mono text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50',
                 range === r
                   ? 'bg-secondary text-secondary-foreground'
                   : 'text-muted-foreground hover:text-foreground',
