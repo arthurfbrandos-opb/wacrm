@@ -23,6 +23,7 @@ async function main() {
   if (!acct) throw new Error(`conta não achada: ${ACCOUNT_NAME}`)
   const accountId = acct.id
   const userId = acct.owner_user_id
+  if (!userId) throw new Error('conta sem owner_user_id — abortando')
 
   const { data: dup } = await db.from('automations').select('id').eq('account_id', accountId).eq('name', 'Follow-up 1').maybeSingle()
   if (dup) { console.log('automação "Follow-up 1" já existe — abortando (idempotente)'); return }
