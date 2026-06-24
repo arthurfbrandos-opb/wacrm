@@ -216,21 +216,14 @@ function StageColumn({
         style={{ backgroundColor: stage.color }}
       />
       <div className="flex items-center justify-between pt-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="flex shrink-0 gap-1" aria-hidden>
-            <span className="h-2 w-2 rounded-full bg-[#FF5F57]" />
-            <span className="h-2 w-2 rounded-full bg-[#FEBC2E]" />
-            <span className="h-2 w-2 rounded-full bg-[#28C840]" />
-          </span>
-          <h3 className="truncate font-mono text-sm font-semibold text-foreground">
-            {stage.name}
-          </h3>
-        </div>
-        <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 font-mono text-[11px] font-medium text-muted-foreground">
+        <h3 className="truncate text-sm font-semibold text-foreground">
+          {stage.name}
+        </h3>
+        <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
           {deals.length}
         </span>
       </div>
-      <p className="font-mono text-xs text-muted-foreground">
+      <p className="text-xs text-muted-foreground">
         {formatCurrency(totalValue, currency)}
       </p>
 
