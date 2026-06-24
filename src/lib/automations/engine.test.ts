@@ -50,6 +50,13 @@ vi.mock("./admin-client", () => {
       return { data: { steps_executed: [], status: "success" }, error: null };
     }
     if (table === "automation_steps") return { data: state.steps, error: null };
+    if (table === "deals") {
+      if (type === "update") {
+        state.updateCalls.push({ table, filters: ops.filters });
+        return { data: null, error: null };
+      }
+      return { data: null, error: null };
+    }
     return { data: null, error: null };
   }
 
@@ -221,6 +228,34 @@ describe("update_contact_field — custom fields", () => {
 
     expect(h.state.upsertCalls).toHaveLength(0);
     expect(h.state.updateCalls).toHaveLength(0);
+  });
+});
+
+describe("move_deal", () => {
+  it("moves the contact's open deal scoped to the account", async () => {
+    h.state.owned = { id: "c1" };
+    h.state.automations = [{
+      id: "a1", account_id: ACCOUNT, user_id: "u1",
+      trigger_type: "tag_added", trigger_config: {}, is_active: true,
+    }];
+    h.state.steps = [{
+      id: "s1", automation_id: "a1", step_type: "move_deal",
+      position: 0, parent_step_id: null,
+      step_config: { pipeline_id: "pl-followup", stage_id: "st-fu1" },
+    }];
+
+    await runAutomationsForTrigger({
+      accountId: ACCOUNT,
+      triggerType: "tag_added",
+      contactId: "c1",
+      context: { tag_id: "fu1" },
+    });
+
+    const dealUpdates = h.state.updateCalls.filter((u) => u.table === "deals");
+    expect(dealUpdates).toHaveLength(1);
+    expect(dealUpdates[0].filters).toContainEqual(["eq", "account_id", ACCOUNT]);
+    expect(dealUpdates[0].filters).toContainEqual(["eq", "contact_id", "c1"]);
+    expect(dealUpdates[0].filters).toContainEqual(["eq", "status", "open"]);
   });
 });
 

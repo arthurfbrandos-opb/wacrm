@@ -12,6 +12,7 @@ import type {
   UpdateContactFieldStepConfig,
   WaitStepConfig,
   CreateDealStepConfig,
+  MoveDealStepConfig,
   AssignConversationStepConfig,
 } from '@/types'
 import { supabaseAdmin } from './admin-client'
@@ -545,6 +546,23 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         .eq('account_id', args.automation.account_id)
         .eq('contact_id', args.contactId)
       return 'conversation closed'
+    }
+
+    case 'move_deal': {
+      const cfg = step.step_config as MoveDealStepConfig
+      if (!cfg.pipeline_id || !cfg.stage_id) throw new Error('move_deal needs pipeline + stage')
+      if (!args.contactId) throw new Error('move_deal needs a contact')
+      await db
+        .from('deals')
+        .update({
+          pipeline_id: cfg.pipeline_id,
+          stage_id: cfg.stage_id,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('account_id', args.automation.account_id)
+        .eq('contact_id', args.contactId)
+        .eq('status', 'open')
+      return `deal moved to ${cfg.stage_id}`
     }
 
     default:
