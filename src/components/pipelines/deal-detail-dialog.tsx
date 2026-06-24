@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { DealFormBody } from "@/components/pipelines/deal-form";
 import { Fap01Cadastro, Fap01Utms } from "@/components/contacts/fap01-tab";
@@ -116,6 +116,9 @@ export function DealDetailDialog({
           {/* Contact header */}
           <div className="flex items-start gap-3 border-b border-border/50 p-4 pr-12">
             <Avatar className="size-11 shrink-0 border border-border bg-muted">
+              {contact?.avatar_url && (
+                <AvatarImage src={contact.avatar_url} alt={contact.name ?? "Contato"} />
+              )}
               <AvatarFallback className="bg-primary/10 text-sm font-medium text-primary">
                 {getInitials(contact?.name)}
               </AvatarFallback>

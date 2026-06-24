@@ -7,6 +7,7 @@ import {
   scheduleFirstTouchIfAbsent,
   expediteFirstTouch,
 } from '@/lib/sdr/touches'
+import { syncContactAvatarFromWhatsApp } from '@/lib/whatsapp/uazapi-profile'
 
 // Arthur's decision (2026-06-11): chase/confirm the lead 5 min after the form,
 // leaving room to self-book on Calendly first.
@@ -154,6 +155,11 @@ export async function POST(request: Request) {
     }
     contactId = (created as { id: string }).id
   }
+
+  // Pull the lead's WhatsApp profile photo (best-effort, UazAPI-only) so the
+  // CRM shows the real avatar. Never throws; leaves the avatar untouched on
+  // any failure (private photo, no connection, etc.).
+  await syncContactAvatarFromWhatsApp(admin, { accountId, contactId, phone })
 
   // Qualification note.
   const qual = [
