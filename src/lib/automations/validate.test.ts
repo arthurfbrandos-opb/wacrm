@@ -176,6 +176,23 @@ describe("validateStepsForActivation", () => {
   });
 });
 
+describe("validate move_deal", () => {
+  it("requires pipeline_id and stage_id", () => {
+    const issues = validateStepsForActivation([
+      { step_type: "move_deal", step_config: { pipeline_id: "", stage_id: "" } },
+    ]);
+    expect(issues).toContainEqual({ path: "steps[0].pipeline_id", message: "pipeline is required" });
+    expect(issues).toContainEqual({ path: "steps[0].stage_id", message: "stage is required" });
+  });
+
+  it("accepts a fully configured move_deal", () => {
+    const issues = validateStepsForActivation([
+      { step_type: "move_deal", step_config: { pipeline_id: "pl1", stage_id: "st1" } },
+    ]);
+    expect(issues).toHaveLength(0);
+  });
+});
+
 describe("validateTriggerForActivation", () => {
   it("accepts a valid keyword_match config", () => {
     expect(
