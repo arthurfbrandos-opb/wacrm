@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { Pipeline, PipelineStage, Deal } from "@/types";
 import { PipelineBoard } from "@/components/pipelines/pipeline-board";
 import { PipelineSettings } from "@/components/pipelines/pipeline-settings";
+import { ReorderPipelinesDialog } from "@/components/pipelines/reorder-pipelines-dialog";
 import { DealForm } from "@/components/pipelines/deal-form";
 import { PipelineAnalytics } from "@/components/pipelines/pipeline-analytics";
 import { Button } from "@/components/ui/button";
@@ -24,7 +25,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { GitBranch, Plus, ChevronDown, Settings } from "lucide-react";
+import { GitBranch, Plus, ChevronDown, Settings, ArrowUpDown } from "lucide-react";
 import { toast } from "sonner";
 import { useCan } from "@/hooks/use-can";
 import { useAuth } from "@/hooks/use-auth";
@@ -61,6 +62,7 @@ export default function PipelinesPage() {
   const [newPipelineName, setNewPipelineName] = useState("");
   const [creating, setCreating] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [reorderOpen, setReorderOpen] = useState(false);
 
   // Deal form state is lifted here so both the top-bar "Add Deal" and
   // the per-column "+" trigger the same Sheet.
@@ -75,6 +77,7 @@ export default function PipelinesPage() {
     const { data, error } = await supabase
       .from("pipelines")
       .select("*")
+      .order("position")
       .order("created_at");
     if (error) {
       console.error("Failed to load pipelines:", error.message);
@@ -267,7 +270,8 @@ export default function PipelinesPage() {
 
     const { data: pipeline, error } = await supabase
       .from("pipelines")
-      .insert({ user_id: user.id, account_id: accountId, name })
+      // Append to the end of the user's current order.
+      .insert({ user_id: user.id, account_id: accountId, name, position: pipelines.length })
       .select()
       .single();
 
@@ -352,6 +356,15 @@ export default function PipelinesPage() {
                 </DropdownMenuItem>
               ))}
               <DropdownMenuSeparator className="bg-border" />
+              {pipelines.length > 1 && (
+                <DropdownMenuItem
+                  onClick={() => setReorderOpen(true)}
+                  className="text-popover-foreground"
+                >
+                  <ArrowUpDown className="mr-2 h-3.5 w-3.5" />
+                  Reorder pipelines
+                </DropdownMenuItem>
+              )}
               {selectedPipeline && (
                 <DropdownMenuItem
                   onClick={() => setSettingsOpen(true)}
@@ -477,6 +490,14 @@ export default function PipelinesPage() {
           }}
         />
       )}
+
+      {/* Reorder Pipelines */}
+      <ReorderPipelinesDialog
+        open={reorderOpen}
+        onOpenChange={setReorderOpen}
+        pipelines={pipelines}
+        onReordered={refreshPipelines}
+      />
 
       {/* Deal Form (Sheet) */}
       <DealForm
