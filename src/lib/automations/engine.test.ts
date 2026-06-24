@@ -109,7 +109,7 @@ vi.mock("./meta-send", () => ({
   engineSendTemplate: vi.fn(async () => ({ whatsapp_message_id: "m1" })),
 }));
 
-const sendTextMock = vi.fn(async () => ({ messageId: "uaz-1" }));
+const sendTextMock = vi.fn(async (..._args: unknown[]) => ({ messageId: "uaz-1" }));
 vi.mock("@/lib/sdr/send", () => ({
   resolveAccountProvider: vi.fn(async () => "uazapi"),
   sendText: (...args: unknown[]) => sendTextMock(...args),
