@@ -1,14 +1,8 @@
 'use client';
 
-import { Shield, SlidersHorizontal } from 'lucide-react';
+import { Shield } from 'lucide-react';
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { TerminalWindow } from '@/components/ui/terminal-window';
 import { CustomFieldsPanel } from '@/components/contacts/custom-fields-manager';
 import { SettingsChip } from './settings-chip';
 
@@ -20,24 +14,21 @@ import { SettingsChip } from './settings-chip';
  */
 export function CustomFieldsSettings() {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-foreground">
-          <SlidersHorizontal className="size-4 text-primary" />
-          Custom fields
-          <SettingsChip variant="admin" className="font-medium">
-            <Shield />
-            Admin
-          </SettingsChip>
-        </CardTitle>
-        <CardDescription className="text-muted-foreground">
-          Extra contact fields (e.g. ZIP code, lead source). They appear on
-          every contact and in the “Update Contact Field” automation action.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+    <TerminalWindow
+      title="settings/fields/custom-fields"
+      action={
+        <SettingsChip variant="admin" className="font-mono text-xs font-medium">
+          <Shield />
+          Admin
+        </SettingsChip>
+      }
+    >
+      <p className="border-b border-border px-5 py-2 font-mono text-xs text-muted-foreground">
+        # extra contact fields (e.g. zip code, lead source). they appear on every contact and in the &quot;update contact field&quot; automation action.
+      </p>
+      <div className="p-5">
         <CustomFieldsPanel />
-      </CardContent>
-    </Card>
+      </div>
+    </TerminalWindow>
   );
 }

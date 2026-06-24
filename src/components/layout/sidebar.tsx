@@ -218,14 +218,15 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                     href={item.href}
                     className={cn(
                       // Taller on mobile so fingers can hit the row reliably (≥44px).
-                      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:py-2",
+                      "flex items-center gap-2 rounded-lg px-3 py-2.5 font-mono text-sm font-medium transition-colors lg:py-2",
                       isActive
                         ? "bg-primary/10 text-primary"
                         : "text-muted-foreground hover:bg-muted hover:text-foreground",
                     )}
                   >
+                    <span className="w-2 shrink-0 text-primary">{isActive ? "▸" : ""}</span>
                     <item.icon className="h-4 w-4" />
-                    <span className="flex-1">{item.label}</span>
+                    <span className="flex-1">{item.label.toLowerCase()}</span>
                     {item.beta && (
                       <span
                         aria-label="Beta feature"
@@ -259,14 +260,15 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                   <Link
                     href={item.href}
                     className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors lg:py-2",
+                      "flex items-center gap-2 rounded-lg px-3 py-2.5 font-mono text-sm font-medium transition-colors lg:py-2",
                       isActive
                         ? "bg-primary/10 text-primary"
                         : "text-muted-foreground hover:bg-muted hover:text-foreground",
                     )}
                   >
+                    <span className="w-2 shrink-0 text-primary">{isActive ? "▸" : ""}</span>
                     <item.icon className="h-4 w-4" />
-                    {item.label}
+                    {item.label.toLowerCase()}
                   </Link>
                 </li>
               );

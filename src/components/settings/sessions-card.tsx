@@ -6,13 +6,7 @@ import { Loader2, LogOut } from 'lucide-react';
 
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from '@/components/ui/card';
+import { TerminalWindow } from '@/components/ui/terminal-window';
 import {
   Dialog,
   DialogContent,
@@ -49,18 +43,11 @@ export function SessionsCard() {
 
   return (
     <>
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-foreground">
-            <LogOut className="size-4 text-primary" />
-            Active sessions
-          </CardTitle>
-          <CardDescription className="text-muted-foreground">
-            Sign out of every device where you&apos;re logged in — including
-            this one. Useful if you lost a laptop or shared your password.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+      <TerminalWindow title="settings/security/sessions">
+        <p className="border-b border-border px-5 py-2 font-mono text-xs text-muted-foreground">
+          # sign out of every device where you&apos;re logged in — useful if you lost a laptop or shared your password.
+        </p>
+        <div className="p-5">
           <Button
             type="button"
             variant="outline"
@@ -69,8 +56,8 @@ export function SessionsCard() {
             <LogOut className="size-4" />
             Sign out of all devices
           </Button>
-        </CardContent>
-      </Card>
+        </div>
+      </TerminalWindow>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>

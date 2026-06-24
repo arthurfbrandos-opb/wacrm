@@ -9,13 +9,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from '@/components/ui/card';
+import { TerminalWindow } from '@/components/ui/terminal-window';
 
 const MIN_PASSWORD = 8;
 
@@ -81,19 +75,11 @@ export function PasswordForm() {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-foreground">
-          <KeyRound className="size-4 text-primary" />
-          Password
-        </CardTitle>
-        <CardDescription className="text-muted-foreground">
-          Use at least {MIN_PASSWORD} characters. You will stay signed in on
-          this device after changing it.
-        </CardDescription>
-      </CardHeader>
-
-      <CardContent>
+    <TerminalWindow title="settings/security/password">
+      <p className="border-b border-border px-5 py-2 font-mono text-xs text-muted-foreground">
+        # use at least {MIN_PASSWORD} characters. you will stay signed in on this device after changing it.
+      </p>
+      <div className="p-5">
         <form onSubmit={onSubmit} className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="current-password" className="text-foreground">
@@ -165,7 +151,7 @@ export function PasswordForm() {
             </Button>
           </div>
         </form>
-      </CardContent>
-    </Card>
+      </div>
+    </TerminalWindow>
   );
 }

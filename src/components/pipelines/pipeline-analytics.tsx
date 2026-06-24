@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import type { Deal, PipelineStage } from "@/types";
+import { TerminalWindow } from "@/components/ui/terminal-window";
 import {
   DollarSign,
   TrendingUp,
@@ -93,7 +94,8 @@ export function PipelineAnalytics({ stages, deals }: PipelineAnalyticsProps) {
 
   return (
     <TooltipProvider>
-      <div className="grid grid-cols-2 gap-3 rounded-xl border border-border bg-card/60 p-4 sm:grid-cols-3 xl:grid-cols-6">
+      <TerminalWindow title="pipeline/analytics">
+      <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 xl:grid-cols-6">
         <Metric
           icon={<BarChart3 className="h-4 w-4 text-muted-foreground" />}
           label="Total Deals"
@@ -131,6 +133,7 @@ export function PipelineAnalytics({ stages, deals }: PipelineAnalyticsProps) {
           tooltip="Deals marked as Lost since the first day of the current month."
         />
       </div>
+      </TerminalWindow>
     </TooltipProvider>
   );
 }

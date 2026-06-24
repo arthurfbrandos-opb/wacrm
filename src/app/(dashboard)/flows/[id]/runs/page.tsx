@@ -19,6 +19,7 @@ import { format, formatDistanceToNow } from "date-fns";
 
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { TerminalWindow } from "@/components/ui/terminal-window";
 
 /**
  * Run history viewer.
@@ -180,30 +181,31 @@ export default function FlowRunsPage() {
         <ArrowLeft className="h-3 w-3" />
         {flow.name}
       </button>
-      <h1 className="text-xl font-semibold text-foreground">Runs</h1>
-      <p className="mt-1 text-sm text-muted-foreground">
-        The 50 most recent times this flow ran. Expand a row to see the engine&apos;s
-        per-step log.
+      <h1 className="text-xl font-semibold font-mono text-foreground"><span className="text-primary">▸</span> runs</h1>
+      <p className="mt-1 text-sm font-mono text-muted-foreground">
+        # the 50 most recent times this flow ran.
       </p>
 
-      {runs.length === 0 ? (
-        <div className="mt-6 rounded-lg border border-dashed border-border bg-card/50 px-6 py-12 text-center text-sm text-muted-foreground">
-          No runs yet. Trigger the flow from a personal WhatsApp number to see
-          it appear here.
-        </div>
-      ) : (
-        <div className="mt-6 flex flex-col gap-2">
-          {runs.map((run) => (
-            <RunCard
-              key={run.id}
-              run={run}
-              events={events.filter((e) => e.flow_run_id === run.id)}
-              expanded={expanded.has(run.id)}
-              onToggle={() => toggle(run.id)}
-            />
-          ))}
-        </div>
-      )}
+      <TerminalWindow title="flows/runs" className="mt-6">
+        {runs.length === 0 ? (
+          <div className="px-6 py-12 text-center text-sm text-muted-foreground">
+            No runs yet. Trigger the flow from a personal WhatsApp number to see
+            it appear here.
+          </div>
+        ) : (
+          <div className="flex flex-col divide-y divide-border">
+            {runs.map((run) => (
+              <RunCard
+                key={run.id}
+                run={run}
+                events={events.filter((e) => e.flow_run_id === run.id)}
+                expanded={expanded.has(run.id)}
+                onToggle={() => toggle(run.id)}
+              />
+            ))}
+          </div>
+        )}
+      </TerminalWindow>
     </div>
   );
 }
@@ -229,7 +231,7 @@ function RunCard({
       })
     : null;
   return (
-    <div className="rounded-lg border border-border bg-card">
+    <div className="transition-colors hover:bg-muted/30">
       <button
         type="button"
         onClick={onToggle}

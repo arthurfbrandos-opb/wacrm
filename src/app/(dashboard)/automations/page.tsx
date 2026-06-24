@@ -42,6 +42,7 @@ import {
 import { AUTOMATION_TEMPLATES, type TemplateSlug } from "@/lib/automations/templates"
 import { triggerMeta, formatRelative } from "@/lib/automations/trigger-meta"
 import { cn } from "@/lib/utils"
+import { TerminalWindow } from "@/components/ui/terminal-window"
 
 const TEMPLATE_ORDER: TemplateSlug[] = [
   "welcome_message",
@@ -160,9 +161,9 @@ export default function AutomationsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Automations</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Build workflows that react to WhatsApp® events automatically.
+          <h1 className="text-2xl font-bold font-mono text-foreground"><span className="text-primary">▸</span> automations</h1>
+          <p className="mt-1 text-sm font-mono text-muted-foreground">
+            # build workflows that react to whatsapp® events automatically.
           </p>
         </div>
         <GatedButton
@@ -201,31 +202,33 @@ export default function AutomationsPage() {
         </section>
       )}
 
-      {automations.length === 0 ? (
-        <div className="flex h-48 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card/40">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-            <Zap className="h-6 w-6 text-primary" />
+      <TerminalWindow title="automations/rules">
+        {automations.length === 0 ? (
+          <div className="flex h-48 flex-col items-center justify-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
+              <Zap className="h-6 w-6 text-primary" />
+            </div>
+            <p className="mt-3 text-sm font-medium text-foreground">No automations yet</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Pick a template above or create one from scratch.
+            </p>
           </div>
-          <p className="mt-3 text-sm font-medium text-foreground">No automations yet</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Pick a template above or create one from scratch.
-          </p>
-        </div>
-      ) : (
-        <ul className="space-y-3">
-          {automations.map((a) => (
-            <AutomationCard
-              key={a.id}
-              automation={a}
-              onToggle={(next) => toggleActive(a, next)}
-              onEdit={() => router.push(`/automations/${a.id}/edit`)}
-              onDuplicate={() => duplicate(a)}
-              onLogs={() => router.push(`/automations/${a.id}/logs`)}
-              onDelete={() => setPendingDelete(a)}
-            />
-          ))}
-        </ul>
-      )}
+        ) : (
+          <ul className="space-y-0 divide-y divide-border">
+            {automations.map((a) => (
+              <AutomationCard
+                key={a.id}
+                automation={a}
+                onToggle={(next) => toggleActive(a, next)}
+                onEdit={() => router.push(`/automations/${a.id}/edit`)}
+                onDuplicate={() => duplicate(a)}
+                onLogs={() => router.push(`/automations/${a.id}/logs`)}
+                onDelete={() => setPendingDelete(a)}
+              />
+            ))}
+          </ul>
+        )}
+      </TerminalWindow>
 
       <Dialog open={!!pendingDelete} onOpenChange={(v) => !v && setPendingDelete(null)}>
         <DialogContent>
@@ -277,7 +280,7 @@ function AutomationCard({
 }) {
   const meta = triggerMeta(automation.trigger_type)
   return (
-    <li className="rounded-xl border border-border bg-card transition-colors hover:border-border">
+    <li className="transition-colors hover:bg-muted/30">
       <div className="flex items-center gap-4 p-4">
         <div
           className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-primary/10"

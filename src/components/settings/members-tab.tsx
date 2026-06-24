@@ -36,7 +36,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { TerminalWindow } from '@/components/ui/terminal-window';
 import {
   Dialog,
   DialogContent,
@@ -277,9 +277,8 @@ export function MembersTab() {
       />
 
       {/* Roster */}
-      <Card>
-        <CardContent className="p-0">
-          <ul className="divide-y divide-border">
+      <TerminalWindow title="settings/members/roster">
+        <ul className="divide-y divide-border">
             {members.map((member) => {
               const roleMeta = ROLE_META[member.role];
               const RoleIcon = roleMeta.icon;
@@ -401,9 +400,8 @@ export function MembersTab() {
                 </li>
               );
             })}
-          </ul>
-        </CardContent>
-      </Card>
+        </ul>
+      </TerminalWindow>
 
       {/* Pending invitations — admin+ only */}
       <RequireRole min="admin">
@@ -431,8 +429,8 @@ export function MembersTab() {
           ) : null}
 
           {invitations.length === 0 ? (
-            <Card>
-              <CardContent className="flex flex-col items-center justify-center py-8 text-center">
+            <TerminalWindow title="settings/members/pending-invitations">
+              <div className="flex flex-col items-center justify-center py-8 text-center">
                 <Mail className="size-6 text-muted-foreground" />
                 <p className="mt-2 text-sm text-muted-foreground">
                   No pending invitations.
@@ -441,56 +439,54 @@ export function MembersTab() {
                   Click <span className="text-muted-foreground">Invite member</span>{' '}
                   above to generate a shareable link.
                 </p>
-              </CardContent>
-            </Card>
+              </div>
+            </TerminalWindow>
           ) : (
-            <Card>
-              <CardContent className="p-0">
-                <ul className="divide-y divide-border">
-                  {invitations.map((inv) => {
-                    const inviteRoleMeta = ROLE_META[inv.role];
-                    const InviteRoleIcon = inviteRoleMeta.icon;
-                    return (
-                    <li
-                      key={inv.id}
-                      className="flex items-center gap-4 px-4 py-3"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-foreground">
-                            {inv.label || 'Untitled invite'}
-                          </span>
-                          <span
-                            className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium ${inviteRoleMeta.className}`}
-                          >
-                            <InviteRoleIcon className="size-3" />
-                            {inviteRoleMeta.label}
-                          </span>
-                        </div>
-                        <p className="mt-0.5 text-xs text-muted-foreground">
-                          Created {fmtDate(inv.created_at)} · {fmtExpiresIn(inv.expires_at)}
-                        </p>
+            <TerminalWindow title="settings/members/pending-invitations">
+              <ul className="divide-y divide-border">
+                {invitations.map((inv) => {
+                  const inviteRoleMeta = ROLE_META[inv.role];
+                  const InviteRoleIcon = inviteRoleMeta.icon;
+                  return (
+                  <li
+                    key={inv.id}
+                    className="flex items-center gap-4 px-4 py-3"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-foreground">
+                          {inv.label || 'Untitled invite'}
+                        </span>
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium ${inviteRoleMeta.className}`}
+                        >
+                          <InviteRoleIcon className="size-3" />
+                          {inviteRoleMeta.label}
+                        </span>
                       </div>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        Created {fmtDate(inv.created_at)} · {fmtExpiresIn(inv.expires_at)}
+                      </p>
+                    </div>
 
-                      {/* Revoke: red default state, mirrors the
-                          members-tab Remove button. Pre-polish version
-                          read as a neutral secondary button until
-                          hover. */}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleRevoke(inv)}
-                        className="border-red-500/40 bg-red-500/10 text-red-300 hover:bg-red-500/20 hover:border-red-500/60 hover:text-red-200"
-                      >
-                        <MailX className="size-4" />
-                        Revoke
-                      </Button>
-                    </li>
-                    );
-                  })}
-                </ul>
-              </CardContent>
-            </Card>
+                    {/* Revoke: red default state, mirrors the
+                        members-tab Remove button. Pre-polish version
+                        read as a neutral secondary button until
+                        hover. */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleRevoke(inv)}
+                      className="border-red-500/40 bg-red-500/10 text-red-300 hover:bg-red-500/20 hover:border-red-500/60 hover:text-red-200"
+                    >
+                      <MailX className="size-4" />
+                      Revoke
+                    </Button>
+                  </li>
+                  );
+                })}
+              </ul>
+            </TerminalWindow>
           )}
         </div>
       </RequireRole>

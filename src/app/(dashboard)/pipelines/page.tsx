@@ -321,9 +321,10 @@ export default function PipelinesPage() {
             <DropdownMenuTrigger
               className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground hover:bg-muted transition-colors data-[popup-open]:bg-muted"
             >
+              <span className="text-primary">▸</span>
               <GitBranch className="h-4 w-4 text-primary" />
-              <span className="font-semibold">
-                {selectedPipeline?.name ?? "Select Pipeline"}
+              <span className="font-mono font-semibold">
+                {selectedPipeline?.name ?? "select pipeline"}
               </span>
               <ChevronDown className="h-4 w-4 text-muted-foreground" />
             </DropdownMenuTrigger>

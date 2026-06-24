@@ -20,6 +20,7 @@ import type {
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { formatRelative } from "@/lib/automations/trigger-meta"
+import { TerminalWindow } from "@/components/ui/terminal-window"
 
 export default function AutomationLogsPage({
   params,
@@ -93,27 +94,28 @@ export default function AutomationLogsPage({
           <ArrowLeft className="h-4 w-4" />
         </button>
         <div>
-          <h1 className="text-2xl font-bold text-foreground">{automation.name}</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">Execution logs</p>
+          <h1 className="text-2xl font-bold font-mono text-foreground"><span className="text-primary">▸</span> {automation.name}</h1>
+          <p className="mt-0.5 text-sm font-mono text-muted-foreground"># execution logs</p>
         </div>
       </div>
 
-      {logs.length === 0 ? (
-        <div className="flex h-48 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card/40">
-          <p className="text-sm text-foreground">No executions yet</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Trigger this automation to see runs here.
-          </p>
-        </div>
-      ) : (
-        <ul className="space-y-2">
-          {logs.map((log) => {
-            const isOpen = openLogId === log.id
-            return (
-              <li
-                key={log.id}
-                className="rounded-xl border border-border bg-card"
-              >
+      <TerminalWindow title="automations/logs">
+        {logs.length === 0 ? (
+          <div className="flex h-48 flex-col items-center justify-center">
+            <p className="text-sm text-foreground">No executions yet</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Trigger this automation to see runs here.
+            </p>
+          </div>
+        ) : (
+          <ul className="divide-y divide-border">
+            {logs.map((log) => {
+              const isOpen = openLogId === log.id
+              return (
+                <li
+                  key={log.id}
+                  className=""
+                >
                 <button
                   type="button"
                   onClick={() => setOpenLogId(isOpen ? null : log.id)}
@@ -158,8 +160,9 @@ export default function AutomationLogsPage({
               </li>
             )
           })}
-        </ul>
-      )}
+          </ul>
+        )}
+      </TerminalWindow>
     </div>
   )
 }

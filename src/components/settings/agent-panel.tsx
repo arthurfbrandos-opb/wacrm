@@ -2,18 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { AlertTriangle, Bot, Braces, Cpu, Loader2, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, Loader2, Plus, Trash2 } from "lucide-react";
 
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+import { TerminalWindow } from "@/components/ui/terminal-window";
 import {
   BUILTIN_VARIABLES,
   BUILTIN_NAMES,
@@ -173,19 +167,11 @@ export function AgentPanel() {
       />
 
       {/* PROMPT */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-foreground">
-            <Bot className="size-4 text-primary" />
-            Prompt do sistema
-          </CardTitle>
-          <CardDescription className="text-muted-foreground">
-            Define como o Ian qualifica o lead e marca o diagnóstico. Use{" "}
-            <code className="font-mono text-xs">{"{{variavel}}"}</code> pra inserir
-            dados do lead (veja abaixo). A mudança vale na próxima mensagem.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <TerminalWindow title="settings/agent/system-prompt">
+        <p className="border-b border-border px-5 py-2 font-mono text-xs text-muted-foreground">
+          # define como o ian qualifica o lead e marca o diagnóstico. use <code>{"{{variavel}}"}</code> pra inserir dados do lead. a mudança vale na próxima mensagem.
+        </p>
+        <div className="space-y-4 p-5">
           <div className="grid gap-2">
             <Label className="text-muted-foreground">Prompt</Label>
             {loading ? (
@@ -254,23 +240,15 @@ export function AgentPanel() {
               )}
             </Button>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </TerminalWindow>
 
       {/* VARIÁVEIS */}
-      <Card className="mt-4">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-foreground">
-            <Braces className="size-4 text-primary" />
-            Variáveis
-          </CardTitle>
-          <CardDescription className="text-muted-foreground">
-            Escreva <code className="font-mono text-xs">{"{{nome}}"}</code> no
-            prompt — o sistema troca pelo valor daquele lead antes de enviar. Sem
-            valor, usa o fallback (nunca vai o texto cru).
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6 text-sm">
+      <TerminalWindow title="settings/agent/variables" className="mt-4">
+        <p className="border-b border-border px-5 py-2 font-mono text-xs text-muted-foreground">
+          # escreva <code>{"{{nome}}"}</code> no prompt — o sistema troca pelo valor daquele lead antes de enviar. sem valor, usa o fallback.
+        </p>
+        <div className="space-y-6 p-5 text-sm">
           {/* Built-in */}
           <div>
             <p className="font-medium text-foreground">Embutidas (sempre funcionam)</p>
@@ -397,22 +375,15 @@ export function AgentPanel() {
               usa pra confirmar, nunca re-pergunta.
             </p>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </TerminalWindow>
 
       {/* MODELO */}
-      <Card className="mt-4">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-foreground">
-            <Cpu className="size-4 text-primary" />
-            Modelo
-          </CardTitle>
-          <CardDescription className="text-muted-foreground">
-            O modelo não é fixo: o cérebro do Ian escolhe por mensagem
-            (definido no backend, não editável aqui).
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm text-muted-foreground">
+      <TerminalWindow title="settings/agent/model" className="mt-4">
+        <p className="border-b border-border px-5 py-2 font-mono text-xs text-muted-foreground">
+          # o modelo não é fixo: o cérebro do ian escolhe por mensagem (definido no backend, não editável aqui).
+        </p>
+        <div className="space-y-2 p-5 text-sm text-muted-foreground">
           <div className="flex items-baseline gap-2">
             <span className="font-medium text-foreground">Sonnet</span>
             <span className="font-mono text-xs">claude-sonnet-4-6</span>
@@ -426,8 +397,8 @@ export function AgentPanel() {
           <p className="pt-1 text-xs">
             Fallback automático se a Anthropic falhar (Max OAuth → API key → gpt-4o).
           </p>
-        </CardContent>
-      </Card>
+        </div>
+      </TerminalWindow>
     </section>
   );
 }

@@ -22,13 +22,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { TerminalWindow } from '@/components/ui/terminal-window';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   Dialog,
@@ -279,15 +273,11 @@ export function UazapiConnectionsPanel() {
         </Alert>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Connections</CardTitle>
-          <CardDescription>
-            One row per UazAPI instance. The active one routes inbound events
-            into the CRM.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+      <TerminalWindow title="settings/whatsapp/connections">
+        <div className="p-6">
+          <p className="mb-4 font-mono text-xs text-muted-foreground">
+            # one row per UazAPI instance — the active one routes inbound events into the CRM
+          </p>
           {isLoading && connections.length === 0 ? (
             <div className="flex items-center justify-center py-10">
               <Loader2 className="size-5 animate-spin text-primary" />
@@ -319,8 +309,8 @@ export function UazapiConnectionsPanel() {
               </TableBody>
             </Table>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </TerminalWindow>
     </section>
   );
 }

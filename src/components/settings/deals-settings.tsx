@@ -2,20 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Coins, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { CURRENCIES } from "@/lib/currency";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+import { TerminalWindow } from "@/components/ui/terminal-window";
 import { SettingsPanelHead } from "./settings-panel-head";
 
 /**
@@ -73,19 +67,11 @@ export function DealsSettings() {
         title="Deals & currency"
         description="The currency used for new deals and for pipeline and dashboard totals."
       />
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-foreground">
-            <Coins className="size-4 text-primary" />
-            Default currency
-          </CardTitle>
-          <CardDescription className="text-muted-foreground">
-            New deals default to this currency, and pipeline and
-            dashboard totals are shown in it. Existing deals keep the
-            currency they were saved with.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+      <TerminalWindow title="settings/deals">
+        <p className="border-b border-border px-5 py-2 font-mono text-xs text-muted-foreground">
+          # new deals default to this currency; pipeline and dashboard totals are shown in it. existing deals keep the currency they were saved with.
+        </p>
+        <div className="space-y-4 p-5">
           <div className="grid gap-2 sm:max-w-xs">
             <Label className="text-muted-foreground">Currency</Label>
             <select
@@ -123,8 +109,8 @@ export function DealsSettings() {
               )}
             </Button>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </TerminalWindow>
     </section>
   );
 }

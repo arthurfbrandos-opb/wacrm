@@ -49,6 +49,7 @@ import { CustomFieldsManager } from '@/components/contacts/custom-fields-manager
 import { useCan } from '@/hooks/use-can';
 import { GatedButton } from '@/components/ui/gated-button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { TerminalWindow } from '@/components/ui/terminal-window';
 
 const PAGE_SIZE = 25;
 
@@ -270,9 +271,9 @@ export default function ContactsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Contacts</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Manage your contact list. {totalCount > 0 && `${totalCount} total contacts.`}
+          <h1 className="font-mono text-2xl font-bold text-foreground"><span className="text-primary">▸</span> contacts</h1>
+          <p className="font-mono text-sm text-muted-foreground mt-1">
+            # manage your contact list. {totalCount > 0 && `${totalCount} total contacts.`}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -355,7 +356,7 @@ export default function ContactsPage() {
       )}
 
       {/* Table */}
-      <div className="rounded-lg border border-border overflow-hidden">
+      <TerminalWindow title="contacts/list" className="overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow className="border-border hover:bg-transparent">
@@ -514,7 +515,7 @@ export default function ContactsPage() {
             )}
           </TableBody>
         </Table>
-      </div>
+      </TerminalWindow>
 
       {/* Pagination */}
       {totalPages > 1 && (

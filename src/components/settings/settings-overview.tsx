@@ -9,7 +9,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { THEMES } from '@/lib/themes';
 import { CURRENCIES } from '@/lib/currency';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Card } from '@/components/ui/card';
+import { TerminalWindow } from '@/components/ui/terminal-window';
 import { cn } from '@/lib/utils';
 
 import { SECTION_META, type SettingsSection } from './settings-sections';
@@ -232,7 +232,7 @@ export function SettingsOverview({
   return (
     <section className="animate-in fade-in-50 duration-200">
       {/* Identity */}
-      <Card className="flex-row items-center gap-4 px-5 py-5">
+      <TerminalWindow title="settings/account" bodyClassName="flex flex-row items-center gap-4 px-5 py-5">
         <Avatar size="lg" className="size-14">
           {profile?.avatar_url ? (
             <AvatarImage src={profile.avatar_url} alt={displayName} />
@@ -257,7 +257,7 @@ export function SettingsOverview({
             {roleMeta.label}
           </SettingsChip>
         ) : null}
-      </Card>
+      </TerminalWindow>
 
       {/* Status tiles */}
       <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -278,7 +278,7 @@ export function SettingsOverview({
                 <Icon className="size-4" />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-sm font-semibold text-foreground">
+                <span className="block font-mono text-sm font-semibold text-foreground">
                   {meta.label}
                 </span>
                 <span className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">

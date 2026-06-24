@@ -153,6 +153,15 @@ export function ConversationList({
     // the single pane showing; fixed 320px on desktop where it shares the
     // row with the thread + contact sidebar.
     <div className="flex h-full w-full flex-col border-r border-border bg-card lg:w-80">
+      {/* Terminal title bar */}
+      <div className="flex items-center gap-2 border-b border-border bg-card-2 px-3 py-2">
+        <span className="flex shrink-0 gap-1.5" aria-hidden>
+          <span className="h-2.5 w-2.5 rounded-full bg-[#FF5F57]" />
+          <span className="h-2.5 w-2.5 rounded-full bg-[#FEBC2E]" />
+          <span className="h-2.5 w-2.5 rounded-full bg-[#28C840]" />
+        </span>
+        <span className="font-mono text-xs text-muted-foreground">inbox/conversations</span>
+      </div>
       {/* Search + Filter */}
       <div className="space-y-2 border-b border-border p-3">
         <div className="relative">

@@ -66,11 +66,11 @@ export default function SettingsPage() {
   return (
     <div>
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">
-          Settings
+        <h1 className="font-mono text-2xl font-bold tracking-tight text-foreground">
+          <span className="text-primary">▸</span> settings
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Everything in one place — your account and your workspace. Pick a
+        <p className="mt-1 font-mono text-sm text-muted-foreground">
+          # everything in one place — your account and your workspace. pick a
           section to manage it.
         </p>
       </div>

@@ -24,7 +24,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
+import { TerminalWindow } from '@/components/ui/terminal-window';
 import { SettingsPanelHead } from './settings-panel-head';
 import {
   Dialog,
@@ -506,22 +506,22 @@ export function TemplateManager() {
       />
 
       {templates.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+        <TerminalWindow title="settings/templates">
+          <div className="flex flex-col items-center justify-center py-12 text-center">
             <p className="text-muted-foreground text-sm">No templates yet.</p>
             <p className="text-muted-foreground text-xs mt-1">
               Create your first message template to get started.
             </p>
-          </CardContent>
-        </Card>
+          </div>
+        </TerminalWindow>
       ) : (
         <div className="grid gap-3 xl:grid-cols-2">
           {templates.map((template) => {
             const statusKey = template.status || 'DRAFT';
             const status = templateStatusConfig[statusKey];
             return (
-              <Card key={template.id}>
-                <CardContent className="flex items-start justify-between pt-4">
+              <TerminalWindow key={template.id} title={`settings/templates/${template.name}`}>
+                <div className="flex items-start justify-between p-4">
                   <div className="space-y-2 min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="font-medium text-foreground">{template.name}</h3>
@@ -621,8 +621,8 @@ export function TemplateManager() {
                       )}
                     </Button>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </TerminalWindow>
             );
           })}
         </div>

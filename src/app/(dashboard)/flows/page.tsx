@@ -32,6 +32,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { TerminalWindow } from "@/components/ui/terminal-window";
 
 /**
  * Flows list page.
@@ -204,14 +205,13 @@ export default function FlowsPage() {
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-semibold text-foreground">Flows</h1>
+            <h1 className="text-2xl font-semibold font-mono text-foreground"><span className="text-primary">▸</span> flows</h1>
             <span className="inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-300">
               Beta
             </span>
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Build branching, button-driven WhatsApp conversations. Useful for
-            menus, FAQs, and triage before a human steps in.
+          <p className="mt-1 text-sm font-mono text-muted-foreground">
+            # build branching, button-driven whatsapp conversations.
           </p>
         </div>
         <GatedButton
@@ -224,23 +224,25 @@ export default function FlowsPage() {
         </GatedButton>
       </header>
 
-      {flows.length === 0 ? (
-        <EmptyState
-          onCreate={() => setCreateOpen(true)}
-          canCreate={canCreate}
-        />
-      ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {flows.map((flow) => (
-            <FlowCard
-              key={flow.id}
-              flow={flow}
-              onEdit={() => router.push(`/flows/${flow.id}`)}
-              onDelete={() => handleDelete(flow)}
-            />
-          ))}
-        </div>
-      )}
+      <TerminalWindow title="flows/list">
+        {flows.length === 0 ? (
+          <EmptyState
+            onCreate={() => setCreateOpen(true)}
+            canCreate={canCreate}
+          />
+        ) : (
+          <div className="grid grid-cols-1 gap-4 p-4 md:grid-cols-2 xl:grid-cols-3">
+            {flows.map((flow) => (
+              <FlowCard
+                key={flow.id}
+                flow={flow}
+                onEdit={() => router.push(`/flows/${flow.id}`)}
+                onDelete={() => handleDelete(flow)}
+              />
+            ))}
+          </div>
+        )}
+      </TerminalWindow>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         {/* `sm:max-w-4xl` not `max-w-4xl` — shadcn's DialogContent has

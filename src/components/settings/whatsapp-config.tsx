@@ -19,7 +19,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { TerminalWindow } from '@/components/ui/terminal-window';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { SettingsPanelHead } from './settings-panel-head';
 import {
@@ -548,14 +548,11 @@ export function WhatsAppConfig() {
         )}
 
         {/* API Credentials */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-foreground">API Credentials</CardTitle>
-            <CardDescription className="text-muted-foreground">
-              Enter your Meta WhatsApp Business API credentials.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        <TerminalWindow title="settings/whatsapp/credentials">
+          <p className="border-b border-border px-5 py-2 font-mono text-xs text-muted-foreground">
+            # enter your meta whatsapp business api credentials.
+          </p>
+          <div className="space-y-4 p-5">
             <div className="space-y-2">
               <Label className="text-muted-foreground">Phone Number ID</Label>
               <Input
@@ -656,18 +653,15 @@ export function WhatsAppConfig() {
                 untouched.
               </p>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </TerminalWindow>
 
         {/* Webhook URL */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-foreground">Webhook Configuration</CardTitle>
-            <CardDescription className="text-muted-foreground">
-              Use this URL as your webhook callback in the Meta App Dashboard.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+        <TerminalWindow title="settings/whatsapp/webhook">
+          <p className="border-b border-border px-5 py-2 font-mono text-xs text-muted-foreground">
+            # use this url as your webhook callback in the meta app dashboard.
+          </p>
+          <div className="p-5">
             <div className="space-y-2">
               <Label className="text-muted-foreground">Webhook Callback URL</Label>
               <div className="flex gap-2">
@@ -686,8 +680,8 @@ export function WhatsAppConfig() {
                 </Button>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </TerminalWindow>
 
         {/* Action Buttons */}
         <div className="flex flex-wrap gap-3">
@@ -748,14 +742,11 @@ export function WhatsAppConfig() {
 
       {/* Setup Instructions Sidebar */}
       <div>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-foreground text-base">Setup Instructions</CardTitle>
-            <CardDescription className="text-muted-foreground">
-              Follow these steps to connect your WhatsApp Business API.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+        <TerminalWindow title="settings/whatsapp/setup-instructions">
+          <p className="border-b border-border px-5 py-2 font-mono text-xs text-muted-foreground">
+            # follow these steps to connect your whatsapp business api.
+          </p>
+          <div className="p-5">
             <Accordion>
               <AccordionItem className="border-border">
                 <AccordionTrigger className="text-muted-foreground hover:text-foreground hover:no-underline">
@@ -837,8 +828,8 @@ export function WhatsAppConfig() {
                 Meta WhatsApp API Documentation
               </a>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </TerminalWindow>
       </div>
     </div>
     </section>

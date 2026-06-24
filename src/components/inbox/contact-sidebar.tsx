@@ -188,6 +188,15 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
 
   return (
     <div className="flex h-full min-h-0 w-70 flex-col border-l border-border bg-card">
+      {/* Terminal title bar */}
+      <div className="flex items-center gap-2 border-b border-border bg-card-2 px-3 py-2">
+        <span className="flex shrink-0 gap-1.5" aria-hidden>
+          <span className="h-2.5 w-2.5 rounded-full bg-[#FF5F57]" />
+          <span className="h-2.5 w-2.5 rounded-full bg-[#FEBC2E]" />
+          <span className="h-2.5 w-2.5 rounded-full bg-[#28C840]" />
+        </span>
+        <span className="font-mono text-xs text-muted-foreground">inbox/contact</span>
+      </div>
       {/* `min-h-0` is load-bearing: without it the flex-1 ScrollArea grows to
           its content height (min-height:auto) instead of bounding to the
           column, so a tall panel overflows and the ancestor's overflow-hidden

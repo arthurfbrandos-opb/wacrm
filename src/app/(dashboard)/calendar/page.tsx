@@ -74,12 +74,12 @@ export default function CalendarPage() {
   return (
     <div className="mx-auto max-w-3xl">
       <div className="mb-6">
-        <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-foreground">
+        <h1 className="font-mono flex items-center gap-2 text-2xl font-bold tracking-tight text-foreground">
           <CalendarDays className="size-6 text-primary" />
-          Calendário
+          <span className="text-primary">▸</span> calendário
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Reuniões agendadas (diagnósticos marcados pelo Ian e manuais). Sincronizadas
+        <p className="font-mono mt-1 text-sm text-muted-foreground">
+          # reuniões agendadas (diagnósticos marcados pelo Ian e manuais). Sincronizadas
           com o Google Agenda do Arthur.
         </p>
       </div>

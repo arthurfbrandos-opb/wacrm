@@ -7,13 +7,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { TerminalWindow } from '@/components/ui/terminal-window';
 import {
   Dialog,
   DialogContent,
@@ -149,17 +143,11 @@ export function TagManager() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-foreground">
-          <TagIcon className="size-4 text-primary" />
-          Tags
-        </CardTitle>
-        <CardDescription className="text-muted-foreground">
-          Colour-coded labels for grouping and filtering contacts.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <TerminalWindow title="settings/fields/tags">
+      <p className="border-b border-border px-5 py-2 font-mono text-xs text-muted-foreground">
+        # colour-coded labels for grouping and filtering contacts.
+      </p>
+      <div className="space-y-4 p-5">
         {loading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="size-6 animate-spin text-primary" />
@@ -247,7 +235,7 @@ export function TagManager() {
             </div>
           </>
         )}
-      </CardContent>
+      </div>
 
       {/* Delete confirmation */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -284,6 +272,6 @@ export function TagManager() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </Card>
+    </TerminalWindow>
   );
 }

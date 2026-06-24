@@ -14,7 +14,7 @@ import {
   AvatarFallback,
   AvatarImage,
 } from '@/components/ui/avatar';
-import { Card, CardContent } from '@/components/ui/card';
+import { TerminalWindow } from '@/components/ui/terminal-window';
 import { SettingsPanelHead } from './settings-panel-head';
 
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
@@ -211,8 +211,8 @@ export function ProfileForm() {
         description="How you show up across the app. Your avatar and name appear in the header, sidebar, and anywhere your teammates see you."
       />
       <form onSubmit={onSubmit} className="space-y-4">
-        <Card>
-          <CardContent className="space-y-6">
+        <TerminalWindow title="settings/profile">
+          <div className="space-y-6 p-6">
           {/* Avatar row */}
           <div className="flex flex-wrap items-center gap-5">
             <Avatar size="lg" className="size-16">
@@ -332,8 +332,8 @@ export function ProfileForm() {
             </p>
           )}
 
-        </CardContent>
-        </Card>
+          </div>
+        </TerminalWindow>
 
         <div className="flex justify-end">
           <Button type="submit" disabled={saving || !dirty || !profile}>
