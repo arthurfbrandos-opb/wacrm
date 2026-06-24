@@ -95,10 +95,12 @@ const STEP_META: Record<AutomationStepType, StepMeta> = {
   assign_conversation: { label: "Atribuir Conversa", icon: UserCheck, border: "border-l-primary" },
   update_contact_field: { label: "Atualizar Campo do Contato", icon: PencilLine, border: "border-l-primary" },
   create_deal: { label: "Criar Negócio", icon: Briefcase, border: "border-l-primary" },
+  move_deal: { label: "Mover Negócio", icon: Briefcase, border: "border-l-primary" },
   wait: { label: "Aguardar", icon: Hourglass, border: "border-l-border" },
   condition: { label: "Condição (Se/Senão)", icon: GitBranch, border: "border-l-amber-500" },
   send_webhook: { label: "Enviar Webhook", icon: Webhook, border: "border-l-primary" },
   close_conversation: { label: "Fechar Conversa", icon: CircleSlash, border: "border-l-primary" },
+  send_ai: { label: "Enviar (IA)", icon: MessageSquare, border: "border-l-primary" },
 }
 
 const ADDABLE_STEPS: AutomationStepType[] = [
@@ -109,10 +111,12 @@ const ADDABLE_STEPS: AutomationStepType[] = [
   "assign_conversation",
   "update_contact_field",
   "create_deal",
+  "move_deal",
   "wait",
   "condition",
   "send_webhook",
   "close_conversation",
+  "send_ai",
 ]
 
 const TRIGGER_OPTIONS: { value: AutomationTriggerType; label: string; hint: string }[] = [
@@ -153,6 +157,8 @@ function blankConfig(type: AutomationStepType): Record<string, unknown> {
       return { field: "name", value: "" }
     case "create_deal":
       return { pipeline_id: "", stage_id: "", title: "", value: 0 }
+    case "move_deal":
+      return { pipeline_id: "", stage_id: "" }
     case "wait":
       return { amount: 1, unit: "hours" }
     case "condition":
@@ -161,6 +167,8 @@ function blankConfig(type: AutomationStepType): Record<string, unknown> {
       return { url: "", headers: {}, body_template: "" }
     case "close_conversation":
       return {}
+    case "send_ai":
+      return { guidance: "" }
     default:
       return {}
   }
@@ -1144,6 +1152,25 @@ function StepEditor({
           </FieldBlock>
         </>
       )
+    case "move_deal":
+      return (
+        <>
+          <FieldBlock label="Pipeline de destino">
+            <Input
+              value={(cfg.pipeline_id as string) ?? ""}
+              onChange={(e) => set({ pipeline_id: e.target.value })}
+              className="bg-muted text-foreground"
+            />
+          </FieldBlock>
+          <FieldBlock label="Coluna (estágio) de destino">
+            <Input
+              value={(cfg.stage_id as string) ?? ""}
+              onChange={(e) => set({ stage_id: e.target.value })}
+              className="bg-muted text-foreground"
+            />
+          </FieldBlock>
+        </>
+      )
     case "wait":
       return (
         <div className="grid grid-cols-2 gap-2">
@@ -1235,6 +1262,17 @@ function StepEditor({
         <p className="text-xs text-muted-foreground">
           Define o status da conversa como &quot;fechada&quot;. Nenhuma configuração necessária.
         </p>
+      )
+    case "send_ai":
+      return (
+        <FieldBlock label="Diretriz do toque (ângulo)">
+          <Textarea
+            value={(cfg.guidance as string) ?? ""}
+            onChange={(e) => set({ guidance: e.target.value })}
+            placeholder="Ex.: corrido — leve, dá um gancho: 'sei que corre, só não quero te deixar na mão'."
+            rows={3}
+          />
+        </FieldBlock>
       )
     default:
       return null

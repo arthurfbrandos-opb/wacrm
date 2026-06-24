@@ -11,6 +11,7 @@ const h = vi.hoisted(() => ({
     fromCalls: [] as string[],
     updateCalls: [] as { table: string; filters: [string, string, unknown][] }[],
     upsertCalls: [] as { table: string; payload: unknown }[],
+    deleteCalls: [] as { table: string; filters: [string, string, unknown][] }[],
   },
 }));
 
@@ -44,12 +45,33 @@ vi.mock("./admin-client", () => {
       return { data: null, error: null };
     }
     if (table === "automations") return { data: state.automations, error: null };
+    if (table === "automation_pending_executions") {
+      if (type === "delete") {
+        state.deleteCalls.push({ table, filters: ops.filters });
+        return { data: [{ id: "p1" }], error: null };
+      }
+      return { data: [], error: null };
+    }
     if (table === "automation_logs") {
       if (type === "insert") return { data: { id: "log1" }, error: null };
       if (type === "update") return { data: null, error: null };
       return { data: { steps_executed: [], status: "success" }, error: null };
     }
     if (table === "automation_steps") return { data: state.steps, error: null };
+    if (table === "deals") {
+      if (type === "update") {
+        state.updateCalls.push({ table, filters: ops.filters });
+        return { data: null, error: null };
+      }
+      return { data: null, error: null };
+    }
+    if (table === "sdr_config") {
+      return { data: { system_prompt: "Você é o Ian.", variables: [] }, error: null };
+    }
+    if (table === "messages") {
+      if (type === "insert") return { data: { id: "msg1" }, error: null };
+      return { data: [], error: null };
+    }
     return { data: null, error: null };
   }
 
@@ -71,6 +93,7 @@ vi.mock("./admin-client", () => {
       is: () => b,
       order: () => b,
       limit: () => b,
+      in: (k: string, v: unknown) => (ops.filters.push(["in", k, v]), b),
       single: () => Promise.resolve(resolve(ops)),
       maybeSingle: () => Promise.resolve(resolve(ops)),
       then: (onF: (v: unknown) => unknown, onR?: (e: unknown) => unknown) =>
@@ -95,7 +118,18 @@ vi.mock("./meta-send", () => ({
   engineSendTemplate: vi.fn(async () => ({ whatsapp_message_id: "m1" })),
 }));
 
-import { runAutomationsForTrigger } from "./engine";
+const sendTextMock = vi.fn(async (..._args: unknown[]) => ({ messageId: "uaz-1" }));
+vi.mock("@/lib/sdr/send", () => ({
+  resolveAccountProvider: vi.fn(async () => "uazapi"),
+  sendText: (...args: unknown[]) => sendTextMock(...args),
+}));
+vi.mock("@/lib/pkg/pedro/client", () => ({
+  pedroFromEnv: () => ({
+    reply: vi.fn(async (system: string) => ({ text: `GEN:${system.includes("corrido")}` })),
+  }),
+}));
+
+import { runAutomationsForTrigger, cancelPendingForContact } from "./engine";
 
 const ACCOUNT = "acct-1";
 
@@ -107,6 +141,8 @@ beforeEach(() => {
   h.state.fromCalls = [];
   h.state.updateCalls = [];
   h.state.upsertCalls = [];
+  h.state.deleteCalls = [];
+  sendTextMock.mockClear();
 });
 
 describe("runAutomationsForTrigger — tenant isolation", () => {
@@ -221,6 +257,76 @@ describe("update_contact_field — custom fields", () => {
 
     expect(h.state.upsertCalls).toHaveLength(0);
     expect(h.state.updateCalls).toHaveLength(0);
+  });
+});
+
+describe("move_deal", () => {
+  it("moves the contact's open deal scoped to the account", async () => {
+    h.state.owned = { id: "c1" };
+    h.state.automations = [{
+      id: "a1", account_id: ACCOUNT, user_id: "u1",
+      trigger_type: "tag_added", trigger_config: {}, is_active: true,
+    }];
+    h.state.steps = [{
+      id: "s1", automation_id: "a1", step_type: "move_deal",
+      position: 0, parent_step_id: null,
+      step_config: { pipeline_id: "pl-followup", stage_id: "st-fu1" },
+    }];
+
+    await runAutomationsForTrigger({
+      accountId: ACCOUNT,
+      triggerType: "tag_added",
+      contactId: "c1",
+      context: { tag_id: "fu1" },
+    });
+
+    const dealUpdates = h.state.updateCalls.filter((u) => u.table === "deals");
+    expect(dealUpdates).toHaveLength(1);
+    expect(dealUpdates[0].filters).toContainEqual(["eq", "account_id", ACCOUNT]);
+    expect(dealUpdates[0].filters).toContainEqual(["eq", "contact_id", "c1"]);
+    expect(dealUpdates[0].filters).toContainEqual(["eq", "status", "open"]);
+  });
+});
+
+describe("send_ai", () => {
+  it("generates text with the agent voice + guidance and sends via UazAPI", async () => {
+    h.state.owned = { id: "c1", phone: "5511999" } as { id: string };
+    h.state.automations = [{
+      id: "a1", account_id: ACCOUNT, user_id: "u1",
+      trigger_type: "tag_added", trigger_config: {}, is_active: true,
+    }];
+    h.state.steps = [{
+      id: "s1", automation_id: "a1", step_type: "send_ai",
+      position: 0, parent_step_id: null,
+      step_config: { guidance: "corrido — leve, sem cobrar." },
+    }];
+
+    await runAutomationsForTrigger({
+      accountId: ACCOUNT,
+      triggerType: "tag_added",
+      contactId: "c1",
+      context: { conversation_id: "conv1", tag_id: "fu1" },
+    });
+
+    expect(sendTextMock).toHaveBeenCalledTimes(1);
+    const callArgs = sendTextMock.mock.calls[0] as unknown[];
+    // sendText(admin, accountId, {provider, phone}, text)
+    expect(callArgs[1]).toBe(ACCOUNT);
+    expect((callArgs[2] as { provider: string }).provider).toBe("uazapi");
+    expect((callArgs[2] as { phone: string }).phone).toBe("5511999");
+    expect(callArgs[3]).toBe("GEN:true");
+  });
+});
+
+describe("cancel_on_reply", () => {
+  it("deletes pending executions for the contact scoped to the account", async () => {
+    h.state.automations = [{ id: "a1", account_id: ACCOUNT, cancel_on_reply: true }];
+    await cancelPendingForContact(ACCOUNT, "c1");
+    const del = h.state.deleteCalls.filter((d) => d.table === "automation_pending_executions");
+    expect(del).toHaveLength(1);
+    expect(del[0].filters).toContainEqual(["eq", "account_id", ACCOUNT]);
+    expect(del[0].filters).toContainEqual(["eq", "contact_id", "c1"]);
+    expect(del[0].filters).toContainEqual(["in", "automation_id", ["a1"]]);
   });
 });
 

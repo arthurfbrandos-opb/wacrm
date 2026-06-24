@@ -12,10 +12,14 @@ import type {
   UpdateContactFieldStepConfig,
   WaitStepConfig,
   CreateDealStepConfig,
+  MoveDealStepConfig,
   AssignConversationStepConfig,
+  SendAiStepConfig,
 } from '@/types'
 import { supabaseAdmin } from './admin-client'
 import { engineSendText, engineSendTemplate } from './meta-send'
+import { resolveAccountProvider, sendText } from '@/lib/sdr/send'
+import { pedroFromEnv } from '@/lib/pkg/pedro/client'
 
 // ------------------------------------------------------------
 // Public API
@@ -156,6 +160,39 @@ export async function resumePendingExecution(pending: {
   } catch (err) {
     console.error('[automations] resume failed:', err)
     await markPending(pending.id, 'failed')
+  }
+}
+
+/**
+ * Cancela toques pendentes de um contato quando ele responde. Restrito às
+ * automações da conta marcadas com cancel_on_reply=true. Best-effort: nunca
+ * lança (chamado fire-and-forget do webhook de inbound).
+ */
+export async function cancelPendingForContact(
+  accountId: string,
+  contactId: string,
+): Promise<number> {
+  try {
+    const db = supabaseAdmin()
+    const { data: autos } = await db
+      .from('automations')
+      .select('id')
+      .eq('account_id', accountId)
+      .eq('cancel_on_reply', true)
+    const ids = ((autos ?? []) as { id: string }[]).map((a) => a.id)
+    if (ids.length === 0) return 0
+    const { data: deleted } = await db
+      .from('automation_pending_executions')
+      .delete()
+      .eq('account_id', accountId)
+      .eq('contact_id', contactId)
+      .eq('status', 'pending')
+      .in('automation_id', ids)
+      .select('id')
+    return Array.isArray(deleted) ? deleted.length : 0
+  } catch (err) {
+    console.error('[automations] cancelPendingForContact failed:', err)
+    return 0
   }
 }
 
@@ -545,6 +582,87 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         .eq('account_id', args.automation.account_id)
         .eq('contact_id', args.contactId)
       return 'conversation closed'
+    }
+
+    case 'move_deal': {
+      const cfg = step.step_config as MoveDealStepConfig
+      if (!cfg.pipeline_id || !cfg.stage_id) throw new Error('move_deal needs pipeline + stage')
+      if (!args.contactId) throw new Error('move_deal needs a contact')
+      await db
+        .from('deals')
+        .update({
+          pipeline_id: cfg.pipeline_id,
+          stage_id: cfg.stage_id,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('account_id', args.automation.account_id)
+        .eq('contact_id', args.contactId)
+        .eq('status', 'open')
+      return `deal moved to ${cfg.stage_id}`
+    }
+
+    case 'send_ai': {
+      const cfg = step.step_config as SendAiStepConfig
+      if (!args.contactId) throw new Error('send_ai needs a contact')
+      if (!cfg.guidance?.trim()) throw new Error('send_ai needs guidance')
+
+      const { data: contact } = await db
+        .from('contacts')
+        .select('phone')
+        .eq('id', args.contactId)
+        .eq('account_id', args.automation.account_id)
+        .maybeSingle()
+      const phone = (contact as { phone?: string } | null)?.phone
+      if (!phone) throw new Error('send_ai: contact has no phone')
+
+      const { data: sdrCfg } = await db
+        .from('sdr_config')
+        .select('system_prompt')
+        .eq('account_id', args.automation.account_id)
+        .maybeSingle()
+      const basePrompt = (sdrCfg as { system_prompt?: string } | null)?.system_prompt ?? ''
+
+      // Histórico recente (opcional — toque proativo funciona mesmo sem).
+      let messages: { role: 'user' | 'assistant'; content: string }[] = []
+      const convId = args.context.conversation_id
+      if (convId) {
+        const { data: rows } = await db
+          .from('messages')
+          .select('sender_type, content_text, created_at')
+          .eq('conversation_id', convId)
+          .order('created_at', { ascending: false })
+          .limit(20)
+        messages = (((rows ?? []) as { sender_type: string; content_text: string | null }[])
+          .reverse())
+          .filter((m) => m.content_text)
+          .map((m) => ({
+            role: m.sender_type === 'customer' ? 'user' as const : 'assistant' as const,
+            content: m.content_text as string,
+          }))
+      }
+      if (messages.length === 0) {
+        messages = [{ role: 'user', content: '(follow-up proativo)' }]
+      }
+
+      const system = `${basePrompt}\n\n[Diretriz deste toque]\n${cfg.guidance}`
+      const { text } = await pedroFromEnv().reply(system, messages)
+      if (!text?.trim()) throw new Error('send_ai: brain returned empty text')
+
+      const provider = await resolveAccountProvider(db, args.automation.account_id)
+      const { messageId } = await sendText(db, args.automation.account_id, { provider, phone }, text)
+
+      // Persistir a mensagem do bot (mesma tabela/forma dos outros envios).
+      if (convId) {
+        await db.from('messages').insert({
+          conversation_id: convId,
+          sender_type: 'bot',
+          content_type: 'text',
+          content_text: text,
+          message_id: messageId,
+          status: 'sent',
+        })
+      }
+      return `send_ai sent via ${provider} (${messageId ?? 'no-id'})`
     }
 
     default:
