@@ -37,12 +37,12 @@ function getPageTitle(pathname: string): string {
 }
 
 interface HeaderProps {
-  /** Wired to the shell's drawer state. Used only on mobile — the
-   *  hamburger button is hidden on lg+. */
-  onOpenSidebar?: () => void;
+  /** Wired to the shell. On mobile opens the slide-in drawer; on desktop
+   *  toggles the sidebar collapse (hide / show). */
+  onMenuClick?: () => void;
 }
 
-export function Header({ onOpenSidebar }: HeaderProps) {
+export function Header({ onMenuClick }: HeaderProps) {
   const pathname = usePathname();
   const { profile, signOut } = useAuth();
   const title = getPageTitle(pathname);
@@ -55,12 +55,15 @@ export function Header({ onOpenSidebar }: HeaderProps) {
   return (
     <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border bg-background px-4 lg:px-6">
       <div className="flex min-w-0 items-center gap-2">
-        {/* Hamburger — mobile only. 44×44 hit target per Apple HIG. */}
+        {/* Menu button. Mobile: opens the drawer. Desktop: toggles the
+            sidebar collapse, so it's the way to bring the menu back after
+            hiding it. 44×44 hit target per Apple HIG. */}
         <button
           type="button"
-          onClick={onOpenSidebar}
-          aria-label="Open menu"
-          className="flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:hidden"
+          onClick={onMenuClick}
+          aria-label="Alternar menu lateral"
+          title="Mostrar/ocultar menu"
+          className="flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
         >
           <Menu className="h-5 w-5" />
         </button>

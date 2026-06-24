@@ -21,6 +21,7 @@ import {
   Users,
   UsersRound,
   Workflow,
+  PanelLeftClose,
   X,
   Zap,
 } from "lucide-react";
@@ -106,9 +107,18 @@ interface SidebarProps {
   /** Controlled on mobile by the Header's hamburger button. Ignored on lg+. */
   open?: boolean;
   onClose?: () => void;
+  /** Desktop-only: when true the sidebar is hidden on lg+ (collapsed). */
+  desktopCollapsed?: boolean;
+  /** Desktop-only: collapse/hide the sidebar (the in-sidebar "ocultar" button). */
+  onCollapse?: () => void;
 }
 
-export function Sidebar({ open = false, onClose }: SidebarProps) {
+export function Sidebar({
+  open = false,
+  onClose,
+  desktopCollapsed = false,
+  onCollapse,
+}: SidebarProps) {
   const pathname = usePathname();
   const { profile, profileLoading, account, accountRole, signOut } = useAuth();
   const totalUnread = useTotalUnread();
@@ -174,6 +184,9 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
           open ? "translate-x-0" : "-translate-x-full",
           // Desktop: static, always visible — reset all the mobile framing.
           "lg:static lg:z-0 lg:w-60 lg:translate-x-0 lg:transition-none",
+          // Desktop collapse: hide entirely on lg+ when the user hid it.
+          // Mobile is unaffected (it's driven by `open`).
+          desktopCollapsed && "lg:hidden",
         )}
         aria-label="Navegação principal"
       >
@@ -191,6 +204,18 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
               Negócio Simples
             </span>
           </Link>
+          {/* Collapse — desktop only. Hides the sidebar; bring it back with
+              the menu button in the header. */}
+          <button
+            type="button"
+            onClick={onCollapse}
+            aria-label="Ocultar menu"
+            title="Ocultar menu"
+            className="hidden h-9 w-9 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 lg:flex"
+          >
+            <PanelLeftClose className="h-5 w-5" />
+          </button>
+          {/* Close — mobile drawer only. */}
           <button
             type="button"
             onClick={onClose}
