@@ -16,6 +16,7 @@ import {
   FileText,
   Mic,
   Square,
+  Smile,
   X,
   Loader2,
 } from "lucide-react";
@@ -27,6 +28,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { useCan } from "@/hooks/use-can";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -110,6 +116,19 @@ function formatDuration(seconds: number): string {
  *  (vendored from opus-recorder into /public). Recording client-side in a
  *  Meta-accepted format means no server ffmpeg / transcode step. */
 const OPUS_ENCODER_PATH = "/opus/encoderWorker.min.js";
+
+/** Curated emoji set for the composer picker — the ones that actually show up
+ *  in day-to-day sales/support chat. No external dependency: a plain grid in a
+ *  popover, inserted at the textarea cursor. */
+const COMPOSER_EMOJIS = [
+  "😀", "😃", "😄", "😁", "😅", "😂", "🙂", "😉",
+  "😊", "😍", "😘", "😎", "🤩", "🤗", "🤔", "🙄",
+  "😐", "😴", "😢", "😭", "😤", "😡", "🥳", "🤝",
+  "👍", "👎", "👌", "🙏", "👏", "🙌", "💪", "👋",
+  "🔥", "✨", "⭐", "🎉", "🎊", "✅", "❌", "⚠️",
+  "❤️", "🧡", "💛", "💚", "💙", "💜", "💯", "👀",
+  "🚀", "📈", "💰", "📅", "⏰", "📞", "📧", "💬",
+];
 
 export function MessageComposer({
   conversationId,
@@ -221,6 +240,25 @@ export function MessageComposer({
       adjustHeight();
     },
     [adjustHeight]
+  );
+
+  // Insert an emoji at the textarea caret (or append if it isn't focused),
+  // then restore the caret just past it so the user can keep typing.
+  const insertEmoji = useCallback(
+    (emoji: string) => {
+      const el = textareaRef.current;
+      const start = el?.selectionStart ?? text.length;
+      const end = el?.selectionEnd ?? text.length;
+      setText(text.slice(0, start) + emoji + text.slice(end));
+      requestAnimationFrame(() => {
+        if (!el) return;
+        el.focus();
+        const pos = start + emoji.length;
+        el.setSelectionRange(pos, pos);
+        adjustHeight();
+      });
+    },
+    [text, adjustHeight]
   );
 
   // Upload a captured file to chat-media and stage it as a draft.
@@ -522,6 +560,38 @@ export function MessageComposer({
           >
             <LayoutTemplate className="h-4 w-4" />
           </GatedButton>
+
+          {/* Emoji picker — inserts at the textarea caret. Stays open so a few
+              can be added in a row; click outside to dismiss. */}
+          <Popover>
+            <PopoverTrigger
+              disabled={inputsDisabled}
+              aria-label="Inserir emoji"
+              title={
+                readOnly
+                  ? "Somente leitura — seu perfil não pode enviar mensagens"
+                  : "Emoji"
+              }
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+            >
+              <Smile className="h-4 w-4" />
+            </PopoverTrigger>
+            <PopoverContent align="start" side="top" className="w-auto p-2">
+              <div className="grid grid-cols-8 gap-0.5">
+                {COMPOSER_EMOJIS.map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    onClick={() => insertEmoji(emoji)}
+                    aria-label={`Inserir ${emoji}`}
+                    className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-md text-lg leading-none transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+            </PopoverContent>
+          </Popover>
 
           <textarea
             ref={textareaRef}
