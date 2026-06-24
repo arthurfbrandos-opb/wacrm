@@ -11,6 +11,7 @@ const h = vi.hoisted(() => ({
     fromCalls: [] as string[],
     updateCalls: [] as { table: string; filters: [string, string, unknown][] }[],
     upsertCalls: [] as { table: string; payload: unknown }[],
+    deleteCalls: [] as { table: string; filters: [string, string, unknown][] }[],
   },
 }));
 
@@ -44,6 +45,13 @@ vi.mock("./admin-client", () => {
       return { data: null, error: null };
     }
     if (table === "automations") return { data: state.automations, error: null };
+    if (table === "automation_pending_executions") {
+      if (type === "delete") {
+        state.deleteCalls.push({ table, filters: ops.filters });
+        return { data: [{ id: "p1" }], error: null };
+      }
+      return { data: [], error: null };
+    }
     if (table === "automation_logs") {
       if (type === "insert") return { data: { id: "log1" }, error: null };
       if (type === "update") return { data: null, error: null };
@@ -85,6 +93,7 @@ vi.mock("./admin-client", () => {
       is: () => b,
       order: () => b,
       limit: () => b,
+      in: () => b,
       single: () => Promise.resolve(resolve(ops)),
       maybeSingle: () => Promise.resolve(resolve(ops)),
       then: (onF: (v: unknown) => unknown, onR?: (e: unknown) => unknown) =>
@@ -120,7 +129,7 @@ vi.mock("@/lib/pkg/pedro/client", () => ({
   }),
 }));
 
-import { runAutomationsForTrigger } from "./engine";
+import { runAutomationsForTrigger, cancelPendingForContact } from "./engine";
 
 const ACCOUNT = "acct-1";
 
@@ -132,6 +141,7 @@ beforeEach(() => {
   h.state.fromCalls = [];
   h.state.updateCalls = [];
   h.state.upsertCalls = [];
+  h.state.deleteCalls = [];
   sendTextMock.mockClear();
 });
 
@@ -305,6 +315,17 @@ describe("send_ai", () => {
     expect((callArgs[2] as { provider: string }).provider).toBe("uazapi");
     expect((callArgs[2] as { phone: string }).phone).toBe("5511999");
     expect(callArgs[3]).toBe("GEN:true");
+  });
+});
+
+describe("cancel_on_reply", () => {
+  it("deletes pending executions for the contact scoped to the account", async () => {
+    h.state.automations = [{ id: "a1", account_id: ACCOUNT, cancel_on_reply: true }];
+    await cancelPendingForContact(ACCOUNT, "c1");
+    const del = h.state.deleteCalls.filter((d) => d.table === "automation_pending_executions");
+    expect(del).toHaveLength(1);
+    expect(del[0].filters).toContainEqual(["eq", "account_id", ACCOUNT]);
+    expect(del[0].filters).toContainEqual(["eq", "contact_id", "c1"]);
   });
 });
 

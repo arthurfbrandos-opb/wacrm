@@ -163,6 +163,39 @@ export async function resumePendingExecution(pending: {
   }
 }
 
+/**
+ * Cancela toques pendentes de um contato quando ele responde. Restrito às
+ * automações da conta marcadas com cancel_on_reply=true. Best-effort: nunca
+ * lança (chamado fire-and-forget do webhook de inbound).
+ */
+export async function cancelPendingForContact(
+  accountId: string,
+  contactId: string,
+): Promise<number> {
+  try {
+    const db = supabaseAdmin()
+    const { data: autos } = await db
+      .from('automations')
+      .select('id')
+      .eq('account_id', accountId)
+      .eq('cancel_on_reply', true)
+    const ids = ((autos ?? []) as { id: string }[]).map((a) => a.id)
+    if (ids.length === 0) return 0
+    const { data: deleted } = await db
+      .from('automation_pending_executions')
+      .delete()
+      .eq('account_id', accountId)
+      .eq('contact_id', contactId)
+      .eq('status', 'pending')
+      .in('automation_id', ids)
+      .select('id')
+    return Array.isArray(deleted) ? deleted.length : 0
+  } catch (err) {
+    console.error('[automations] cancelPendingForContact failed:', err)
+    return 0
+  }
+}
+
 // ------------------------------------------------------------
 // Internal execution
 // ------------------------------------------------------------
