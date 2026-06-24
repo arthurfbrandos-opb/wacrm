@@ -7,7 +7,7 @@ import { findExistingContact, isUniqueViolation } from '@/lib/contacts/dedupe'
 import { verifyWebhookAuth } from '@/lib/whatsapp/webhook-signature'
 import { normalizeUazAPIPayload } from '@/lib/whatsapp/payload-normalizer'
 import { resolveUazapiRoute, type UazapiRoute } from '@/lib/whatsapp/uazapi-routing'
-import { runAutomationsForTrigger } from '@/lib/automations/engine'
+import { runAutomationsForTrigger, cancelPendingForContact } from '@/lib/automations/engine'
 import { dispatchInboundToFlows } from '@/lib/flows/engine'
 import { runSdrReply, initialAiStatus } from '@/lib/sdr/processor'
 import {
@@ -777,6 +777,13 @@ async function processMessage(
   // listens to only one trigger runs only when that trigger matches.
   if (contactOutcome.wasCreated) automationTriggers.unshift('new_contact_created')
   if (isFirstInboundMessage) automationTriggers.unshift('first_inbound_message')
+
+  // A lead reply cancels any in-flight follow-up sequence for this contact.
+  // Fire-and-forget: must not block the 200 OK response to Meta/UazAPI.
+  cancelPendingForContact(accountId, contactRecord.id).catch((err) =>
+    console.error('[automations] cancel-on-reply failed:', err),
+  )
+
   for (const triggerType of automationTriggers) {
     runAutomationsForTrigger({
       accountId,
