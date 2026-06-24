@@ -57,6 +57,13 @@ vi.mock("./admin-client", () => {
       }
       return { data: null, error: null };
     }
+    if (table === "sdr_config") {
+      return { data: { system_prompt: "Você é o Ian.", variables: [] }, error: null };
+    }
+    if (table === "messages") {
+      if (type === "insert") return { data: { id: "msg1" }, error: null };
+      return { data: [], error: null };
+    }
     return { data: null, error: null };
   }
 
@@ -102,6 +109,17 @@ vi.mock("./meta-send", () => ({
   engineSendTemplate: vi.fn(async () => ({ whatsapp_message_id: "m1" })),
 }));
 
+const sendTextMock = vi.fn(async () => ({ messageId: "uaz-1" }));
+vi.mock("@/lib/sdr/send", () => ({
+  resolveAccountProvider: vi.fn(async () => "uazapi"),
+  sendText: (...args: unknown[]) => sendTextMock(...args),
+}));
+vi.mock("@/lib/pkg/pedro/client", () => ({
+  pedroFromEnv: () => ({
+    reply: vi.fn(async (system: string) => ({ text: `GEN:${system.includes("corrido")}` })),
+  }),
+}));
+
 import { runAutomationsForTrigger } from "./engine";
 
 const ACCOUNT = "acct-1";
@@ -114,6 +132,7 @@ beforeEach(() => {
   h.state.fromCalls = [];
   h.state.updateCalls = [];
   h.state.upsertCalls = [];
+  sendTextMock.mockClear();
 });
 
 describe("runAutomationsForTrigger — tenant isolation", () => {
@@ -256,6 +275,36 @@ describe("move_deal", () => {
     expect(dealUpdates[0].filters).toContainEqual(["eq", "account_id", ACCOUNT]);
     expect(dealUpdates[0].filters).toContainEqual(["eq", "contact_id", "c1"]);
     expect(dealUpdates[0].filters).toContainEqual(["eq", "status", "open"]);
+  });
+});
+
+describe("send_ai", () => {
+  it("generates text with the agent voice + guidance and sends via UazAPI", async () => {
+    h.state.owned = { id: "c1", phone: "5511999" } as { id: string };
+    h.state.automations = [{
+      id: "a1", account_id: ACCOUNT, user_id: "u1",
+      trigger_type: "tag_added", trigger_config: {}, is_active: true,
+    }];
+    h.state.steps = [{
+      id: "s1", automation_id: "a1", step_type: "send_ai",
+      position: 0, parent_step_id: null,
+      step_config: { guidance: "corrido — leve, sem cobrar." },
+    }];
+
+    await runAutomationsForTrigger({
+      accountId: ACCOUNT,
+      triggerType: "tag_added",
+      contactId: "c1",
+      context: { conversation_id: "conv1", tag_id: "fu1" },
+    });
+
+    expect(sendTextMock).toHaveBeenCalledTimes(1);
+    const callArgs = sendTextMock.mock.calls[0] as unknown[];
+    // sendText(admin, accountId, {provider, phone}, text)
+    expect(callArgs[1]).toBe(ACCOUNT);
+    expect((callArgs[2] as { provider: string }).provider).toBe("uazapi");
+    expect((callArgs[2] as { phone: string }).phone).toBe("5511999");
+    expect(typeof callArgs[3]).toBe("string");
   });
 });
 

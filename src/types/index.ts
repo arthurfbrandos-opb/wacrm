@@ -426,7 +426,8 @@ export type AutomationStepType =
   | 'condition'
   | 'send_webhook'
   | 'close_conversation'
-  | 'move_deal';
+  | 'move_deal'
+  | 'send_ai';
 
 export type AutomationLogStatus = 'success' | 'partial' | 'failed';
 
@@ -497,6 +498,11 @@ export interface MoveDealStepConfig {
   stage_id: string;
 }
 
+export interface SendAiStepConfig {
+  /** Diretriz/ângulo deste toque, injetada na voz do Agente. */
+  guidance: string;
+}
+
 export interface WaitStepConfig {
   amount: number;
   unit: 'minutes' | 'hours' | 'days';
@@ -530,6 +536,7 @@ export type AutomationStepConfig =
   | UpdateContactFieldStepConfig
   | CreateDealStepConfig
   | MoveDealStepConfig
+  | SendAiStepConfig
   | WaitStepConfig
   | ConditionStepConfig
   | SendWebhookStepConfig
