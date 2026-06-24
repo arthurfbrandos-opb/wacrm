@@ -169,9 +169,15 @@ export async function POST(request: Request) {
     })
   }
 
-  // SDR deal — skip only when the lead explicitly failed the low-tier gate.
+  // SDR deal — every lead that reaches this webhook is already qualified to
+  // advance, so always create it. The funnel LP discards disqualified leads
+  // client-side: a sub-30k lead who declines the price popup is never POSTed
+  // (renderLowtierDisqualify skips postLead). `passed_lowtier_gate` is only
+  // `true` for sub-30k-who-accepted and `false` for every other (good,
+  // non-lowtier) lead — so it is informational (kept in fap01_data) and must
+  // NOT gate deal creation. Gating on it dropped all high-faturamento leads.
   let dealId: string | null = null
-  if (lead.passed_lowtier_gate !== false) {
+  {
     const { data: deal, error: dErr } = await admin
       .from('deals')
       .insert({

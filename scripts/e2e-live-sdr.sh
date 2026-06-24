@@ -31,9 +31,12 @@ set +u; source ~/Projects/orchestrator/.env; set -u
 PSQL() { psql "$SUPABASE_NS_DB_URL" -At -P pager=off "$@"; }
 
 echo "▸ 1/4 FAP01 lead_created ($NUM)"
+# passed_lowtier_gate:false = shape REAL de lead não-lowtier (a LP só manda
+# `true` pra sub-30k-que-aceitou; o desqualificado nunca é POSTado). Tem que
+# gerar deal+touch mesmo assim — se não gerar, o gate errado voltou.
 RESP=$(ssh "$VPS" "S=\$(grep '^FAP01_WEBHOOK_SECRET=' /opt/wacrm/.env | cut -d= -f2- | tr -d '\"'); \
   curl -s -X POST 'https://crm.negocio-simples.com/api/webhooks/fap01' -H \"x-webhook-secret: \$S\" -H 'content-type: application/json' \
-  -d '{\"event_type\":\"lead_created\",\"source\":\"e2e-live\",\"lead\":{\"contact_name\":\"$NAME\",\"contact_email\":\"$EMAIL\",\"contact_whatsapp\":\"$NUM\",\"passed_lowtier_gate\":true}}'")
+  -d '{\"event_type\":\"lead_created\",\"source\":\"e2e-live\",\"lead\":{\"contact_name\":\"$NAME\",\"contact_email\":\"$EMAIL\",\"contact_whatsapp\":\"$NUM\",\"passed_lowtier_gate\":false}}'")
 echo "  $RESP"
 CID=$(printf '%s' "$RESP" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("contact_id",""))')
 [ -n "$CID" ] || { echo "✗ sem contact_id — abortando"; exit 1; }
