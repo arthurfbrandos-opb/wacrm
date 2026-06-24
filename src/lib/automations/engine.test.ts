@@ -93,7 +93,7 @@ vi.mock("./admin-client", () => {
       is: () => b,
       order: () => b,
       limit: () => b,
-      in: () => b,
+      in: (k: string, v: unknown) => (ops.filters.push(["in", k, v]), b),
       single: () => Promise.resolve(resolve(ops)),
       maybeSingle: () => Promise.resolve(resolve(ops)),
       then: (onF: (v: unknown) => unknown, onR?: (e: unknown) => unknown) =>
@@ -326,6 +326,7 @@ describe("cancel_on_reply", () => {
     expect(del).toHaveLength(1);
     expect(del[0].filters).toContainEqual(["eq", "account_id", ACCOUNT]);
     expect(del[0].filters).toContainEqual(["eq", "contact_id", "c1"]);
+    expect(del[0].filters).toContainEqual(["in", "automation_id", ["a1"]]);
   });
 });
 
