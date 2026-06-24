@@ -95,6 +95,7 @@ const STEP_META: Record<AutomationStepType, StepMeta> = {
   assign_conversation: { label: "Atribuir Conversa", icon: UserCheck, border: "border-l-primary" },
   update_contact_field: { label: "Atualizar Campo do Contato", icon: PencilLine, border: "border-l-primary" },
   create_deal: { label: "Criar Negócio", icon: Briefcase, border: "border-l-primary" },
+  move_deal: { label: "Mover Negócio", icon: Briefcase, border: "border-l-primary" },
   wait: { label: "Aguardar", icon: Hourglass, border: "border-l-border" },
   condition: { label: "Condição (Se/Senão)", icon: GitBranch, border: "border-l-amber-500" },
   send_webhook: { label: "Enviar Webhook", icon: Webhook, border: "border-l-primary" },
@@ -109,6 +110,7 @@ const ADDABLE_STEPS: AutomationStepType[] = [
   "assign_conversation",
   "update_contact_field",
   "create_deal",
+  "move_deal",
   "wait",
   "condition",
   "send_webhook",
@@ -153,6 +155,8 @@ function blankConfig(type: AutomationStepType): Record<string, unknown> {
       return { field: "name", value: "" }
     case "create_deal":
       return { pipeline_id: "", stage_id: "", title: "", value: 0 }
+    case "move_deal":
+      return { pipeline_id: "", stage_id: "" }
     case "wait":
       return { amount: 1, unit: "hours" }
     case "condition":
@@ -1139,6 +1143,25 @@ function StepEditor({
               type="number"
               value={(cfg.value as number) ?? 0}
               onChange={(e) => set({ value: Number(e.target.value) })}
+              className="bg-muted text-foreground"
+            />
+          </FieldBlock>
+        </>
+      )
+    case "move_deal":
+      return (
+        <>
+          <FieldBlock label="Pipeline de destino">
+            <Input
+              value={(cfg.pipeline_id as string) ?? ""}
+              onChange={(e) => set({ pipeline_id: e.target.value })}
+              className="bg-muted text-foreground"
+            />
+          </FieldBlock>
+          <FieldBlock label="Coluna (estágio) de destino">
+            <Input
+              value={(cfg.stage_id as string) ?? ""}
+              onChange={(e) => set({ stage_id: e.target.value })}
               className="bg-muted text-foreground"
             />
           </FieldBlock>
