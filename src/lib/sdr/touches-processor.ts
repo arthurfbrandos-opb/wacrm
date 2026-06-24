@@ -22,6 +22,8 @@ import {
   type SdrTouchRow,
 } from './touches'
 import { chaseBubbles, confirmBubbles, reminder24hBubbles, reminder2hBubbles } from './templates'
+import { runAutomationsForTrigger } from '@/lib/automations/engine'
+import { ensureTag } from './ensure-tag'
 
 const BUBBLE_DELAY_MS = Number(process.env.BUBBLE_DELAY_MS ?? 1500)
 
@@ -172,6 +174,29 @@ async function processOne(admin: Admin, accountId: string, t: SdrTouchRow): Prom
     const bubbles = chaseBubbles(name)
     await sendAndPersist(admin, accountId, provider, t.conversation_id, t.phone, bubbles)
     await moveDealToStage(admin, t.deal_id, 'primeiro_contato')
+    // Engate FU1: marca o contato e dispara a régua (gatilho tag_added).
+    // conversation_id no contexto se propaga pelos waits → toques no inbox.
+    try {
+      const { data: acct } = await admin
+        .from('accounts')
+        .select('owner_user_id')
+        .eq('id', accountId)
+        .maybeSingle()
+      const userId = (acct as { owner_user_id?: string } | null)?.owner_user_id
+      if (!userId) throw new Error('no owner_user_id for account')
+      const fu1TagId = await ensureTag(admin, accountId, userId, 'fu1')
+      await admin
+        .from('contact_tags')
+        .upsert({ contact_id: t.contact_id, tag_id: fu1TagId }, { onConflict: 'contact_id,tag_id', ignoreDuplicates: true })
+      runAutomationsForTrigger({
+        accountId,
+        triggerType: 'tag_added',
+        contactId: t.contact_id,
+        context: { tag_id: fu1TagId, conversation_id: t.conversation_id },
+      }).catch((err) => console.error('[sdr] fu1 trigger failed:', err))
+    } catch (err) {
+      console.error('[sdr] fu1 engate failed:', err)
+    }
     await resolveTouch(admin, t.id, 'done', 'chase')
     return 'chase'
   }
