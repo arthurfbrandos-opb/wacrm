@@ -1,7 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import type { Deal, PipelineStage } from "@/types";
+import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
+import { findOrCreateConversation } from "@/lib/inbox/start-conversation";
 import {
   Dialog,
   DialogContent,
@@ -13,7 +17,16 @@ import { Badge } from "@/components/ui/badge";
 import { DealFormBody } from "@/components/pipelines/deal-form";
 import { Fap01Cadastro, Fap01Utms } from "@/components/contacts/fap01-tab";
 import { ContactNotesTab } from "@/components/contacts/contact-notes-tab";
-import { Phone, Mail, Building2, Copy, Check } from "lucide-react";
+import {
+  Phone,
+  Mail,
+  Building2,
+  Copy,
+  Check,
+  MessageSquare,
+  Loader2,
+} from "lucide-react";
+import { toast } from "sonner";
 
 interface DealDetailDialogProps {
   open: boolean;
@@ -53,7 +66,10 @@ export function DealDetailDialog({
   defaultStageId,
   onSaved,
 }: DealDetailDialogProps) {
+  const router = useRouter();
+  const { accountId } = useAuth();
   const [copiedPhone, setCopiedPhone] = useState(false);
+  const [openingChat, setOpeningChat] = useState(false);
   const contact = deal?.contact ?? null;
 
   async function copyPhone() {
@@ -61,6 +77,34 @@ export function DealDetailDialog({
     await navigator.clipboard.writeText(contact.phone);
     setCopiedPhone(true);
     setTimeout(() => setCopiedPhone(false), 2000);
+  }
+
+  // Open (or create) this contact's conversation and jump straight to it.
+  async function openConversation() {
+    if (!contact || !accountId) return;
+    setOpeningChat(true);
+    try {
+      const supabase = createClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const userId = session?.user?.id;
+      if (!userId) {
+        toast.error("Não autenticado");
+        return;
+      }
+      const conv = await findOrCreateConversation(supabase, {
+        accountId,
+        userId,
+        contactId: contact.id,
+      });
+      onOpenChange(false);
+      router.push(`/inbox?c=${conv.id}`);
+    } catch {
+      toast.error("Falha ao abrir a conversa");
+    } finally {
+      setOpeningChat(false);
+    }
   }
 
   if (!deal) return null;
@@ -125,6 +169,21 @@ export function DealDetailDialog({
                   </Badge>
                 )}
               </div>
+              {contact && (
+                <button
+                  type="button"
+                  onClick={openConversation}
+                  disabled={openingChat}
+                  className="mt-2 inline-flex cursor-pointer items-center gap-1.5 rounded-md bg-primary/10 px-2 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/20 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                >
+                  {openingChat ? (
+                    <Loader2 className="size-3 animate-spin" />
+                  ) : (
+                    <MessageSquare className="size-3" />
+                  )}
+                  Ver conversa
+                </button>
+              )}
             </div>
           </div>
 
@@ -150,6 +209,7 @@ export function DealDetailDialog({
                 defaultStageId={defaultStageId}
                 onSaved={onSaved}
                 hideContact
+                hideNotes
               />
             </TabsContent>
 

@@ -4,9 +4,10 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { Conversation, ConversationStatus } from "@/types";
-import { Search, ChevronDown } from "lucide-react";
+import { Search, ChevronDown, Plus } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Input } from "@/components/ui/input";
+import { NewConversationDialog } from "@/components/inbox/new-conversation-dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -56,6 +57,7 @@ export function ConversationList({
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<InboxFilter>("all");
   const [loading, setLoading] = useState(true);
+  const [newOpen, setNewOpen] = useState(false);
 
   // Keep the latest callback in a ref so the fetch effect below can
   // have a stable, empty-dep identity. Previously the fetch useCallback
@@ -161,7 +163,23 @@ export function ConversationList({
           <span className="h-2.5 w-2.5 rounded-full bg-[#28C840]" />
         </span>
         <span className="font-mono text-xs text-muted-foreground">inbox/conversations</span>
+        <button
+          type="button"
+          onClick={() => setNewOpen(true)}
+          aria-label="Nova conversa"
+          title="Nova conversa"
+          className="ml-auto inline-flex h-7 cursor-pointer items-center gap-1 rounded-md bg-primary/10 px-2 text-xs font-medium text-primary transition-colors hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Nova
+        </button>
       </div>
+
+      <NewConversationDialog
+        open={newOpen}
+        onOpenChange={setNewOpen}
+        onStarted={onSelect}
+      />
       {/* Search + Filter */}
       <div className="space-y-2 border-b border-border p-3">
         <div className="relative">

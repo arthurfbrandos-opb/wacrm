@@ -48,6 +48,9 @@ interface DealFormProps {
   /** Hide the contact selector — used when the contact is already shown
    *  in the surrounding chrome (the deal detail popup header). */
   hideContact?: boolean;
+  /** Hide the deal-notes textarea — the deal popup has a dedicated Notas tab,
+   *  so the field would be redundant there. */
+  hideNotes?: boolean;
 }
 
 /**
@@ -66,6 +69,7 @@ export function DealFormBody({
   defaultStageId,
   onSaved,
   hideContact,
+  hideNotes,
 }: DealFormProps) {
   const supabase = createClient();
   const { accountId, defaultCurrency } = useAuth();
@@ -416,15 +420,17 @@ export function DealFormBody({
               </select>
             </div>
 
-            <div className="grid gap-2">
-              <Label className="text-muted-foreground">Notas</Label>
-              <Textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Adicionar notas..."
-                className="min-h-[100px] border-border bg-muted text-foreground"
-              />
-            </div>
+            {!hideNotes && (
+              <div className="grid gap-2">
+                <Label className="text-muted-foreground">Notas</Label>
+                <Textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Adicionar notas..."
+                  className="min-h-[100px] border-border bg-muted text-foreground"
+                />
+              </div>
+            )}
 
             {deal && (
               <div className="space-y-2 rounded-lg border border-border bg-muted/50 p-3">
