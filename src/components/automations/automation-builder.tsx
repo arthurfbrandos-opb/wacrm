@@ -100,6 +100,7 @@ const STEP_META: Record<AutomationStepType, StepMeta> = {
   condition: { label: "Condição (Se/Senão)", icon: GitBranch, border: "border-l-amber-500" },
   send_webhook: { label: "Enviar Webhook", icon: Webhook, border: "border-l-primary" },
   close_conversation: { label: "Fechar Conversa", icon: CircleSlash, border: "border-l-primary" },
+  send_ai: { label: "Enviar (IA)", icon: MessageSquare, border: "border-l-primary" },
 }
 
 const ADDABLE_STEPS: AutomationStepType[] = [
@@ -115,6 +116,7 @@ const ADDABLE_STEPS: AutomationStepType[] = [
   "condition",
   "send_webhook",
   "close_conversation",
+  "send_ai",
 ]
 
 const TRIGGER_OPTIONS: { value: AutomationTriggerType; label: string; hint: string }[] = [
@@ -165,6 +167,8 @@ function blankConfig(type: AutomationStepType): Record<string, unknown> {
       return { url: "", headers: {}, body_template: "" }
     case "close_conversation":
       return {}
+    case "send_ai":
+      return { guidance: "" }
     default:
       return {}
   }
@@ -1258,6 +1262,17 @@ function StepEditor({
         <p className="text-xs text-muted-foreground">
           Define o status da conversa como &quot;fechada&quot;. Nenhuma configuração necessária.
         </p>
+      )
+    case "send_ai":
+      return (
+        <FieldBlock label="Diretriz do toque (ângulo)">
+          <Textarea
+            value={(cfg.guidance as string) ?? ""}
+            onChange={(e) => set({ guidance: e.target.value })}
+            placeholder="Ex.: corrido — leve, dá um gancho: 'sei que corre, só não quero te deixar na mão'."
+            rows={3}
+          />
+        </FieldBlock>
       )
     default:
       return null

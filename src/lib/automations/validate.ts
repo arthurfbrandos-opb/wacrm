@@ -140,6 +140,11 @@ function validateOne(step: StepLike, path: string, issues: ValidationIssue[]): v
         issues.push({ path: `${path}.stage_id`, message: 'stage is required' })
       }
       break
+    case 'send_ai':
+      if (!nonEmpty(c.guidance)) {
+        issues.push({ path: `${path}.guidance`, message: 'guidance is required' })
+      }
+      break
     case 'close_conversation':
       // No config required.
       break

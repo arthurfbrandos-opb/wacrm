@@ -176,6 +176,15 @@ describe("validateStepsForActivation", () => {
   });
 });
 
+describe("validate send_ai", () => {
+  it("requires guidance", () => {
+    const issues = validateStepsForActivation([
+      { step_type: "send_ai", step_config: { guidance: "" } },
+    ]);
+    expect(issues).toContainEqual({ path: "steps[0].guidance", message: "guidance is required" });
+  });
+});
+
 describe("validate move_deal", () => {
   it("requires pipeline_id and stage_id", () => {
     const issues = validateStepsForActivation([
