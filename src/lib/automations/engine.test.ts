@@ -304,7 +304,7 @@ describe("send_ai", () => {
     expect(callArgs[1]).toBe(ACCOUNT);
     expect((callArgs[2] as { provider: string }).provider).toBe("uazapi");
     expect((callArgs[2] as { phone: string }).phone).toBe("5511999");
-    expect(typeof callArgs[3]).toBe("string");
+    expect(callArgs[3]).toBe("GEN:true");
   });
 });
 
