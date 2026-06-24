@@ -1,7 +1,8 @@
 import type { Fap01Data } from '@/types';
 
-/** One labelled section of FAP01 fields; renders nothing if all rows are empty. */
-export function Fap01Section({
+/** One labelled section. Title in solid white/bold; rows in the normal
+ *  muted-label / foreground-value pairing. */
+function Fap01Section({
   title,
   rows,
 }: {
@@ -9,17 +10,17 @@ export function Fap01Section({
   rows: [string, string | null][];
 }) {
   const present = rows.filter(([, v]) => v != null && v !== '');
-  if (present.length === 0) return null;
+  if (present.length === 0) {
+    return <p className="text-xs text-muted-foreground">Sem dados.</p>;
+  }
   return (
     <div>
-      <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-        {title}
-      </p>
-      <dl className="mt-2 space-y-1.5">
+      <p className="mb-2 text-sm font-semibold text-foreground">{title}</p>
+      <dl className="space-y-1.5">
         {present.map(([label, value]) => (
           <div key={label} className="flex justify-between gap-3 text-sm">
             <dt className="text-muted-foreground">{label}</dt>
-            <dd className="text-right text-foreground">{value}</dd>
+            <dd className="break-all text-right text-foreground">{value}</dd>
           </div>
         ))}
       </dl>
@@ -27,21 +28,21 @@ export function Fap01Section({
   );
 }
 
-/** Read-only view of the FAP01 funnel payload (cadastro/quiz + UTMs). */
-export function Fap01Tab({ data }: { data?: Fap01Data | null }) {
-  if (!data) {
-    return (
-      <p className="text-xs text-muted-foreground">
-        Esse contato não veio pelo funil FAP01 — sem dados de origem.
-      </p>
-    );
-  }
+const yesNo = (v: unknown) =>
+  typeof v === 'boolean' ? (v ? 'Sim' : 'Não') : null;
 
-  const yesNo = (v: unknown) =>
-    typeof v === 'boolean' ? (v ? 'Sim' : 'Não') : null;
-  const cidadeUf = [data.company_city, data.company_state].filter(Boolean).join('/');
+function emptyState() {
+  return (
+    <p className="text-xs text-muted-foreground">
+      Esse contato não veio pelo funil FAP01 — sem dados de origem.
+    </p>
+  );
+}
 
-  const qual: [string, string | null][] = [
+/** Cadastro / quiz answers from the FAP01 funnel. */
+export function Fap01Cadastro({ data }: { data?: Fap01Data | null }) {
+  if (!data) return emptyState();
+  const rows: [string, string | null][] = [
     ['Faturamento', data.faturamento_range ?? null],
     ['Funcionários', data.num_funcionarios ?? null],
     ['Nicho', data.nicho ?? null],
@@ -52,18 +53,35 @@ export function Fap01Tab({ data }: { data?: Fap01Data | null }) {
     ['MQL', yesNo(data.mql)],
     ['Passou o gate', yesNo(data.passed_lowtier_gate)],
   ];
-  const origem: [string, string | null][] = [
-    ['utm_source', data.source_utm_source ?? null],
-    ['utm_medium', data.source_utm_medium ?? null],
-    ['utm_campaign', data.source_utm_campaign ?? null],
-    ['Referrer', data.source_referrer ?? null],
+  return <Fap01Section title="Qualificação (quiz)" rows={rows} />;
+}
+
+// The funnel sends the rich attribution blob; the top-level source_utm_* are
+// often null while the real campaign data lives in attribution.last_touch.utm.
+type AttrTouch = {
+  utm?: Record<string, string | undefined>;
+  referrer?: string;
+  landing_url?: string;
+};
+type Attribution = { last_touch?: AttrTouch; first_touch?: AttrTouch };
+
+/** Lead origin: UTMs + referrer + landing, pulled from the top-level fields
+ *  with a fallback to the attribution blob (where they usually really are). */
+export function Fap01Utms({ data }: { data?: Fap01Data | null }) {
+  if (!data) return emptyState();
+  const attr = (data.attribution ?? null) as Attribution | null;
+  const touch = attr?.last_touch ?? attr?.first_touch ?? null;
+  const utm = touch?.utm ?? {};
+  const cidadeUf = [data.company_city, data.company_state].filter(Boolean).join('/');
+
+  const rows: [string, string | null][] = [
+    ['utm_source', data.source_utm_source ?? utm.utm_source ?? null],
+    ['utm_medium', data.source_utm_medium ?? utm.utm_medium ?? null],
+    ['utm_campaign', data.source_utm_campaign ?? utm.utm_campaign ?? null],
+    ['utm_content', utm.utm_content ?? null],
+    ['Referrer', data.source_referrer ?? touch?.referrer ?? null],
+    ['Landing', touch?.landing_url ?? null],
     ['Cidade/UF', cidadeUf || null],
   ];
-
-  return (
-    <div className="space-y-5">
-      <Fap01Section title="Qualificação (quiz)" rows={qual} />
-      <Fap01Section title="Origem / UTMs" rows={origem} />
-    </div>
-  );
+  return <Fap01Section title="Origem / UTMs" rows={rows} />;
 }

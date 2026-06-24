@@ -6,7 +6,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { formatCurrency } from '@/lib/currency';
 import { toast } from 'sonner';
 import type { Contact, Tag, ContactTag, ContactNote, CustomField, ContactCustomValue, Deal } from '@/types';
-import { Fap01Tab } from './fap01-tab';
+import { Fap01Cadastro, Fap01Utms } from './fap01-tab';
 import {
   Sheet,
   SheetContent,
@@ -457,10 +457,16 @@ export function ContactDetailView({
                   Negócios
                 </TabsTrigger>
                 <TabsTrigger
-                  value="origem"
+                  value="cadastro"
                   className="data-active:bg-muted data-active:text-primary text-muted-foreground"
                 >
-                  Origem
+                  Cadastro
+                </TabsTrigger>
+                <TabsTrigger
+                  value="utms"
+                  className="data-active:bg-muted data-active:text-primary text-muted-foreground"
+                >
+                  UTMs
                 </TabsTrigger>
               </TabsList>
 
@@ -765,9 +771,14 @@ export function ContactDetailView({
                 )}
               </TabsContent>
 
-              {/* Origem Tab — FAP01 cadastro + quiz + UTMs */}
-              <TabsContent value="origem" className="flex-1 overflow-y-auto px-4 py-3">
-                <Fap01Tab data={contact?.fap01_data} />
+              {/* Cadastro Tab — FAP01 quiz answers */}
+              <TabsContent value="cadastro" className="flex-1 overflow-y-auto px-4 py-3">
+                <Fap01Cadastro data={contact?.fap01_data} />
+              </TabsContent>
+
+              {/* UTMs Tab — FAP01 lead origin / attribution */}
+              <TabsContent value="utms" className="flex-1 overflow-y-auto px-4 py-3">
+                <Fap01Utms data={contact?.fap01_data} />
               </TabsContent>
             </Tabs>
           </div>

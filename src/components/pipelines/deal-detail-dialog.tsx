@@ -11,7 +11,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { DealFormBody } from "@/components/pipelines/deal-form";
-import { Fap01Tab } from "@/components/contacts/fap01-tab";
+import { Fap01Cadastro, Fap01Utms } from "@/components/contacts/fap01-tab";
+import { ContactNotesTab } from "@/components/contacts/contact-notes-tab";
 import { Phone, Mail, Building2, Copy, Check } from "lucide-react";
 
 interface DealDetailDialogProps {
@@ -135,6 +136,8 @@ export function DealDetailDialog({
             <TabsList className="mx-4 mt-3 w-fit shrink-0 bg-muted/50">
               <TabsTrigger value="negocio">Negócio</TabsTrigger>
               <TabsTrigger value="cadastro">Cadastro</TabsTrigger>
+              <TabsTrigger value="utms">UTMs</TabsTrigger>
+              <TabsTrigger value="notas">Notas</TabsTrigger>
             </TabsList>
 
             <TabsContent value="negocio" className="flex min-h-0 flex-1 flex-col">
@@ -154,7 +157,21 @@ export function DealDetailDialog({
               value="cadastro"
               className="min-h-0 flex-1 overflow-y-auto p-4"
             >
-              <Fap01Tab data={contact?.fap01_data} />
+              <Fap01Cadastro data={contact?.fap01_data} />
+            </TabsContent>
+
+            <TabsContent
+              value="utms"
+              className="min-h-0 flex-1 overflow-y-auto p-4"
+            >
+              <Fap01Utms data={contact?.fap01_data} />
+            </TabsContent>
+
+            <TabsContent
+              value="notas"
+              className="min-h-0 flex-1 overflow-y-auto p-4"
+            >
+              <ContactNotesTab contactId={contact?.id ?? null} />
             </TabsContent>
           </Tabs>
         </div>
