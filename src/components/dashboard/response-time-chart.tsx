@@ -6,6 +6,7 @@ import type { ResponseTimeSummary } from '@/lib/dashboard/types'
 import { BarChart } from '@/components/tremor/bar-chart'
 import { EmptyState } from './empty-state'
 import { Skeleton } from './skeleton'
+import { TerminalWindow } from '@/components/ui/terminal-window'
 
 interface ResponseTimeChartProps {
   data: ResponseTimeSummary | null
@@ -44,39 +45,35 @@ export function ResponseTimeChart({
     })) ?? []
 
   return (
-    <section className="rounded-xl border border-border bg-card">
-      <header className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
-        <div>
-          <h2 className="text-sm font-semibold text-foreground">
-            Average First Response Time
-          </h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Minutes to reply to a customer&apos;s first unreplied message, by
-            weekday
-          </p>
-        </div>
-        <div className="flex items-center gap-3 text-right text-xs">
+    <TerminalWindow
+      title="analytics/first_response_time"
+      action={
+        <div className="flex items-center gap-3 text-right font-mono text-xs">
           {thresholdMinutes > 0 && (
-            <span className="rounded-full border border-rose-500/40 bg-rose-500/10 px-2 py-0.5 font-medium text-rose-300 tabular-nums">
+            <span className="rounded-full border border-rose-500/40 bg-rose-500/10 px-2 py-0.5 text-rose-300 tabular-nums">
               target {thresholdMinutes}m
             </span>
           )}
           {data && (data.thisWeekAvg != null || data.lastWeekAvg != null) && (
             <div>
               <div className="text-muted-foreground">
-                This week:{' '}
-                <span className="font-medium text-foreground tabular-nums">
+                this week:{' '}
+                <span className="text-foreground tabular-nums">
                   {fmt(data.thisWeekAvg)}
                 </span>
               </div>
               <div className="text-muted-foreground">
-                Last week:{' '}
+                last week:{' '}
                 <span className="tabular-nums">{fmt(data.lastWeekAvg)}</span>
               </div>
             </div>
           )}
         </div>
-      </header>
+      }
+    >
+      <p className="border-b border-border px-5 py-2 font-mono text-xs text-muted-foreground">
+        # minutes to reply to a customer&apos;s first unreplied message, by weekday
+      </p>
 
       <div className="p-5">
         {loading || !data ? (
@@ -104,7 +101,7 @@ export function ResponseTimeChart({
           />
         )}
       </div>
-    </section>
+    </TerminalWindow>
   )
 }
 

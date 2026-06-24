@@ -15,6 +15,7 @@ import type { ActivityItem, ActivityKind } from '@/lib/dashboard/types'
 import { cn } from '@/lib/utils'
 import { EmptyState } from './empty-state'
 import { Skeleton } from './skeleton'
+import { TerminalWindow } from '@/components/ui/terminal-window'
 
 interface ActivityFeedProps {
   items: ActivityItem[] | null
@@ -54,17 +55,17 @@ export function ActivityFeed({ items, loading }: ActivityFeedProps) {
     i === 0 || totalLoaded > PAGE_SIZES[i - 1]
 
   return (
-    <section className="rounded-xl border border-border bg-card">
-      <header className="flex items-center justify-between border-b border-border px-5 py-4">
-        <h2 className="text-sm font-semibold text-foreground">Recent Activity</h2>
+    <TerminalWindow
+      title="activity/recent --tail"
+      action={
         <Link
           href="/inbox"
-          className="text-xs font-medium text-primary hover:text-primary/80"
+          className="font-mono text-xs text-primary hover:text-primary/80"
         >
-          View all →
+          view all →
         </Link>
-      </header>
-
+      }
+    >
       {loading || !items ? (
         <div className="space-y-2 p-5">
           {Array.from({ length: 5 }).map((_, i) => (
@@ -151,7 +152,7 @@ export function ActivityFeed({ items, loading }: ActivityFeedProps) {
           </footer>
         </>
       )}
-    </section>
+    </TerminalWindow>
   )
 }
 

@@ -6,6 +6,7 @@ import type { ConversationsSeriesPoint } from '@/lib/dashboard/types'
 import { EmptyState } from './empty-state'
 import { Skeleton } from './skeleton'
 import { cn } from '@/lib/utils'
+import { TerminalWindow } from '@/components/ui/terminal-window'
 
 type RangeDays = 7 | 30 | 90
 
@@ -46,30 +47,33 @@ export function ConversationsChart({ series, loading, range, onRangeChange }: Co
   }, [data])
 
   return (
-    <section className="flex h-full flex-col rounded-xl border border-border bg-card">
-      <header className="flex items-center justify-between border-b border-border px-5 py-4">
-        <div>
-          <h2 className="text-sm font-semibold text-foreground">Conversations Over Time</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">Daily message volume by direction</p>
-        </div>
-        <div className="flex items-center gap-1 rounded-lg bg-muted/60 p-1">
+    <TerminalWindow
+      title="analytics/conversations_over_time"
+      className="h-full"
+      bodyClassName="flex flex-col"
+      action={
+        <div className="flex items-center gap-1 rounded-md bg-muted/60 p-0.5">
           {[7, 30, 90].map((r) => (
             <button
               key={r}
               type="button"
               onClick={() => onRangeChange(r as RangeDays)}
               className={cn(
-                'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
+                'rounded-sm px-2 py-0.5 font-mono text-xs transition-colors',
                 range === r
                   ? 'bg-secondary text-secondary-foreground'
                   : 'text-muted-foreground hover:text-foreground',
               )}
             >
-              {r} days
+              {r}d
             </button>
           ))}
         </div>
-      </header>
+      }
+    >
+      <p className="border-b border-border px-5 py-2 font-mono text-xs text-muted-foreground">
+        # daily message volume by direction
+      </p>
 
       <div className="p-5">
         {loading || !data ? (
@@ -85,11 +89,11 @@ export function ConversationsChart({ series, loading, range, onRangeChange }: Co
         )}
       </div>
 
-      <footer className="flex items-center gap-4 border-t border-border px-5 py-3 text-xs text-muted-foreground">
+      <footer className="mt-auto flex items-center gap-4 border-t border-border px-5 py-3 font-mono text-xs text-muted-foreground">
         <LegendDot color="#3b82f6" label="Incoming" />
         <LegendDot color="#7c3aed" label="Outgoing" />
       </footer>
-    </section>
+    </TerminalWindow>
   )
 }
 
