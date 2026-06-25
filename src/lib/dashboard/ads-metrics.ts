@@ -1,4 +1,4 @@
-import type { AdsFunnel, FunnelStage, CreativeCostRow, CreativeLead, SpendByAd } from './ads-types'
+import type { AdsFunnel, FunnelStage, CreativeCostRow, CreativeLead, SpendByAd, AdsLiveOps } from './ads-types'
 
 const FUNNEL_LABELS: Record<FunnelStage['key'], string> = {
   leads: 'Leads',
@@ -120,4 +120,69 @@ export function buildCreativeCostTable(args: {
 
   // Ordena por gasto desc (determinístico pros testes e útil pro operador).
   return rows.sort((a, b) => b.spend - a.spend || b.leads - a.leads)
+}
+
+/** Minutos da 1ª inbound (customer) até a 1ª outbound seguinte, por conversa.
+ *  Espera linhas ordenadas por (conversationId, createdAt asc). Mesma lógica
+ *  do loadResponseTime existente, isolada e testável. */
+export function pairFirstResponses(
+  rows: { conversationId: string; senderType: string; createdAt: string }[],
+): number[] {
+  const out: number[] = []
+  let currentConv = ''
+  let pendingCustomer: number | null = null
+  for (const row of rows) {
+    if (row.conversationId !== currentConv) {
+      currentConv = row.conversationId
+      pendingCustomer = null
+    }
+    const ts = new Date(row.createdAt).getTime()
+    if (row.senderType === 'customer') {
+      if (pendingCustomer === null) pendingCustomer = ts
+    } else if (pendingCustomer !== null) {
+      const diffMin = (ts - pendingCustomer) / 60_000
+      if (diffMin >= 0) out.push(Math.round(diffMin * 100) / 100)
+      pendingCustomer = null
+    }
+  }
+  return out
+}
+
+export function awaitingResponseContactIds(args: {
+  openLeadContactIds: string[]
+  inboundContactIds: Set<string>
+  outboundContactIds: Set<string>
+}): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const id of args.openLeadContactIds) {
+    if (seen.has(id)) continue
+    seen.add(id)
+    if (args.outboundContactIds.has(id) && !args.inboundContactIds.has(id)) out.push(id)
+  }
+  return out
+}
+
+export function computeLiveOps(args: {
+  leadsTodayContactIds: string[]
+  leadsYesterdayContactIds: string[]
+  respondedTodayContactIds: Iterable<string>
+  bookingsTodayCount: number
+  awaitingNowCount: number
+  firstResponseMinutesToday: number[]
+}): AdsLiveOps {
+  const leadsToday = new Set(args.leadsTodayContactIds)
+  const respondedSet = new Set(args.respondedTodayContactIds)
+  let respondedCount = 0
+  for (const id of leadsToday) if (respondedSet.has(id)) respondedCount++
+  const pct = leadsToday.size > 0 ? Math.round((respondedCount / leadsToday.size) * 100) : 0
+  const mins = args.firstResponseMinutesToday
+  const avg = mins.length > 0 ? Math.round((mins.reduce((a, b) => a + b, 0) / mins.length) * 10) / 10 : null
+  return {
+    leadsToday: { current: leadsToday.size, previous: new Set(args.leadsYesterdayContactIds).size },
+    responded: { count: respondedCount, pct },
+    bookingsToday: args.bookingsTodayCount,
+    awaitingResponseNow: args.awaitingNowCount,
+    avgFirstResponseMinToday: avg,
+  }
 }
