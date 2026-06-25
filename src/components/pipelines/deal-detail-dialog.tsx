@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import type { Deal, PipelineStage } from "@/types";
 import { createClient } from "@/lib/supabase/client";
@@ -76,6 +76,10 @@ export function DealDetailDialog({
   const [openingChat, setOpeningChat] = useState(false);
   const [unifyOpen, setUnifyOpen] = useState(false);
   const contact = deal?.contact ?? null;
+
+  useEffect(() => {
+    if (!open) setUnifyOpen(false);
+  }, [open]);
 
   async function copyPhone() {
     if (!contact?.phone) return;
