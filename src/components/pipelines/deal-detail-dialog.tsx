@@ -27,6 +27,8 @@ import {
   Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { UnifyDealsDialog } from "./unify-deals-dialog";
 
 interface DealDetailDialogProps {
   open: boolean;
@@ -38,6 +40,7 @@ interface DealDetailDialogProps {
   stages: PipelineStage[];
   defaultStageId?: string;
   onSaved: () => void;
+  isDuplicate?: boolean;
 }
 
 function getInitials(name?: string | null) {
@@ -65,11 +68,13 @@ export function DealDetailDialog({
   stages,
   defaultStageId,
   onSaved,
+  isDuplicate,
 }: DealDetailDialogProps) {
   const router = useRouter();
   const { accountId } = useAuth();
   const [copiedPhone, setCopiedPhone] = useState(false);
   const [openingChat, setOpeningChat] = useState(false);
+  const [unifyOpen, setUnifyOpen] = useState(false);
   const contact = deal?.contact ?? null;
 
   async function copyPhone() {
@@ -190,6 +195,16 @@ export function DealDetailDialog({
             </div>
           </div>
 
+          {/* Duplicate aviso */}
+          {isDuplicate && deal?.contact_id && (
+            <div className="mb-3 flex items-center justify-between rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 mx-4 mt-3">
+              <span className="text-xs text-amber-300">Esse contato tem mais de um cadastro no funil.</span>
+              <Button size="sm" variant="outline" className="border-amber-500/40 text-amber-300 hover:bg-amber-500/10" onClick={() => setUnifyOpen(true)}>
+                Unificar
+              </Button>
+            </div>
+          )}
+
           {/* Tabs */}
           <Tabs
             defaultValue="negocio"
@@ -239,6 +254,14 @@ export function DealDetailDialog({
           </Tabs>
         </div>
       </DialogContent>
+      {deal?.contact_id && (
+        <UnifyDealsDialog
+          open={unifyOpen}
+          onOpenChange={setUnifyOpen}
+          contactId={deal.contact_id}
+          onUnified={() => { onOpenChange(false); onSaved(); }}
+        />
+      )}
     </Dialog>
   );
 }

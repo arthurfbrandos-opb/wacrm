@@ -543,6 +543,7 @@ export default function PipelinesPage() {
         stages={stages}
         defaultStageId={defaultStageId}
         onSaved={refreshDeals}
+        isDuplicate={!!editingDeal?.contact_id && dupContactIds.has(editingDeal.contact_id)}
       />
     </div>
   );
