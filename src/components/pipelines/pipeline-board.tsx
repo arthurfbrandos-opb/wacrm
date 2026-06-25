@@ -27,6 +27,7 @@ interface PipelineBoardProps {
   onDealMoved: (dealId: string, newStageId: string) => void;
   onAddDeal: (stageId: string) => void;
   onEditDeal: (deal: Deal) => void;
+  duplicateContactIds: Set<string>;
 }
 
 export function PipelineBoard({
@@ -35,6 +36,7 @@ export function PipelineBoard({
   onDealMoved,
   onAddDeal,
   onEditDeal,
+  duplicateContactIds,
 }: PipelineBoardProps) {
   const { defaultCurrency } = useAuth();
   const [activeDealId, setActiveDealId] = useState<string | null>(null);
@@ -118,6 +120,7 @@ export function PipelineBoard({
               currency={defaultCurrency}
               onAddDeal={onAddDeal}
               onEditDeal={onEditDeal}
+              duplicateContactIds={duplicateContactIds}
             />
           );
         })}
@@ -138,6 +141,7 @@ export function PipelineBoard({
               }
               onEdit={() => {}}
               isOverlay
+              isDuplicate={!!activeDeal.contact_id && duplicateContactIds.has(activeDeal.contact_id)}
             />
           </div>
         ) : null}
@@ -192,6 +196,7 @@ function StageColumn({
   currency,
   onAddDeal,
   onEditDeal,
+  duplicateContactIds,
 }: {
   stage: PipelineStage;
   deals: Deal[];
@@ -199,6 +204,7 @@ function StageColumn({
   currency: string;
   onAddDeal: (stageId: string) => void;
   onEditDeal: (deal: Deal) => void;
+  duplicateContactIds: Set<string>;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
 
@@ -246,6 +252,7 @@ function StageColumn({
               deal={deal}
               stage={stage}
               onEdit={onEditDeal}
+              isDuplicate={!!deal.contact_id && duplicateContactIds.has(deal.contact_id)}
             />
           ))
         )}
@@ -268,10 +275,12 @@ function DraggableDealCard({
   deal,
   stage,
   onEdit,
+  isDuplicate,
 }: {
   deal: Deal;
   stage: PipelineStage;
   onEdit: (deal: Deal) => void;
+  isDuplicate?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: deal.id,
@@ -284,7 +293,7 @@ function DraggableDealCard({
       {...attributes}
       style={{ opacity: isDragging ? 0.3 : 1, touchAction: "none" }}
     >
-      <DealCard deal={deal} stage={stage} onEdit={onEdit} />
+      <DealCard deal={deal} stage={stage} onEdit={onEdit} isDuplicate={isDuplicate} />
     </div>
   );
 }

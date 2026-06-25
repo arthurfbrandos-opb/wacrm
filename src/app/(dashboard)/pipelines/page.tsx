@@ -31,6 +31,7 @@ import { toast } from "sonner";
 import { useCan } from "@/hooks/use-can";
 import { useAuth } from "@/hooks/use-auth";
 import { GatedButton } from "@/components/ui/gated-button";
+import { duplicateContactIds } from "@/lib/deals/duplicates";
 
 // Pipeline creation is admin-class (settings-tier write under
 // the new RLS); deal creation is operational and only requires
@@ -57,6 +58,7 @@ export default function PipelinesPage() {
   const [stages, setStages] = useState<PipelineStage[]>([]);
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dupContactIds, setDupContactIds] = useState<Set<string>>(new Set());
 
   // Dialog / sheet state
   const [newPipelineOpen, setNewPipelineOpen] = useState(false);
@@ -113,6 +115,15 @@ export default function PipelinesPage() {
     },
     [supabase],
   );
+
+  const loadDuplicates = useCallback(async () => {
+    const { data } = await supabase
+      .from("deals")
+      .select("contact_id, status, fap01_snapshot")
+      .eq("status", "open")
+      .not("fap01_snapshot", "is", null);
+    return duplicateContactIds((data ?? []) as never);
+  }, [supabase]);
 
   const seedDefaultPipeline = useCallback(async (): Promise<Pipeline | null> => {
     const {
@@ -188,18 +199,20 @@ export default function PipelinesPage() {
     }
     let cancelled = false;
     (async () => {
-      const [s, d] = await Promise.all([
+      const [s, d, dups] = await Promise.all([
         loadStages(selectedPipelineId),
         loadDeals(selectedPipelineId),
+        loadDuplicates(),
       ]);
       if (cancelled) return;
       setStages(s);
       setDeals(d);
+      setDupContactIds(dups);
     })();
     return () => {
       cancelled = true;
     };
-  }, [selectedPipelineId, loadStages, loadDeals]);
+  }, [selectedPipelineId, loadStages, loadDeals, loadDuplicates]);
 
   const refreshPipelines = useCallback(async () => {
     const list = await loadPipelines();
@@ -216,8 +229,13 @@ export default function PipelinesPage() {
 
   const refreshDeals = useCallback(async () => {
     if (!selectedPipelineId) return;
-    setDeals(await loadDeals(selectedPipelineId));
-  }, [loadDeals, selectedPipelineId]);
+    const [d, dups] = await Promise.all([
+      loadDeals(selectedPipelineId),
+      loadDuplicates(),
+    ]);
+    setDeals(d);
+    setDupContactIds(dups);
+  }, [loadDeals, loadDuplicates, selectedPipelineId]);
 
   const handleDealMoved = useCallback(
     async (dealId: string, newStageId: string) => {
@@ -435,6 +453,7 @@ export default function PipelinesPage() {
             onDealMoved={handleDealMoved}
             onAddDeal={handleAddDeal}
             onEditDeal={handleEditDeal}
+            duplicateContactIds={dupContactIds}
           />
         </>
       )}
@@ -524,6 +543,7 @@ export default function PipelinesPage() {
         stages={stages}
         defaultStageId={defaultStageId}
         onSaved={refreshDeals}
+        isDuplicate={!!editingDeal?.contact_id && dupContactIds.has(editingDeal.contact_id)}
       />
     </div>
   );

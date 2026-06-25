@@ -347,6 +347,7 @@ export interface Deal {
   notes?: string;
   expected_close_date?: string;
   status?: DealStatus;
+  fap01_snapshot?: Fap01Data | null;
   created_at: string;
   updated_at?: string;
   contact?: Contact;
