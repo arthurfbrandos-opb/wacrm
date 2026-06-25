@@ -201,6 +201,7 @@ export async function POST(request: Request) {
         value: 0,
         currency: accountCurrency,
         status: 'open',
+        fap01_snapshot: lead,
       })
       .select('id')
       .single()
