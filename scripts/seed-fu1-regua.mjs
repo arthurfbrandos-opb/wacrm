@@ -49,9 +49,9 @@ async function main() {
 
   const steps = [
     move(followupPipeline, fu1Stage),
-    wait(30, 'minutes'), ai("Leve, dá um gancho: 'sei que corre, só não quero te deixar na mão'."),
+    wait(30, 'minutes'), ai("Leve, reconhece que a pessoa deve estar ocupada/corrida: tom de 'imagino que deve estar corrido por aí, só não quero te deixar na mão'. Sem cobrança, só um gancho pra retomar."),
     wait(30, 'minutes'), ai('Reforça que é rápido: o diagnóstico toma poucos minutos e ele já sai com clareza do gargalo.'),
-    wait(2, 'hours'),    ai('Curiosidade: tem um ponto do cadastro dele que vale a pena olhar junto.'),
+    wait(2, 'hours'),    ai('Curiosidade sobre o movimento do mercado: negócios do mesmo porte estão começando a usar IA pra dar conta do operacional sem precisar contratar. Gera curiosidade, não entrega tudo, convida pra trocar uma ideia. NÃO cite o nicho específico do lead nem invente o mercado dele — fale do movimento amplo.'),
     wait(9, 'hours'),    ai("Reaparece humano: 'sou eu de novo, o Ian' — sem cobrança pesada."),
     wait(12, 'hours'),   ai("Fecha com respeito: 'vou parar de te incomodar, mas a porta fica aberta'."),
     wait(24, 'hours'),   move(sdrPipeline, lostStage),

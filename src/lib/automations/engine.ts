@@ -622,29 +622,22 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
         .maybeSingle()
       const basePrompt = (sdrCfg as { system_prompt?: string } | null)?.system_prompt ?? ''
 
-      // Histórico recente (opcional — toque proativo funciona mesmo sem).
-      let messages: { role: 'user' | 'assistant'; content: string }[] = []
+      // Toque proativo: NÃO replicamos o histórico da conversa como diálogo
+      // vivo. Se replicasse, o brain "continua" a última troca (ex.: uma
+      // conversa já encerrada em "Blz"/"tô aqui") e se despede em vez de
+      // seguir a diretriz do toque. Mandamos só um turno sintético sinalizando
+      // o silêncio + a diretriz no system. O conversation_id segue usado
+      // apenas para persistir a mensagem no inbox (abaixo).
       const convId = args.context.conversation_id
-      if (convId) {
-        const { data: rows } = await db
-          .from('messages')
-          .select('sender_type, content_text, created_at')
-          .eq('conversation_id', convId)
-          .order('created_at', { ascending: false })
-          .limit(20)
-        messages = (((rows ?? []) as { sender_type: string; content_text: string | null }[])
-          .reverse())
-          .filter((m) => m.content_text)
-          .map((m) => ({
-            role: m.sender_type === 'customer' ? 'user' as const : 'assistant' as const,
-            content: m.content_text as string,
-          }))
-      }
-      if (messages.length === 0) {
-        messages = [{ role: 'user', content: '(follow-up proativo)' }]
-      }
+      const messages: { role: 'user' | 'assistant'; content: string }[] = [
+        { role: 'user', content: '(o lead ficou em silêncio — gere o follow-up proativo agora, seguindo a diretriz)' },
+      ]
 
-      const system = `${basePrompt}\n\n[Diretriz deste toque]\n${cfg.guidance}`
+      const system =
+        `${basePrompt}\n\n[Diretriz deste toque — siga ESTA instrução]\n${cfg.guidance}\n\n` +
+        'Você está reaparecendo de forma proativa porque o lead ficou em silêncio. ' +
+        'Envie UMA mensagem curta de follow-up seguindo a diretriz acima. ' +
+        'Não se despeça nem encerre a conversa, a menos que a diretriz peça explicitamente.'
       const { text } = await pedroFromEnv().reply(system, messages)
       if (!text?.trim()) throw new Error('send_ai: brain returned empty text')
 

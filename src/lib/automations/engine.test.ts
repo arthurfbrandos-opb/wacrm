@@ -316,6 +316,34 @@ describe("send_ai", () => {
     expect((callArgs[2] as { phone: string }).phone).toBe("5511999");
     expect(callArgs[3]).toBe("GEN:true");
   });
+
+  it("does NOT replay conversation history (proactive touch), but still persists to the inbox", async () => {
+    // A proactive régua touch must follow the diretriz, not continue a possibly
+    // concluded thread — so it should never load the conversation history into
+    // the brain. It must still persist the generated message to the inbox.
+    h.state.owned = { id: "c1", phone: "5511999" } as { id: string };
+    h.state.automations = [{
+      id: "a1", account_id: ACCOUNT, user_id: "u1",
+      trigger_type: "tag_added", trigger_config: {}, is_active: true,
+    }];
+    h.state.steps = [{
+      id: "s1", automation_id: "a1", step_type: "send_ai",
+      position: 0, parent_step_id: null,
+      step_config: { guidance: "corrido — leve." },
+    }];
+
+    await runAutomationsForTrigger({
+      accountId: ACCOUNT,
+      triggerType: "tag_added",
+      contactId: "c1",
+      context: { conversation_id: "conv1", tag_id: "fu1" },
+    });
+
+    // messages is touched exactly once: the inbox-persist INSERT. No history SELECT.
+    const messageCalls = h.state.fromCalls.filter((t) => t === "messages");
+    expect(messageCalls).toHaveLength(1);
+    expect(sendTextMock).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("cancel_on_reply", () => {
