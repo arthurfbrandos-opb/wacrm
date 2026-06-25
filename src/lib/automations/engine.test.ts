@@ -122,10 +122,16 @@ const sendTextMock = vi.fn(async (..._args: unknown[]) => ({ messageId: "uaz-1" 
 vi.mock("@/lib/sdr/send", () => ({
   resolveAccountProvider: vi.fn(async () => "uazapi"),
   sendText: (...args: unknown[]) => sendTextMock(...args),
+  setAccountPresence: vi.fn(async () => {}),
 }));
 vi.mock("@/lib/pkg/pedro/client", () => ({
   pedroFromEnv: () => ({
-    reply: vi.fn(async (system: string) => ({ text: `GEN:${system.includes("corrido")}` })),
+    // "MULTIBUBBLE" in the guidance ⇒ a 2-paragraph reply, to exercise bubbling.
+    reply: vi.fn(async (system: string) => ({
+      text: system.includes("MULTIBUBBLE")
+        ? "Primeira linha.\n\nSegunda linha."
+        : `GEN:${system.includes("corrido")}`,
+    })),
   }),
 }));
 
@@ -143,6 +149,7 @@ beforeEach(() => {
   h.state.upsertCalls = [];
   h.state.deleteCalls = [];
   sendTextMock.mockClear();
+  process.env.BUBBLE_DELAY_MS = "0"; // no inter-bubble wait in tests
 });
 
 describe("runAutomationsForTrigger — tenant isolation", () => {
@@ -343,6 +350,33 @@ describe("send_ai", () => {
     const messageCalls = h.state.fromCalls.filter((t) => t === "messages");
     expect(messageCalls).toHaveLength(1);
     expect(sendTextMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("splits the reply into bubbles and sends each separately (no wall-of-text)", async () => {
+    h.state.owned = { id: "c1", phone: "5511999" } as { id: string };
+    h.state.automations = [{
+      id: "a1", account_id: ACCOUNT, user_id: "u1",
+      trigger_type: "tag_added", trigger_config: {}, is_active: true,
+    }];
+    h.state.steps = [{
+      id: "s1", automation_id: "a1", step_type: "send_ai",
+      position: 0, parent_step_id: null,
+      step_config: { guidance: "MULTIBUBBLE" },
+    }];
+
+    await runAutomationsForTrigger({
+      accountId: ACCOUNT,
+      triggerType: "tag_added",
+      contactId: "c1",
+      context: { conversation_id: "conv1", tag_id: "fu1" },
+    });
+
+    // Two paragraphs ⇒ two separate WhatsApp sends, in order.
+    expect(sendTextMock).toHaveBeenCalledTimes(2);
+    expect((sendTextMock.mock.calls[0] as unknown[])[3]).toBe("Primeira linha.");
+    expect((sendTextMock.mock.calls[1] as unknown[])[3]).toBe("Segunda linha.");
+    // Inbox keeps one row with the bubbles joined.
+    expect(h.state.fromCalls.filter((t) => t === "messages")).toHaveLength(1);
   });
 });
 

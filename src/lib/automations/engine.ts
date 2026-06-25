@@ -18,7 +18,8 @@ import type {
 } from '@/types'
 import { supabaseAdmin } from './admin-client'
 import { engineSendText, engineSendTemplate } from './meta-send'
-import { resolveAccountProvider, sendText } from '@/lib/sdr/send'
+import { resolveAccountProvider, sendText, setAccountPresence } from '@/lib/sdr/send'
+import { splitBubbles } from '@/lib/sdr/prompt'
 import { pedroFromEnv } from '@/lib/pkg/pedro/client'
 
 // ------------------------------------------------------------
@@ -636,26 +637,46 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
       const system =
         `${basePrompt}\n\n[Diretriz deste toque — siga ESTA instrução]\n${cfg.guidance}\n\n` +
         'Você está reaparecendo de forma proativa porque o lead ficou em silêncio. ' +
-        'Envie UMA mensagem curta de follow-up seguindo a diretriz acima. ' +
+        'Siga a diretriz acima. Escreva curto e natural, no estilo WhatsApp: de 1 a 3 ' +
+        'mensagens BEM curtas, cada uma no seu próprio parágrafo (separadas por linha em branco). ' +
         'Não se despeça nem encerre a conversa, a menos que a diretriz peça explicitamente.'
       const { text } = await pedroFromEnv().reply(system, messages)
       if (!text?.trim()) throw new Error('send_ai: brain returned empty text')
 
       const provider = await resolveAccountProvider(db, args.automation.account_id)
-      const { messageId } = await sendText(db, args.automation.account_id, { provider, phone }, text)
 
-      // Persistir a mensagem do bot (mesma tabela/forma dos outros envios).
+      // Bubbles humanas: presença "digitando" + envio sequencial com pausa,
+      // igual ao C1 (reply) e C2 (touch). splitBubbles quebra parágrafos e
+      // frases longas → nada de mensagem-paredão.
+      const bubbles = splitBubbles(text)
+      if (bubbles.length === 0) throw new Error('send_ai: brain returned empty text')
+      const delay = Number(process.env.BUBBLE_DELAY_MS ?? 1500)
+      if (provider === 'uazapi') await setAccountPresence(db, args.automation.account_id, true)
+      let lastId: string | null = null
+      try {
+        for (let i = 0; i < bubbles.length; i++) {
+          const { messageId } = await sendText(db, args.automation.account_id, { provider, phone }, bubbles[i])
+          lastId = messageId ?? lastId
+          if (i < bubbles.length - 1) await new Promise((r) => setTimeout(r, delay))
+        }
+      } finally {
+        if (provider === 'uazapi') await setAccountPresence(db, args.automation.account_id, false)
+      }
+
+      // Persistir a mensagem do bot (mesma tabela/forma dos outros envios):
+      // uma linha com os bubbles juntos, igual ao C1/C2.
+      const fullText = bubbles.join('\n\n')
       if (convId) {
         await db.from('messages').insert({
           conversation_id: convId,
           sender_type: 'bot',
           content_type: 'text',
-          content_text: text,
-          message_id: messageId,
+          content_text: fullText,
+          message_id: lastId,
           status: 'sent',
         })
       }
-      return `send_ai sent via ${provider} (${messageId ?? 'no-id'})`
+      return `send_ai sent ${bubbles.length} bubble(s) via ${provider} (${lastId ?? 'no-id'})`
     }
 
     default:
