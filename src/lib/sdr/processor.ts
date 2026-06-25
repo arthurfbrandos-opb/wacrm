@@ -21,6 +21,8 @@ import { notifyArthur } from './notify'
 import { SDR_PIPELINE_ID } from './ids'
 import { substituteVariables, type CustomVariable } from './variables'
 import { resolvePromptValues } from './variables-resolve'
+import { moveDealFollowupToEmConversa } from './regua-exit'
+import { cancelPendingForContact } from '@/lib/automations/engine'
 
 const BUBBLE_DELAY_MS = Number(process.env.BUBBLE_DELAY_MS ?? 1500)
 const BRAIN_DEBOUNCE_MS = Number(process.env.BRAIN_DEBOUNCE_MS ?? 2500)
@@ -93,6 +95,17 @@ export async function runSdrReply(args: {
         .maybeSingle()
       if (latest?.id && args.inboundMessageId && latest.id !== args.inboundMessageId) return
     }
+
+    // If the lead is replying mid-régua (deal was in Follow-up pipeline), move
+    // it back to Pré-Vendas (SDR) / Em Conversa. Fire-and-forget; never blocks.
+    moveDealFollowupToEmConversa(admin, accountId, contact.id).catch((err) =>
+      console.error('[sdr] follow-up exit move failed:', err),
+    )
+    // Cancel any pending régua touches so they don't keep firing (and don't
+    // mark the deal "Lead Vencido") after the lead has already replied.
+    cancelPendingForContact(accountId, contact.id).catch((err) =>
+      console.error('[sdr] cancel régua on reply failed:', err),
+    )
 
     // System prompt (standalone, per account).
     const { data: cfg } = await admin
