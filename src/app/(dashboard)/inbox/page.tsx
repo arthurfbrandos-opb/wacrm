@@ -606,7 +606,12 @@ export default function InboxPage() {
           className={cn(
             "flex h-full flex-1 lg:flex-none",
             hasActiveConv ? "hidden lg:flex" : "flex",
-            listCollapsed && "lg:hidden",
+            // Só esconder a lista quando há conversa aberta (onde o botão de
+            // reabrir mora no cabeçalho do thread). Sem conversa selecionada,
+            // a lista sempre aparece — senão o estado colapsado (persistido em
+            // localStorage) deixa o usuário travado: lista escondida + nenhum
+            // toggle visível na tela de "Selecione uma conversa".
+            hasActiveConv && listCollapsed && "lg:hidden",
           )}
         >
           <ConversationList
