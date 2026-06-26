@@ -24,41 +24,33 @@ export function LiveOpsCards({ data }: LiveOpsCardsProps) {
     )
   }
 
-  const leadDelta = data.leadsToday.current - data.leadsToday.previous
-  const leadDeltaLabel =
-    leadDelta === 0
-      ? 'mesmo que ontem'
-      : leadDelta > 0
-        ? `+${leadDelta} vs ontem`
-        : `${leadDelta} vs ontem`
-
-  const avgMin = data.avgFirstResponseMinToday
+  const avgMin = data.avgFirstResponseMin
   const avgLabel =
     avgMin === null ? '—' : avgMin < 60 ? `${avgMin}min` : `${(avgMin / 60).toFixed(1)}h`
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
       <MetricCard
-        title="Leads hoje"
-        value={data.leadsToday.current.toLocaleString('pt-BR')}
+        title="Leads"
+        value={data.leads.toLocaleString('pt-BR')}
         icon={TrendingUp}
-        delta={{ sign: leadDelta, label: leadDeltaLabel }}
       />
       <MetricCard
         title="Responderam"
         value={`${data.responded.count}`}
         icon={MessageCircle}
-        subtitle={`${data.responded.pct}% dos leads de hoje`}
+        subtitle={`${data.responded.pct}% dos leads no período`}
       />
       <MetricCard
-        title="Agendamentos hoje"
-        value={data.bookingsToday.toLocaleString('pt-BR')}
+        title="Agendamentos"
+        value={data.bookings.toLocaleString('pt-BR')}
         icon={CalendarCheck}
       />
       <MetricCard
         title="Sem resposta agora"
         value={data.awaitingResponseNow.toLocaleString('pt-BR')}
         icon={AlertCircle}
+        subtitle="fila viva — independe do período"
       />
       <MetricCard
         title="Tempo médio 1ª resposta"

@@ -1,6 +1,6 @@
 // src/lib/dashboard/ads-queries.ts
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { startOfLocalDay, daysAgoStart } from './date-utils'
+import { daysAgoStart, localDayKey } from './date-utils'
 import { resolveCreative, type AttributionBlob } from './ads-attribution'
 import {
   computeFunnel,
@@ -36,8 +36,7 @@ function stageIdsFor(refs: StageRef[], pipeline: string, stageName?: string): st
   return refs.filter((r) => r.pipeline === pipeline && (!stageName || r.name === stageName)).map((r) => r.id)
 }
 
-export async function loadAdsFunnel(db: DB, rangeDays: number): Promise<AdsFunnel> {
-  const since = daysAgoStart(rangeDays - 1).toISOString()
+export async function loadAdsFunnel(db: DB, since: string, until: string): Promise<AdsFunnel> {
   const refs = await loadStageRefs(db)
   const sdrStageIds = stageIdsFor(refs, SDR_PIPELINE)
   const agendamentoIds = stageIdsFor(refs, SDR_PIPELINE, STAGE_AGENDAMENTO)
@@ -45,11 +44,11 @@ export async function loadAdsFunnel(db: DB, rangeDays: number): Promise<AdsFunne
   const vendaIds = stageIdsFor(refs, CLOSER_PIPELINE, STAGE_VENDA)
 
   const [leadRows, apptRows, attendedRows, soldRows, inboundRows] = await Promise.all([
-    guardedStageQuery(sdrStageIds, () => db.from('deals').select('contact_id, created_at').in('stage_id', sdrStageIds).gte('created_at', since)),
-    db.from('appointments').select('contact_id, created_at').gte('created_at', since),
+    guardedStageQuery(sdrStageIds, () => db.from('deals').select('contact_id, created_at').in('stage_id', sdrStageIds).gte('created_at', since).lt('created_at', until)),
+    db.from('appointments').select('contact_id, created_at').gte('created_at', since).lt('created_at', until),
     guardedStageQuery(comparecimentoIds, () => db.from('deals').select('contact_id').in('stage_id', comparecimentoIds)),
     guardedStageQuery(vendaIds, () => db.from('deals').select('contact_id').in('stage_id', vendaIds)),
-    db.from('messages').select('conversation_id, conversations(contact_id)').eq('sender_type', 'customer').gte('created_at', since),
+    db.from('messages').select('conversation_id, conversations(contact_id)').eq('sender_type', 'customer').gte('created_at', since).lt('created_at', until),
   ])
 
   const leadContactIds = (leadRows.data ?? []).map((d: { contact_id: string }) => d.contact_id).filter(Boolean)
@@ -93,21 +92,23 @@ function inboundContactIdsFromMessages(
 
 export async function loadCreativeCostTable(
   db: DB,
-  rangeDays: number,
+  since: string,
+  until: string,
 ): Promise<{ rows: CreativeCostRow[]; spendSyncedAt: string | null }> {
-  const start = daysAgoStart(rangeDays - 1)
-  const since = start.toISOString()
-  const sinceDate = since.slice(0, 10)
+  // ad_spend.date é um date — calculo o primeiro e o ÚLTIMO dia incluídos.
+  // until é exclusivo (timestamp): "agora" → último dia = hoje; range custom → último dia = data fim.
+  const sinceDate = localDayKey(new Date(since))
+  const untilDate = localDayKey(new Date(new Date(until).getTime() - 1))
   const refs = await loadStageRefs(db)
   const sdrStageIds = stageIdsFor(refs, SDR_PIPELINE)
   const agendamentoIds = stageIdsFor(refs, SDR_PIPELINE, STAGE_AGENDAMENTO)
   const comparecimentoIds = stageIdsFor(refs, CLOSER_PIPELINE, STAGE_COMPARECIMENTO)
 
   const [leadRows, apptRows, attendedRows, spendRows] = await Promise.all([
-    guardedStageQuery(sdrStageIds, () => db.from('deals').select('contact_id, contacts(fap01_data)').in('stage_id', sdrStageIds).gte('created_at', since)),
-    db.from('appointments').select('contact_id, created_at').gte('created_at', since),
+    guardedStageQuery(sdrStageIds, () => db.from('deals').select('contact_id, contacts(fap01_data)').in('stage_id', sdrStageIds).gte('created_at', since).lt('created_at', until)),
+    db.from('appointments').select('contact_id, created_at').gte('created_at', since).lt('created_at', until),
     guardedStageQuery(comparecimentoIds, () => db.from('deals').select('contact_id').in('stage_id', comparecimentoIds)),
-    db.from('ad_spend').select('ad_name, campaign_name, spend, synced_at').gte('date', sinceDate),
+    db.from('ad_spend').select('ad_name, campaign_name, spend, synced_at').gte('date', sinceDate).lte('date', untilDate),
   ])
 
   // 1 lead por contato distinto, com criativo resolvido do fap01_data.
@@ -137,32 +138,37 @@ export async function loadCreativeCostTable(
   return { rows, spendSyncedAt }
 }
 
-export async function loadAdsLiveOps(db: DB): Promise<AdsLiveOps> {
-  const todayStart = startOfLocalDay().toISOString()
-  const yesterdayStart = daysAgoStart(1).toISOString()
+export async function loadAdsLiveOps(db: DB, since: string, until: string): Promise<AdsLiveOps> {
   const refs = await loadStageRefs(db)
   const sdrStageIds = stageIdsFor(refs, SDR_PIPELINE)
+  // "Sem resposta agora" = estado ATUAL (fila viva), não segue o período. Olha 30d de
+  // mensagens pra decidir quem já respondeu — cobre qualquer lead aberto recente sem subcontar no dia 2+.
+  const awaitingWindowStart = daysAgoStart(29).toISOString()
 
-  const [leadsToday, leadsYesterday, apptToday, inboundToday, openDeals, msgsToday] = await Promise.all([
-    guardedStageQuery(sdrStageIds, () => db.from('deals').select('contact_id').in('stage_id', sdrStageIds).gte('created_at', todayStart)),
-    guardedStageQuery(sdrStageIds, () => db.from('deals').select('contact_id').in('stage_id', sdrStageIds).gte('created_at', yesterdayStart).lt('created_at', todayStart)),
-    db.from('appointments').select('id', { count: 'exact', head: true }).gte('created_at', todayStart),
-    db.from('messages').select('conversation_id, conversations(contact_id)').eq('sender_type', 'customer').gte('created_at', todayStart),
+  const [leadRows, apptCount, inboundRows, msgsRange, openDeals, awaitingMsgs] = await Promise.all([
+    guardedStageQuery(sdrStageIds, () => db.from('deals').select('contact_id').in('stage_id', sdrStageIds).gte('created_at', since).lt('created_at', until)),
+    db.from('appointments').select('id', { count: 'exact', head: true }).gte('created_at', since).lt('created_at', until),
+    db.from('messages').select('conversation_id, conversations(contact_id)').eq('sender_type', 'customer').gte('created_at', since).lt('created_at', until),
+    db.from('messages').select('conversation_id, sender_type, created_at, conversations(contact_id)').gte('created_at', since).lt('created_at', until).order('conversation_id', { ascending: true }).order('created_at', { ascending: true }),
     guardedStageQuery(sdrStageIds, () => db.from('deals').select('contact_id').in('stage_id', sdrStageIds).eq('status', 'open')),
-    db.from('messages').select('conversation_id, sender_type, created_at, conversations(contact_id)').gte('created_at', todayStart).order('conversation_id', { ascending: true }).order('created_at', { ascending: true }),
+    db.from('messages').select('sender_type, conversations(contact_id)').gte('created_at', awaitingWindowStart),
   ])
 
-  const leadsTodayIds = (leadsToday.data ?? []).map((d: { contact_id: string }) => d.contact_id).filter(Boolean)
-  const leadsYesterdayIds = (leadsYesterday.data ?? []).map((d: { contact_id: string }) => d.contact_id).filter(Boolean)
-  const respondedTodayIds = inboundContactIdsFromMessages(inboundToday.data ?? [])
+  const leadContactIds = (leadRows.data ?? []).map((d: { contact_id: string }) => d.contact_id).filter(Boolean)
+  const respondedContactIds = inboundContactIdsFromMessages(inboundRows.data ?? [])
   const openLeadContactIds = (openDeals.data ?? []).map((d: { contact_id: string }) => d.contact_id).filter(Boolean)
 
-  // Para "aguardando agora": mapeia contato → tem inbound / tem outbound (qualquer tempo deste lead em aberto).
-  // Usamos as mensagens de hoje como proxy de atividade recente (suficiente pro lançamento; sem histórico pesado).
-  const msgRows = (msgsToday.data ?? []) as unknown as Array<{ conversation_id: string; sender_type: string; created_at: string; conversations: { contact_id: string }[] | { contact_id: string } | null }>
+  const firstResponseMinutes = pairFirstResponses(
+    ((msgsRange.data ?? []) as unknown as Array<{ conversation_id: string; sender_type: string; created_at: string }>).map(
+      (m) => ({ conversationId: m.conversation_id, senderType: m.sender_type, createdAt: m.created_at }),
+    ),
+  )
+
+  // Fila viva agora: leads SDR abertos com outbound nosso e zero inbound (janela 30d).
+  const awaitingRows = (awaitingMsgs.data ?? []) as unknown as Array<{ sender_type: string; conversations: { contact_id: string }[] | { contact_id: string } | null }>
   const inboundContactIds = new Set<string>()
   const outboundContactIds = new Set<string>()
-  for (const m of msgRows) {
+  for (const m of awaitingRows) {
     const conv = Array.isArray(m.conversations) ? m.conversations[0] : m.conversations
     if (!conv?.contact_id) continue
     if (m.sender_type === 'customer') inboundContactIds.add(conv.contact_id)
@@ -170,16 +176,11 @@ export async function loadAdsLiveOps(db: DB): Promise<AdsLiveOps> {
   }
   const awaitingNow = awaitingResponseContactIds({ openLeadContactIds, inboundContactIds, outboundContactIds }).length
 
-  const firstResponseMinutesToday = pairFirstResponses(
-    msgRows.map((m) => ({ conversationId: m.conversation_id, senderType: m.sender_type, createdAt: m.created_at })),
-  )
-
   return computeLiveOps({
-    leadsTodayContactIds: leadsTodayIds,
-    leadsYesterdayContactIds: leadsYesterdayIds,
-    respondedTodayContactIds: respondedTodayIds,
-    bookingsTodayCount: apptToday.count ?? 0,
+    leadContactIds,
+    respondedContactIds,
+    bookingsCount: apptCount.count ?? 0,
+    firstResponseMinutes,
     awaitingNowCount: awaitingNow,
-    firstResponseMinutesToday,
   })
 }

@@ -102,32 +102,41 @@ describe('awaitingResponseContactIds', () => {
 })
 
 describe('computeLiveOps', () => {
-  it('monta o bloco com leads hoje×ontem, % respondeu e média de 1ª resposta', () => {
+  it('monta o bloco no período: leads, % respondeu, agendamentos, média 1ª resposta, fila agora', () => {
     const lo = computeLiveOps({
-      leadsTodayContactIds: ['a', 'b', 'c', 'd'],
-      leadsYesterdayContactIds: ['x', 'y'],
-      respondedTodayContactIds: ['a', 'b'],
-      bookingsTodayCount: 1,
+      leadContactIds: ['a', 'b', 'c', 'd'],
+      respondedContactIds: ['a', 'b', 'z'], // 'z' não é lead → ignorado
+      bookingsCount: 1,
+      firstResponseMinutes: [10, 20],
       awaitingNowCount: 2,
-      firstResponseMinutesToday: [10, 20],
     })
-    expect(lo.leadsToday).toEqual({ current: 4, previous: 2 })
+    expect(lo.leads).toBe(4)
     expect(lo.responded).toEqual({ count: 2, pct: 50 })
-    expect(lo.bookingsToday).toBe(1)
-    expect(lo.awaitingResponseNow).toBe(2)
-    expect(lo.avgFirstResponseMinToday).toBe(15)
+    expect(lo.bookings).toBe(1)
+    expect(lo.avgFirstResponseMin).toBe(15)
+    expect(lo.awaitingResponseNow).toBe(2) // independe do período
+  })
+
+  it('conta leads distintos (dedup)', () => {
+    const lo = computeLiveOps({
+      leadContactIds: ['a', 'a', 'b'],
+      respondedContactIds: [],
+      bookingsCount: 0,
+      firstResponseMinutes: [],
+      awaitingNowCount: 0,
+    })
+    expect(lo.leads).toBe(2)
   })
 
   it('zero leads → pct 0 e média null', () => {
     const lo = computeLiveOps({
-      leadsTodayContactIds: [],
-      leadsYesterdayContactIds: [],
-      respondedTodayContactIds: [],
-      bookingsTodayCount: 0,
+      leadContactIds: [],
+      respondedContactIds: [],
+      bookingsCount: 0,
+      firstResponseMinutes: [],
       awaitingNowCount: 0,
-      firstResponseMinutesToday: [],
     })
     expect(lo.responded).toEqual({ count: 0, pct: 0 })
-    expect(lo.avgFirstResponseMinToday).toBeNull()
+    expect(lo.avgFirstResponseMin).toBeNull()
   })
 })

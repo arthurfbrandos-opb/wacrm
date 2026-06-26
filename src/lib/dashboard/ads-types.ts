@@ -4,13 +4,13 @@ export interface CreativeAttribution {
   campaign: string | null // utm_campaign
 }
 
-/** Bloco 1 · operação ao vivo (hoje). */
+/** Bloco 1 · operação. Tudo no período selecionado, exceto awaitingResponseNow (estado atual). */
 export interface AdsLiveOps {
-  leadsToday: { current: number; previous: number } // previous = ontem
-  responded: { count: number; pct: number } // % dos leads de hoje que responderam
-  bookingsToday: number
-  awaitingResponseNow: number
-  avgFirstResponseMinToday: number | null
+  leads: number // leads no período
+  responded: { count: number; pct: number } // % dos leads do período que responderam
+  bookings: number // agendamentos no período
+  avgFirstResponseMin: number | null // média de 1ª resposta no período
+  awaitingResponseNow: number // fila viva AGORA — independe do período
 }
 
 /** Bloco 2 · funil. */

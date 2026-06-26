@@ -164,25 +164,24 @@ export function awaitingResponseContactIds(args: {
 }
 
 export function computeLiveOps(args: {
-  leadsTodayContactIds: string[]
-  leadsYesterdayContactIds: string[]
-  respondedTodayContactIds: Iterable<string>
-  bookingsTodayCount: number
+  leadContactIds: string[]
+  respondedContactIds: Iterable<string>
+  bookingsCount: number
+  firstResponseMinutes: number[]
   awaitingNowCount: number
-  firstResponseMinutesToday: number[]
 }): AdsLiveOps {
-  const leadsToday = new Set(args.leadsTodayContactIds)
-  const respondedSet = new Set(args.respondedTodayContactIds)
+  const leads = new Set(args.leadContactIds)
+  const respondedSet = new Set(args.respondedContactIds)
   let respondedCount = 0
-  for (const id of leadsToday) if (respondedSet.has(id)) respondedCount++
-  const pct = leadsToday.size > 0 ? Math.round((respondedCount / leadsToday.size) * 100) : 0
-  const mins = args.firstResponseMinutesToday
+  for (const id of leads) if (respondedSet.has(id)) respondedCount++
+  const pct = leads.size > 0 ? Math.round((respondedCount / leads.size) * 100) : 0
+  const mins = args.firstResponseMinutes
   const avg = mins.length > 0 ? Math.round((mins.reduce((a, b) => a + b, 0) / mins.length) * 10) / 10 : null
   return {
-    leadsToday: { current: leadsToday.size, previous: new Set(args.leadsYesterdayContactIds).size },
+    leads: leads.size,
     responded: { count: respondedCount, pct },
-    bookingsToday: args.bookingsTodayCount,
+    bookings: args.bookingsCount,
+    avgFirstResponseMin: avg,
     awaitingResponseNow: args.awaitingNowCount,
-    avgFirstResponseMinToday: avg,
   }
 }
