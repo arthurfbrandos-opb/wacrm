@@ -25,7 +25,7 @@ import { moveDealFollowupToEmConversa } from './regua-exit'
 import { cancelPendingForContact } from '@/lib/automations/engine'
 
 const BUBBLE_DELAY_MS = Number(process.env.BUBBLE_DELAY_MS ?? 1500)
-const BRAIN_DEBOUNCE_MS = Number(process.env.BRAIN_DEBOUNCE_MS ?? 2500)
+const BRAIN_DEBOUNCE_MS = Number(process.env.BRAIN_DEBOUNCE_MS ?? 6000)
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Admin = any
@@ -80,6 +80,18 @@ export async function runSdrReply(args: {
       .eq('id', conversationId)
       .maybeSingle()
     if (conv?.ai_status !== 'on') return
+
+    // This inbound's timestamp — used by the pre-send guard (below) so only the
+    // LATEST invocation actually answers a burst.
+    let inboundCreatedAt: string | null = null
+    if (args.inboundMessageId) {
+      const { data: inb } = await admin
+        .from('messages')
+        .select('created_at')
+        .eq('id', args.inboundMessageId)
+        .maybeSingle()
+      inboundCreatedAt = (inb as { created_at?: string } | null)?.created_at ?? null
+    }
 
     // Debounce rapid bubbles: wait, then bail if a newer inbound arrived — the
     // invocation for that last message answers, seeing the full burst.
@@ -174,6 +186,22 @@ export async function runSdrReply(args: {
 
     const outText = cleanText
 
+    // Pre-send guard against double-answering a burst: only the LATEST invocation
+    // commits (reply + side effects). If ANY message landed after this inbound —
+    // a newer customer message, or another invocation's reply — bail. Catches
+    // bursts the fixed debounce misses (gap > debounce window, e.g. "Bom dia" …5s…
+    // "Pode sim"). The latest message's invocation owns the answer.
+    if (inboundCreatedAt) {
+      const { data: newer } = await admin
+        .from('messages')
+        .select('id')
+        .eq('conversation_id', conversationId)
+        .gt('created_at', inboundCreatedAt)
+        .limit(1)
+        .maybeSingle()
+      if ((newer as { id?: string } | null)?.id) return
+    }
+
     // [HUMANO] — hand off: lock the AI and ping Arthur.
     if (humano) {
       try {
@@ -190,7 +218,24 @@ export async function runSdrReply(args: {
 
     // [AGENDAR] — book the diagnosis (slot already gated against this turn's list).
     let meetLink = ''
+    // Idempotency: never double-book. If the lead already has a future
+    // appointment (Calendly, ou um burst que re-disparou o [AGENDAR]), skip the
+    // booking — evita evento duplicado no Google + appointment descasado.
+    let alreadyBooked = false
     if (agendarSlot) {
+      const { data: existingAppt } = await admin
+        .from('appointments')
+        .select('id')
+        .eq('contact_id', contact.id)
+        .gte('scheduled_at', new Date().toISOString())
+        .limit(1)
+        .maybeSingle()
+      alreadyBooked = !!(existingAppt as { id?: string } | null)?.id
+      if (alreadyBooked) {
+        console.log('[sdr] AGENDAR ignorado — lead já tem agendamento futuro', contact.id)
+      }
+    }
+    if (agendarSlot && !alreadyBooked) {
       const { data: deal } = await admin
         .from('deals')
         .select('id')
