@@ -45,11 +45,11 @@ export async function loadAdsFunnel(db: DB, rangeDays: number): Promise<AdsFunne
   const vendaIds = stageIdsFor(refs, CLOSER_PIPELINE, STAGE_VENDA)
 
   const [leadRows, apptRows, attendedRows, soldRows, inboundRows] = await Promise.all([
-    db.from('deals').select('contact_id, created_at').in('stage_id', sdrStageIds).gte('created_at', since),
+    guardedStageQuery(sdrStageIds, () => db.from('deals').select('contact_id, created_at').in('stage_id', sdrStageIds).gte('created_at', since)),
     db.from('appointments').select('contact_id, created_at').gte('created_at', since),
-    db.from('deals').select('contact_id').in('stage_id', comparecimentoIds),
-    db.from('deals').select('contact_id').in('stage_id', vendaIds),
-    db.from('messages').select('conversation_id, created_at, conversations(contact_id)').eq('sender_type', 'customer').gte('created_at', since),
+    guardedStageQuery(comparecimentoIds, () => db.from('deals').select('contact_id').in('stage_id', comparecimentoIds)),
+    guardedStageQuery(vendaIds, () => db.from('deals').select('contact_id').in('stage_id', vendaIds)),
+    db.from('messages').select('conversation_id, conversations(contact_id)').eq('sender_type', 'customer').gte('created_at', since),
   ])
 
   const leadContactIds = (leadRows.data ?? []).map((d: { contact_id: string }) => d.contact_id).filter(Boolean)
@@ -70,6 +70,16 @@ async function dealContactIdsInStages(db: DB, stageIds: string[]): Promise<strin
   return (data ?? []).map((d: { contact_id: string }) => d.contact_id).filter(Boolean)
 }
 
+/** Returns { data: [] } immediately when stageIds is empty, avoiding `.in('stage_id', [])`. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function guardedStageQuery(
+  stageIds: string[],
+  run: () => PromiseLike<{ data: any[] | null }>,
+): Promise<{ data: any[] | null }> {
+  if (stageIds.length === 0) return { data: [] }
+  return run()
+}
+
 function inboundContactIdsFromMessages(
   rows: unknown[],
 ): string[] {
@@ -85,17 +95,18 @@ export async function loadCreativeCostTable(
   db: DB,
   rangeDays: number,
 ): Promise<{ rows: CreativeCostRow[]; spendSyncedAt: string | null }> {
-  const since = daysAgoStart(rangeDays - 1).toISOString()
-  const sinceDate = daysAgoStart(rangeDays - 1).toISOString().slice(0, 10)
+  const start = daysAgoStart(rangeDays - 1)
+  const since = start.toISOString()
+  const sinceDate = since.slice(0, 10)
   const refs = await loadStageRefs(db)
   const sdrStageIds = stageIdsFor(refs, SDR_PIPELINE)
   const agendamentoIds = stageIdsFor(refs, SDR_PIPELINE, STAGE_AGENDAMENTO)
   const comparecimentoIds = stageIdsFor(refs, CLOSER_PIPELINE, STAGE_COMPARECIMENTO)
 
   const [leadRows, apptRows, attendedRows, spendRows] = await Promise.all([
-    db.from('deals').select('contact_id, contacts(fap01_data)').in('stage_id', sdrStageIds).gte('created_at', since),
+    guardedStageQuery(sdrStageIds, () => db.from('deals').select('contact_id, contacts(fap01_data)').in('stage_id', sdrStageIds).gte('created_at', since)),
     db.from('appointments').select('contact_id, created_at').gte('created_at', since),
-    db.from('deals').select('contact_id').in('stage_id', comparecimentoIds),
+    guardedStageQuery(comparecimentoIds, () => db.from('deals').select('contact_id').in('stage_id', comparecimentoIds)),
     db.from('ad_spend').select('ad_name, campaign_name, spend, synced_at').gte('date', sinceDate),
   ])
 
@@ -133,11 +144,11 @@ export async function loadAdsLiveOps(db: DB): Promise<AdsLiveOps> {
   const sdrStageIds = stageIdsFor(refs, SDR_PIPELINE)
 
   const [leadsToday, leadsYesterday, apptToday, inboundToday, openDeals, msgsToday] = await Promise.all([
-    db.from('deals').select('contact_id').in('stage_id', sdrStageIds).gte('created_at', todayStart),
-    db.from('deals').select('contact_id').in('stage_id', sdrStageIds).gte('created_at', yesterdayStart).lt('created_at', todayStart),
+    guardedStageQuery(sdrStageIds, () => db.from('deals').select('contact_id').in('stage_id', sdrStageIds).gte('created_at', todayStart)),
+    guardedStageQuery(sdrStageIds, () => db.from('deals').select('contact_id').in('stage_id', sdrStageIds).gte('created_at', yesterdayStart).lt('created_at', todayStart)),
     db.from('appointments').select('id', { count: 'exact', head: true }).gte('created_at', todayStart),
     db.from('messages').select('conversation_id, conversations(contact_id)').eq('sender_type', 'customer').gte('created_at', todayStart),
-    db.from('deals').select('contact_id').in('stage_id', sdrStageIds).eq('status', 'open'),
+    guardedStageQuery(sdrStageIds, () => db.from('deals').select('contact_id').in('stage_id', sdrStageIds).eq('status', 'open')),
     db.from('messages').select('conversation_id, sender_type, created_at, conversations(contact_id)').gte('created_at', todayStart).order('conversation_id', { ascending: true }).order('created_at', { ascending: true }),
   ])
 
