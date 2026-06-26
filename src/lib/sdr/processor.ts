@@ -231,8 +231,18 @@ export async function runSdrReply(args: {
         .limit(1)
         .maybeSingle()
       alreadyBooked = !!(existingAppt as { id?: string } | null)?.id
+      // Também checa o Google: lead que agendou via Calendly NÃO tem appointment
+      // no wacrm, mas tem evento no calendário. Evita reagendar por cima.
+      if (!alreadyBooked && contact.email) {
+        try {
+          const { events } = await pedro.calendarFind(contact.email)
+          if (Array.isArray(events) && events.length > 0) alreadyBooked = true
+        } catch (e) {
+          console.error('[sdr] AGENDAR calendarFind check failed (degrade)', e)
+        }
+      }
       if (alreadyBooked) {
-        console.log('[sdr] AGENDAR ignorado — lead já tem agendamento futuro', contact.id)
+        console.log('[sdr] AGENDAR ignorado — lead já tem agendamento', contact.id)
       }
     }
     if (agendarSlot && !alreadyBooked) {
