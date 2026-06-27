@@ -21,6 +21,8 @@ import { engineSendText, engineSendTemplate } from './meta-send'
 import { resolveAccountProvider, sendText, setAccountPresence } from '@/lib/sdr/send'
 import { splitBubbles } from '@/lib/sdr/prompt'
 import { pedroFromEnv } from '@/lib/pkg/pedro/client'
+import { isReachoutBlock } from '@/lib/whatsapp/uazapi-send'
+import { handleReachoutBlock } from '@/lib/sdr/reachout-block'
 
 // ------------------------------------------------------------
 // Public API
@@ -609,11 +611,12 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
 
       const { data: contact } = await db
         .from('contacts')
-        .select('phone')
+        .select('phone, name')
         .eq('id', args.contactId)
         .eq('account_id', args.automation.account_id)
         .maybeSingle()
       const phone = (contact as { phone?: string } | null)?.phone
+      const contactName = (contact as { name?: string | null } | null)?.name ?? null
       if (!phone) throw new Error('send_ai: contact has no phone')
 
       const { data: sdrCfg } = await db
@@ -659,6 +662,31 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
           lastId = messageId ?? lastId
           if (i < bubbles.length - 1) await new Promise((r) => setTimeout(r, delay))
         }
+      } catch (err) {
+        // Number barred from OPENING a new conversation (463 reachout-timelock):
+        // surface it in the CRM and STOP the rest of the régua for this lead —
+        // the remaining touches would all hit the same wall and hammer the
+        // number. Then re-throw so this run logs as failed.
+        if (isReachoutBlock(err)) {
+          await handleReachoutBlock(db, {
+            accountId: args.automation.account_id,
+            contactId: args.contactId,
+            phone,
+            name: contactName,
+            conversationId: args.context.conversation_id ?? null,
+          })
+          // Stop THIS régua's remaining touches for this lead so a barred
+          // number isn't hammered turn after turn. Scoped to this automation +
+          // contact and NOT gated on cancel_on_reply (cancelPendingForContact is
+          // opt-in by design; a 463 must halt the régua regardless of the flag).
+          await db
+            .from('automation_pending_executions')
+            .update({ status: 'failed' })
+            .eq('automation_id', args.automation.id)
+            .eq('contact_id', args.contactId)
+            .eq('status', 'pending')
+        }
+        throw err
       } finally {
         if (provider === 'uazapi') await setAccountPresence(db, args.automation.account_id, false)
       }

@@ -23,6 +23,8 @@ import { substituteVariables, type CustomVariable } from './variables'
 import { resolvePromptValues } from './variables-resolve'
 import { moveDealFollowupToEmConversa } from './regua-exit'
 import { cancelPendingForContact } from '@/lib/automations/engine'
+import { isReachoutBlock } from '@/lib/whatsapp/uazapi-send'
+import { handleReachoutBlock } from './reachout-block'
 
 const BUBBLE_DELAY_MS = Number(process.env.BUBBLE_DELAY_MS ?? 1500)
 const BRAIN_DEBOUNCE_MS = Number(process.env.BRAIN_DEBOUNCE_MS ?? 6000)
@@ -336,5 +338,16 @@ export async function runSdrReply(args: {
       .eq('id', conversationId)
   } catch (e) {
     console.error('[sdr] brain loop failed', { conversationId, phone: contact.phone }, e)
+    // 463 reachout-timelock: number barred from opening a new conversation.
+    // Make it loud in the CRM instead of dying in the logs.
+    if (isReachoutBlock(e)) {
+      await handleReachoutBlock(admin, {
+        accountId,
+        contactId: contact.id,
+        phone: contact.phone,
+        name: contact.name,
+        conversationId,
+      })
+    }
   }
 }

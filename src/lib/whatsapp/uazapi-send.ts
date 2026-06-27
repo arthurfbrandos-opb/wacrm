@@ -9,6 +9,35 @@
  * shapes uazapiGO uses). Throws with a human-readable message on failure
  * (disconnected session, bad token, etc.) so the caller can surface it.
  */
+/** A failed UazAPI send, carrying the HTTP status + raw body for classification. */
+export class UazapiSendError extends Error {
+  status: number
+  body: string
+  constructor(message: string, status: number, body: string) {
+    super(message)
+    this.name = 'UazapiSendError'
+    this.status = status
+    this.body = body
+  }
+}
+
+/**
+ * True when a send failed because WhatsApp blocked OPENING a new conversation
+ * from a non-warmed number ("reachout-timelock", app code 463). Follow-ups in an
+ * already-open chat are fine; only first-contact/cold opens hit this. Detected
+ * by the authoritative HTTP status 463 OR the specific keywords "reachout"/
+ * "timelock". We deliberately do NOT match a bare "463" in the body text —
+ * provider error envelopes carry request/trace ids that can contain 463 as a
+ * delimited token, which would false-positive on unrelated send failures and
+ * wrongly hand a healthy conversation off to a human.
+ */
+export function isReachoutBlock(err: unknown): boolean {
+  if (!(err instanceof Error)) return false
+  if ((err as UazapiSendError).status === 463) return true
+  const hay = `${err.message} ${(err as UazapiSendError).body ?? ''}`.toLowerCase()
+  return /reachout|timelock/.test(hay)
+}
+
 export async function sendUazapiText(opts: {
   baseUrl: string
   token: string
@@ -41,7 +70,10 @@ export async function sendUazapiText(opts: {
       (typeof data.error === 'string' && data.error) ||
       raw ||
       `HTTP ${res.status}`
-    throw new Error(`UazAPI: ${msg}`)
+    // Carry the HTTP status + raw body so callers can classify the failure
+    // (e.g. the WhatsApp "reachout-timelock" 463 — a non-warmed number barred
+    // from OPENING new conversations) instead of just pattern-matching a string.
+    throw new UazapiSendError(`UazAPI: ${msg}`, res.status, raw)
   }
 
   const message = data.message as { id?: string; key?: { id?: string } } | undefined
