@@ -9,9 +9,9 @@ import {
 } from '@/lib/sdr/touches'
 import { syncContactAvatarFromWhatsApp } from '@/lib/whatsapp/uazapi-profile'
 
-// Arthur's decision (2026-06-11): chase/confirm the lead 5 min after the form,
-// leaving room to self-book on Calendly first.
-const FIRST_TOUCH_DELAY_MS = 5 * 60_000
+// Dá ~3 min pro lead agendar no Calendly antes do 1º toque; se ele agendar
+// antes, expediteFirstTouch antecipa (schedule_confirmed beacon).
+const FIRST_TOUCH_DELAY_MS = 3 * 60 * 1000
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
