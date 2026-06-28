@@ -47,41 +47,27 @@ export function verifyMetaWebhookSignature(
 }
 
 /**
- * Provider-aware webhook auth dispatch.
- *
- * Meta: HMAC-SHA256 of raw body in `x-hub-signature-256: sha256=<hex>`.
- * UazAPI: simple token in `?token=<value>` query param (no HMAC).
- *
- * Returns `{ ok: true }` if verified, `{ ok: false, reason }` otherwise.
- * Fails closed: missing env config → reject.
+ * Per-request webhook auth. Meta POSTs carry an `x-hub-signature-256`
+ * header; UazAPI POSTs carry a `?token=` query param. We pick the
+ * provider from what's present on THIS request, so both channels can
+ * hit the same endpoint at once (no global WA_PROVIDER gate).
  */
 export function verifyWebhookAuth(
   rawBody: string,
   signatureHeader: string | null,
   queryToken: string | null,
-): { ok: boolean; reason?: string } {
-  const provider = process.env.WA_PROVIDER || 'meta'
-
-  if (provider === 'meta') {
-    if (verifyMetaWebhookSignature(rawBody, signatureHeader)) {
-      return { ok: true }
-    }
-    return { ok: false, reason: 'meta_hmac_failed' }
+): { ok: boolean; provider?: 'meta' | 'uazapi'; reason?: string } {
+  if (signatureHeader) {
+    return verifyMetaWebhookSignature(rawBody, signatureHeader)
+      ? { ok: true, provider: 'meta' }
+      : { ok: false, reason: 'meta_hmac_failed' }
   }
-
-  if (provider === 'uazapi') {
+  if (queryToken) {
     const expected = process.env.UAZAPI_WEBHOOK_TOKEN
-    if (!expected) {
-      console.error('[webhook] UAZAPI_WEBHOOK_TOKEN not set — rejecting.')
-      return { ok: false, reason: 'uazapi_token_not_configured' }
-    }
-    if (!queryToken) {
-      return { ok: false, reason: 'uazapi_token_missing' }
-    }
+    if (!expected) return { ok: false, reason: 'uazapi_token_not_configured' }
     return queryToken === expected
-      ? { ok: true }
+      ? { ok: true, provider: 'uazapi' }
       : { ok: false, reason: 'uazapi_token_mismatch' }
   }
-
-  return { ok: false, reason: 'unknown_provider' }
+  return { ok: false, reason: 'no_credentials' }
 }

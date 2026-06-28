@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { verifyMetaWebhookSignature } from "./webhook-signature";
+import { verifyMetaWebhookSignature, verifyWebhookAuth } from "./webhook-signature";
 
 const SECRET = process.env.META_APP_SECRET!;
 
@@ -67,3 +67,50 @@ describe("verifyMetaWebhookSignature", () => {
     });
   });
 });
+
+const SIGN_SECRET = 'test_app_secret'
+const sign = (body: string) =>
+  'sha256=' + crypto.createHmac('sha256', SIGN_SECRET).update(body).digest('hex')
+
+describe('verifyWebhookAuth (per-request detection)', () => {
+  const origSecret = process.env.META_APP_SECRET
+  const origToken = process.env.UAZAPI_WEBHOOK_TOKEN
+  const origProvider = process.env.WA_PROVIDER
+
+  beforeEach(() => {
+    process.env.META_APP_SECRET = SIGN_SECRET
+    process.env.UAZAPI_WEBHOOK_TOKEN = 'uaz_tok'
+    delete process.env.WA_PROVIDER
+  })
+
+  afterEach(() => {
+    if (origSecret !== undefined) process.env.META_APP_SECRET = origSecret
+    else delete process.env.META_APP_SECRET
+    if (origToken !== undefined) process.env.UAZAPI_WEBHOOK_TOKEN = origToken
+    else delete process.env.UAZAPI_WEBHOOK_TOKEN
+    if (origProvider !== undefined) process.env.WA_PROVIDER = origProvider
+    else delete process.env.WA_PROVIDER
+  })
+
+  it('accepts a valid Meta signature regardless of WA_PROVIDER', () => {
+    process.env.WA_PROVIDER = 'uazapi'
+    const body = '{"x":1}'
+    const r = verifyWebhookAuth(body, sign(body), null)
+    expect(r).toEqual({ ok: true, provider: 'meta' })
+  })
+
+  it('rejects a bad Meta signature', () => {
+    const r = verifyWebhookAuth('{"x":1}', 'sha256=deadbeef', null)
+    expect(r.ok).toBe(false)
+  })
+
+  it('accepts a matching UazAPI token when there is no signature header', () => {
+    const r = verifyWebhookAuth('{}', null, 'uaz_tok')
+    expect(r).toEqual({ ok: true, provider: 'uazapi' })
+  })
+
+  it('rejects when neither credential is present', () => {
+    const r = verifyWebhookAuth('{}', null, null)
+    expect(r.ok).toBe(false)
+  })
+})

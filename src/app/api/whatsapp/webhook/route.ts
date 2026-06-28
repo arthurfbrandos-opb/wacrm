@@ -175,9 +175,12 @@ export async function POST(request: Request) {
 
   // UazAPI: the per-connection webhook token is the tenant key. If it
   // matches a stored connection, the request is authenticated AND routed
-  // to that account. Otherwise fall back to the global-env auth check.
+  // to that account. Otherwise fall back to the per-request auth check.
+  // We detect UazAPI by the absence of a Meta signature and presence of
+  // a ?token= param — no global WA_PROVIDER gate needed.
+  const isUazapi = !signature && !!queryToken
   let uazapiRoute: UazapiRoute | null = null
-  if (process.env.WA_PROVIDER === 'uazapi') {
+  if (isUazapi) {
     uazapiRoute = await resolveUazapiRoute(supabaseAdmin(), queryToken)
   }
   if (!uazapiRoute) {
@@ -197,7 +200,7 @@ export async function POST(request: Request) {
 
   // UazAPI sends a different shape — translate to Meta's shape so the
   // rest of the pipeline is provider-agnostic. Meta payloads pass through.
-  if (process.env.WA_PROVIDER === 'uazapi') {
+  if (uazapiRoute || isUazapi) {
     const normalized = normalizeUazAPIPayload(body)
     if (!normalized) {
       return NextResponse.json({ status: 'ignored' }, { status: 200 })
@@ -313,7 +316,10 @@ async function processWebhook(
           accountId,
           // Audit / sender-of-record — NOT NULL FK on inserts.
           ownerUserId,
-          decryptedAccessToken
+          decryptedAccessToken,
+          // Channel this inbound arrived through — derived from the
+          // presence of a matched UazAPI route, not a global env var.
+          route ? 'uazapi' : 'meta',
         )
       }
     }
@@ -547,7 +553,10 @@ async function processMessage(
   // (contacts, conversations). Always the admin who saved the
   // WhatsApp config; the choice is arbitrary post-017 but stable.
   configOwnerUserId: string,
-  accessToken: string
+  accessToken: string,
+  // Channel this inbound arrived through — derived per-request, not
+  // from a global WA_PROVIDER env var.
+  waProvider: 'meta' | 'uazapi' = 'meta',
 ) {
   const senderPhone = normalizePhone(message.from)
   const contactName = contact.profile.name
@@ -557,7 +566,8 @@ async function processMessage(
     accountId,
     configOwnerUserId,
     senderPhone,
-    contactName
+    contactName,
+    waProvider,
   )
   if (!contactOutcome) return
   const contactRecord = contactOutcome.contact
@@ -644,7 +654,7 @@ async function processMessage(
       message_id: message.id,
       status: 'delivered',
       // Origin channel this message arrived through (migration 024).
-      provider: process.env.WA_PROVIDER === 'uazapi' ? 'uazapi' : 'meta',
+      provider: waProvider,
       created_at: new Date(parseInt(message.timestamp) * 1000).toISOString(),
       reply_to_message_id: replyToInternalId,
       // Only populated for content_type='interactive'. Migration 010 added
@@ -956,7 +966,8 @@ async function findOrCreateContact(
   accountId: string,
   configOwnerUserId: string,
   phone: string,
-  name: string
+  name: string,
+  waProvider: 'meta' | 'uazapi' = 'meta',
 ): Promise<ContactOutcome | null> {
   // Find an existing contact for this account by phone. The shared
   // helper pre-filters in SQL by the last-8-digit suffix (so we don't
@@ -993,7 +1004,7 @@ async function findOrCreateContact(
       phone,
       name: name || phone,
       // Stamp the channel this contact first reached us on (migration 024).
-      provider: process.env.WA_PROVIDER === 'uazapi' ? 'uazapi' : 'meta',
+      provider: waProvider,
     })
     .select()
     .single()
