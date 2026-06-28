@@ -11,7 +11,8 @@
  *   - real `sdr_touches` table instead of a crm_kv blob.
  */
 import { pedroFromEnv } from '@/lib/pkg/pedro/client'
-import { sendText, resolveAccountProvider, setAccountPresence } from './send'
+import { sendText, sendTemplate, resolveAccountProvider, setAccountPresence } from './send'
+import { FAP01_TEMPLATES, FAP01_TEMPLATE_LANG, renderAgendou, renderNaoAgendou } from './meta-templates'
 import {
   listDueTouches,
   resolveTouch,
@@ -71,6 +72,48 @@ async function sendAndPersist(
       updated_at: new Date().toISOString(),
     })
     .eq('id', conversationId)
+}
+
+/** True when the account has a Meta whatsapp_config (FAP01 channel = Meta). */
+async function hasMetaConfig(admin: Admin, accountId: string): Promise<boolean> {
+  const { data } = await admin
+    .from('whatsapp_config').select('account_id').eq('account_id', accountId).limit(1).maybeSingle()
+  return !!data
+}
+
+async function persistAgentMessage(
+  admin: Admin, conversationId: string, text: string, provider: 'meta' | 'uazapi', contentType: 'text' | 'template',
+): Promise<void> {
+  await admin.from('messages').insert({
+    conversation_id: conversationId, sender_type: 'agent',
+    content_type: contentType, content_text: text, status: 'sent', provider,
+  })
+  await admin.from('conversations').update({
+    last_message_text: text, last_message_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+  }).eq('id', conversationId)
+}
+
+/**
+ * 1º contato do FAP01. Conta com Meta → template aprovado (agendou/não).
+ * Sem Meta → comportamento atual: bubbles via canal ativo (UazAPI).
+ */
+async function sendFirstContact(
+  admin: Admin, accountId: string,
+  opts: { conversationId: string; phone: string; name: string; agendou: boolean; eventStartIso?: string },
+): Promise<void> {
+  if (await hasMetaConfig(admin, accountId)) {
+    const firstName = (opts.name || '').trim().split(/\s+/)[0] || opts.name || ''
+    const templateName = opts.agendou ? FAP01_TEMPLATES.agendou : FAP01_TEMPLATES.naoAgendou
+    await sendTemplate(admin, accountId, {
+      phone: opts.phone, templateName, languageCode: FAP01_TEMPLATE_LANG, bodyParams: [firstName],
+    })
+    const text = opts.agendou ? renderAgendou(firstName) : renderNaoAgendou(firstName)
+    await persistAgentMessage(admin, opts.conversationId, text, 'meta', 'template')
+    return
+  }
+  const provider = await resolveAccountProvider(admin, accountId)
+  const bubbles = opts.agendou ? confirmBubbles(opts.name, opts.eventStartIso!) : chaseBubbles(opts.name)
+  await sendAndPersist(admin, accountId, provider, opts.conversationId, opts.phone, bubbles)
 }
 
 export async function processDueTouches(
@@ -135,8 +178,7 @@ async function processOne(admin: Admin, accountId: string, t: SdrTouchRow): Prom
     const ev = events[0] ?? null
 
     if (ev) {
-      const bubbles = confirmBubbles(name, ev.start_iso)
-      await sendAndPersist(admin, accountId, provider, t.conversation_id, t.phone, bubbles)
+      await sendFirstContact(admin, accountId, { conversationId: t.conversation_id, phone: t.phone, name, agendou: true, eventStartIso: ev.start_iso })
       // A write failure below re-runs as already_talking next tick (losing the
       // appointment/stage/reminders) — accepted for now; the monitor covers it.
       await moveDealToStage(admin, t.deal_id, 'agendamento_realizado')
@@ -171,8 +213,7 @@ async function processOne(admin: Admin, accountId: string, t: SdrTouchRow): Prom
       return 'confirm'
     }
 
-    const bubbles = chaseBubbles(name)
-    await sendAndPersist(admin, accountId, provider, t.conversation_id, t.phone, bubbles)
+    await sendFirstContact(admin, accountId, { conversationId: t.conversation_id, phone: t.phone, name, agendou: false })
     await moveDealToStage(admin, t.deal_id, 'primeiro_contato')
     // Engate FU1: marca o contato e dispara a régua (gatilho tag_added).
     // conversation_id no contexto se propaga pelos waits → toques no inbox.

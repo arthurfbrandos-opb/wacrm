@@ -7,6 +7,7 @@ vi.mock('@/lib/pkg/pedro/client', () => ({
 }))
 vi.mock('./send', () => ({
   sendText: vi.fn(async () => ({ messageId: 'm1' })),
+  sendTemplate: vi.fn(async () => ({ messageId: 'tpl-1' })),
   resolveAccountProvider: vi.fn(async () => 'uazapi'),
   setAccountPresence: vi.fn(async () => {}),
 }))
@@ -55,7 +56,7 @@ function makeTouch(over: Record<string, unknown> = {}) {
 }
 
 // Minimal chainable Supabase admin double for the processor's inline queries.
-function makeAdmin(opts: { aiStatus?: string; name?: string } = {}) {
+function makeAdmin(opts: { aiStatus?: string; name?: string; metaConfig?: boolean } = {}) {
   const inserts: Array<{ table: string; row: unknown }> = []
   const admin = {
     from: (table: string) => ({
@@ -64,8 +65,15 @@ function makeAdmin(opts: { aiStatus?: string; name?: string } = {}) {
           maybeSingle: async () => {
             if (table === 'conversations') return { data: { ai_status: opts.aiStatus ?? 'on' } }
             if (table === 'contacts') return { data: { name: opts.name ?? 'João Silva' } }
+            if (table === 'accounts') return { data: { owner_user_id: 'u1' } }
             return { data: null }
           },
+          limit: () => ({
+            maybeSingle: async () => {
+              if (table === 'whatsapp_config') return { data: opts.metaConfig ? { account_id: 'acc-1' } : null }
+              return { data: null }
+            },
+          }),
         }),
       }),
       insert: async (row: unknown) => {
@@ -73,6 +81,7 @@ function makeAdmin(opts: { aiStatus?: string; name?: string } = {}) {
         return { error: null }
       },
       update: () => ({ eq: async () => ({ error: null }) }),
+      upsert: async () => ({ error: null }),
     }),
     inserts,
   }
@@ -196,5 +205,37 @@ describe('processDueTouches', () => {
 
     expect(touches.resolveTouch).toHaveBeenCalledWith(admin, 't1', 'done', 'sent')
     expect(send.sendText).toHaveBeenCalledTimes(2) // greeting + meet link bubble
+  })
+
+  it('first_touch sem evento + conta Meta → template não_agendou (não usa bubbles)', async () => {
+    touches.listDueTouches.mockResolvedValue([makeTouch()])
+    calendarFind.mockResolvedValue({ events: [] })
+    const admin = makeAdmin({ metaConfig: true, name: 'João Silva' })
+    await processDueTouches(admin, ACCOUNT)
+    expect(send.sendTemplate).toHaveBeenCalledWith(admin, ACCOUNT, expect.objectContaining({
+      templateName: 'fap01_1contato_nao_agendou', languageCode: 'pt_BR', bodyParams: ['João'],
+    }))
+    expect(send.sendText).not.toHaveBeenCalled()
+    expect(touches.moveDealToStage).toHaveBeenCalledWith(admin, 'd1', 'primeiro_contato')
+    expect(admin.inserts.some((i) => i.table === 'messages' && (i.row as any).provider === 'meta')).toBe(true)
+  })
+
+  it('first_touch com evento + conta Meta → template agendou + appointment + reminders', async () => {
+    touches.listDueTouches.mockResolvedValue([makeTouch()])
+    calendarFind.mockResolvedValue({ events: [{ start_iso: '2099-01-01T10:00:00-03:00', meet_link: 'https://meet/x' }] })
+    const admin = makeAdmin({ metaConfig: true })
+    await processDueTouches(admin, ACCOUNT)
+    expect(send.sendTemplate).toHaveBeenCalledWith(admin, ACCOUNT, expect.objectContaining({ templateName: 'fap01_1contato_agendou' }))
+    expect(touches.moveDealToStage).toHaveBeenCalledWith(admin, 'd1', 'agendamento_realizado')
+    expect(touches.scheduleReminder).toHaveBeenCalledTimes(2)
+  })
+
+  it('first_touch sem conta Meta → fallback bubbles (UazAPI), sem template', async () => {
+    touches.listDueTouches.mockResolvedValue([makeTouch()])
+    calendarFind.mockResolvedValue({ events: [] })
+    const admin = makeAdmin({ metaConfig: false })
+    await processDueTouches(admin, ACCOUNT)
+    expect(send.sendTemplate).not.toHaveBeenCalled()
+    expect(send.sendText).toHaveBeenCalled()
   })
 })
