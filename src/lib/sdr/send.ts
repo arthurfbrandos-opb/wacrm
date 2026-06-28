@@ -75,6 +75,30 @@ export async function resolveAccountProvider(
   return active ? 'uazapi' : 'meta'
 }
 
+/** True when the account has a Meta whatsapp_config row. */
+export async function accountHasMetaConfig(admin: Admin, accountId: string): Promise<boolean> {
+  const { data } = await admin
+    .from('whatsapp_config').select('account_id').eq('account_id', accountId).limit(1).maybeSingle()
+  return !!data
+}
+
+/**
+ * Channel for an SDR REPLY (the lead has already written, so we know where).
+ * Reply on the channel the lead is actually on (contact.provider) — honoring
+ * 'meta' only when a Meta config exists (a FAP01 lead is stamped 'meta' even
+ * on Meta-less accounts). Falls back to the account's active channel when the
+ * contact has no stored provider.
+ */
+export async function resolveReplyProvider(
+  admin: Admin,
+  accountId: string,
+  contact: { provider: 'uazapi' | 'meta' | null },
+): Promise<'uazapi' | 'meta'> {
+  if (contact.provider === 'uazapi') return 'uazapi'
+  if (contact.provider === 'meta' && (await accountHasMetaConfig(admin, accountId))) return 'meta'
+  return resolveAccountProvider(admin, accountId)
+}
+
 /**
  * Send a pre-approved Meta template (required outside the 24h window /
  * for first contact). Uses the account's whatsapp_config. Body variables

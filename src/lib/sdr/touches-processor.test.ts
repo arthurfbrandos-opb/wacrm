@@ -10,6 +10,7 @@ vi.mock('./send', () => ({
   sendTemplate: vi.fn(async () => ({ messageId: 'tpl-1' })),
   resolveAccountProvider: vi.fn(async () => 'uazapi'),
   setAccountPresence: vi.fn(async () => {}),
+  accountHasMetaConfig: vi.fn(async () => false),
 }))
 vi.mock('./touches', () => ({
   listDueTouches: vi.fn(),
@@ -92,6 +93,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   touches.conversationHasMessages.mockResolvedValue(false)
   touches.accountHasChannel.mockResolvedValue(true)
+  send.accountHasMetaConfig.mockResolvedValue(false)
 })
 
 describe('processDueTouches', () => {
@@ -210,6 +212,7 @@ describe('processDueTouches', () => {
   it('first_touch sem evento + conta Meta → template não_agendou (não usa bubbles)', async () => {
     touches.listDueTouches.mockResolvedValue([makeTouch()])
     calendarFind.mockResolvedValue({ events: [] })
+    send.accountHasMetaConfig.mockResolvedValue(true)
     const admin = makeAdmin({ metaConfig: true, name: 'João Silva' })
     await processDueTouches(admin, ACCOUNT)
     expect(send.sendTemplate).toHaveBeenCalledWith(admin, ACCOUNT, expect.objectContaining({
@@ -223,6 +226,7 @@ describe('processDueTouches', () => {
   it('first_touch com evento + conta Meta → template agendou + appointment + reminders', async () => {
     touches.listDueTouches.mockResolvedValue([makeTouch()])
     calendarFind.mockResolvedValue({ events: [{ start_iso: '2099-01-01T10:00:00-03:00', meet_link: 'https://meet/x' }] })
+    send.accountHasMetaConfig.mockResolvedValue(true)
     const admin = makeAdmin({ metaConfig: true })
     await processDueTouches(admin, ACCOUNT)
     expect(send.sendTemplate).toHaveBeenCalledWith(admin, ACCOUNT, expect.objectContaining({ templateName: 'fap01_1contato_agendou' }))

@@ -11,7 +11,7 @@
  *   - real `sdr_touches` table instead of a crm_kv blob.
  */
 import { pedroFromEnv } from '@/lib/pkg/pedro/client'
-import { sendText, sendTemplate, resolveAccountProvider, setAccountPresence } from './send'
+import { sendText, sendTemplate, resolveAccountProvider, setAccountPresence, accountHasMetaConfig } from './send'
 import { FAP01_TEMPLATES, FAP01_TEMPLATE_LANG, renderAgendou, renderNaoAgendou } from './meta-templates'
 import {
   listDueTouches,
@@ -74,13 +74,6 @@ async function sendAndPersist(
     .eq('id', conversationId)
 }
 
-/** True when the account has a Meta whatsapp_config (FAP01 channel = Meta). */
-async function hasMetaConfig(admin: Admin, accountId: string): Promise<boolean> {
-  const { data } = await admin
-    .from('whatsapp_config').select('account_id').eq('account_id', accountId).limit(1).maybeSingle()
-  return !!data
-}
-
 async function persistAgentMessage(
   admin: Admin, conversationId: string, text: string, provider: 'meta' | 'uazapi', contentType: 'text' | 'template',
 ): Promise<void> {
@@ -101,7 +94,7 @@ async function sendFirstContact(
   admin: Admin, accountId: string,
   opts: { conversationId: string; phone: string; name: string; agendou: boolean; eventStartIso?: string },
 ): Promise<void> {
-  if (await hasMetaConfig(admin, accountId)) {
+  if (await accountHasMetaConfig(admin, accountId)) {
     const firstName = (opts.name || '').trim().split(/\s+/)[0] || opts.name || ''
     const templateName = opts.agendou ? FAP01_TEMPLATES.agendou : FAP01_TEMPLATES.naoAgendou
     await sendTemplate(admin, accountId, {

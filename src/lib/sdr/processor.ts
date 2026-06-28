@@ -16,7 +16,7 @@ import {
   slotLabel,
   splitBubbles,
 } from './prompt'
-import { sendText, resolveAccountProvider, setAccountPresence } from './send'
+import { sendText, resolveReplyProvider, setAccountPresence } from './send'
 import { notifyArthur } from './notify'
 import { SDR_PIPELINE_ID } from './ids'
 import { substituteVariables, type CustomVariable } from './variables'
@@ -298,10 +298,11 @@ export async function runSdrReply(args: {
       return
     }
 
-    // Send via the account's ACTIVE connection (not the contact's stored
-    // provider): a FAP01-migrated lead is stamped provider='meta' but the
-    // account may only have a UazAPI channel. Mirrors the C2 touch path.
-    const provider = await resolveAccountProvider(admin, accountId)
+    // Reply on the channel the lead is actually on (contact.provider), set by
+    // the inbound webhook. 'meta' is honored only when a Meta config exists
+    // (a FAP01 lead is stamped 'meta' even on Meta-less accounts); otherwise
+    // we fall back to the account's active channel.
+    const provider = await resolveReplyProvider(admin, accountId, { provider: contact.provider })
     // Appear "online" only while actually responding (human-like): mark
     // available before the bubbles, back to unavailable after.
     if (provider === 'uazapi') await setAccountPresence(admin, accountId, true)
