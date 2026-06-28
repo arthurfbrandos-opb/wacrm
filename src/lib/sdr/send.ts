@@ -6,7 +6,7 @@
  */
 import { decrypt } from '@/lib/whatsapp/encryption'
 import { sendUazapiText, sendUazapiComposing, setUazapiPresence } from '@/lib/whatsapp/uazapi-send'
-import { sendTextMessage } from '@/lib/whatsapp/meta-api'
+import { sendTextMessage, sendTemplateMessage } from '@/lib/whatsapp/meta-api'
 import { sanitizePhoneForMeta } from '@/lib/whatsapp/phone-utils'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -73,6 +73,34 @@ export async function resolveAccountProvider(
     .eq('is_active_for_crm', true)
     .maybeSingle()
   return active ? 'uazapi' : 'meta'
+}
+
+/**
+ * Send a pre-approved Meta template (required outside the 24h window /
+ * for first contact). Uses the account's whatsapp_config. Body variables
+ * go in bodyParams (the {{1}}, {{2}}… of the template).
+ */
+export async function sendTemplate(
+  admin: Admin,
+  accountId: string,
+  opts: { phone: string; templateName: string; languageCode: string; bodyParams: string[] },
+): Promise<{ messageId: string | null }> {
+  const number = sanitizePhoneForMeta(opts.phone)
+  const { data: config } = await admin
+    .from('whatsapp_config')
+    .select('*')
+    .eq('account_id', accountId)
+    .single()
+  if (!config) throw new Error('no whatsapp_config for account')
+  const result = await sendTemplateMessage({
+    phoneNumberId: config.phone_number_id,
+    accessToken: decrypt(config.access_token),
+    to: number,
+    templateName: opts.templateName,
+    language: opts.languageCode,
+    params: opts.bodyParams,
+  })
+  return { messageId: result.messageId }
 }
 
 /**
