@@ -18,15 +18,22 @@ A decisão de canal hoje está **duplicada e divergente** em três lugares (`sen
 
 ## Objetivo (Fase 2)
 
-1. **Cap 1** — escolher pela UI a **fonte prioritária do 1º contato FAP01** (Meta oficial vs UazAPI), com **fallback automático** pro outro canal se a escolhida estiver indisponível.
-2. **Cap 2** — **trocar a origem por conversa** (Meta oficial ou uma conexão UazAPI), de forma **persistente no contato**, com **badge de origem visível** na lista e no cabeçalho.
+1. **Cap 1** — escolher pela UI a **origem principal** (a usada pra captação e 1ª abordagem do FAP01): Meta oficial vs UazAPI, com **fallback automático** pro outro canal se a escolhida estiver indisponível.
+2. **Cap 2** — **trocar a origem por conversa** entre as **2 origens** (Oficial = Meta · Não Oficial = conexão UazAPI), de forma **persistente no contato**, com **badge de origem visível** na lista e no cabeçalho.
 3. **Cap 3** — o **uso de template** muda conforme a origem e a janela: **Meta fora da janela de 24h = template obrigatório**; **janela aberta ou UazAPI = texto livre**. Cobre **humano + IA + toques automatizados**.
+4. **Cap 4** — os **follow-ups seguem a origem ATUAL da conversa** (não a origem principal), e a régua de follow-up ganha a **automação 24h / pós-24h** (dentro da janela = texto livre; fora da janela no Meta = template), espelhando o 1º contato.
+5. **Cap 5** — **corrigir os bubbles que não aparecem** na tela da conversa (mensagens enviadas/recebidas têm que renderizar no thread).
+6. **Cap 6** — a tela da conversa **expõe as features certas por canal**: Oficial (Meta) habilita template/mídia/etc; Não Oficial (UazAPI) habilita só o que o canal suporta (texto). Sem affordance que dá erro garantido.
 
 ## Decisões (do brainstorm)
 
 - **Troca de origem = persistente no contato** (grava `contacts.provider`/`connection_id`). A partir dela, todo envio da conversa — IA (Ian) e humano — sai pelo canal escolhido. A IA já segue isso via `resolveReplyProvider` (sem regra nova).
 - **Fonte FAP01 com fallback automático**: escolhe a prioritária; se indisponível, cai pro outro canal. (Não é pick rígido.)
 - **Gate de janela 24h = escopo completo**: vale pra composer humano, resposta da IA e toques automatizados (lembretes 24h/2h, FU1) no canal Meta.
+- **Follow-ups seguem a origem ATUAL da conversa** (lêem `contact.provider` via `resolveSendPlan`), não a origem principal. A régua passa a ramificar 24h (texto livre) / pós-24h no Meta (template), como o 1º contato já faz.
+- **A automação (código) do 24h/pós-24h é desta fase**; o que fica de follow-up é só escrever a copy dos templates de lembrete/FU e submeter à Meta. Sem template aprovado → rede de segurança (adia + alerta).
+- **Bug dos bubbles** entra no escopo: investigar (systematic-debugging) e corrigir o render de mensagens no thread.
+- **Features por canal** na UI da conversa: o composer/affordances se adaptam à origem atual.
 - **Shipar agora + rede de segurança**: se um toque automatizado precisar de template no Meta e não houver um pronto/aprovado, **adia o toque + loga/alerta** — nunca quebra, nunca manda errado. Escrever a copy dos templates de lembrete/FU + submeter à Meta é **tarefa separada** (follow-up).
 - **Abordagem A** — centralizar a decisão num único helper `resolveSendPlan` consumido por todos os pontos de envio.
 
@@ -90,7 +97,26 @@ Arquivos: `send/route.ts` (humano), `send.ts` (IA), `touches-processor.ts` (auto
 
 - **Composer do humano:** ao abrir/atualizar a conversa, a UI conhece `mode` (via `resolveSendPlan`, exposto pela API da conversa). `mode='template_required'` → **desabilita texto livre e força o seletor de template** (caminho de template já existe). `send/route.ts` valida no servidor também: texto livre no Meta fora da janela → 400 com mensagem clara (defesa em profundidade; a UI não é a única trava).
 - **Resposta da IA** (`send.ts`): `mode='template_required'` → **não manda texto livre** (loga e não envia). Na prática a IA responde logo após o lead escrever (janela quase sempre aberta); isso só torna a borda segura.
-- **Toques automatizados** (lembretes 24h/2h, FU1): janela fechada + Meta → precisa de template aprovado **mapeado** pro tipo de toque. **Se não houver template mapeado/aprovado → adia o toque (deixa pendente) + loga/alerta**; nunca quebra, nunca manda texto livre que a Meta rejeitaria. Quando os templates existirem, o mesmo toque dispara via template.
+- **Toques automatizados** (lembretes 24h/2h, FU1) — roteiam pela **origem atual da conversa** (`resolveSendPlan` lê `contact.provider`), não pela origem principal:
+  - **Dentro da janela** (ou UazAPI) → texto livre/bubbles como hoje.
+  - **Janela fechada + Meta** → usa template aprovado **mapeado** pro tipo de toque (mapa `touch_type → template_name`, espelhando a seleção agendou/não-agendou do 1º contato). **A automação dessa ramificação 24h/pós-24h é código desta fase.**
+  - **Sem template mapeado/aprovado** → **adia o toque (fica pendente) + loga/alerta**; nunca quebra, nunca manda texto livre que a Meta rejeitaria. Quando os templates existirem, o mesmo toque dispara via template sem mudança de código.
+
+### E. Cap 5 — corrigir os bubbles que não aparecem no thread
+
+Arquivos prováveis: `src/components/inbox/message-thread.tsx` (fetch + realtime), `message-bubble.tsx` (render), RLS de `messages`, e o caminho de inserção server-side (`send.ts`/`touches-processor.ts`).
+
+- **Diagnóstico já feito:** `message-bubble.tsx` renderiza todos os tipos (texto/template/mídia/interactive) e o fetch (`message-thread.tsx:311`) puxa todas as mensagens da conversa **sem filtro de tipo**. Logo, o bug **não é o componente** — é dado/realtime.
+- **Suspeitos a investigar (systematic-debugging):** (a) mensagens inseridas server-side pelo SDR/touches não disparam realtime pro cliente inscrito (RLS na subscription) e/ou (b) ficam ligadas a uma conversa que o inbox não exibe / linkagem de `conversation_id`.
+- **Critério de pronto:** toda mensagem enviada (humano, IA, toque) e recebida aparece como bubble no thread — **ao vivo e no refresh** — nos dois canais (Meta e UazAPI).
+
+### F. Cap 6 — features por canal na tela da conversa
+
+O composer e as affordances se adaptam à **origem atual** do contato:
+
+- **Oficial (Meta):** texto + **template** + **mídia** + reply/quote (conforme já suportado). Quando `mode='template_required'` (janela fechada) → texto livre desabilitado, **seletor de template forçado** (cap 3).
+- **Não Oficial (UazAPI):** **só texto** hoje (template/mídia por UazAPI estão fora de escopo — ver abaixo). Esconder/desabilitar os botões de template e mídia em vez de deixar o operador clicar e tomar erro (o `send/route.ts` já rejeita, mas a UI não deve oferecer).
+- A origem que rege isso é a mesma do badge/seletor (cap 2). Trocar a origem re-renderiza as features disponíveis.
 
 ## Dependência nomeada (follow-up, fora do código desta fase)
 
@@ -114,6 +140,9 @@ Até aprovados, a rede de segurança (adiar + alertar) cobre. Escrever a copy + 
 - **Gate de janela (humano):** semear `last_inbound_at` >24h num contato Meta → texto livre dá 400 e a UI força o picker; <24h → texto passa.
 - **Toque automatizado fora da janela sem template:** lembrete num contato Meta com janela fechada e sem template mapeado → toque adiado + alerta, lead não recebe nada errado.
 - **Troca por conversa:** `PATCH` no canal → badge atualiza na lista e no header; próxima resposta da IA roteia pro novo canal (verificar `provider` na mensagem gravada).
+- **Follow-up segue origem atual (cap 4):** contato trocado pra UazAPI → FU1/lembrete sai por UazAPI (texto); contato Meta janela fechada → FU1/lembrete usa template mapeado (ou adia se não houver).
+- **Bubbles (cap 5):** enviar pelo SDR/touch e pelo composer → mensagem aparece no thread ao vivo e após refresh, nos 2 canais. Reproduzir o cenário do bug antes do fix (teste que falha → passa).
+- **Features por canal (cap 6):** conversa UazAPI → botões de template/mídia ocultos/desabilitados; conversa Meta janela fechada → texto livre desabilitado + picker forçado; Meta janela aberta → todas as features.
 - **Suíte:** `npm test` verde antes de qualquer commit (inclui o teste do catálogo — `feedback_classifier_bash_suite_check_antes_deploy`).
 - **Deploy:** rsync → `srv1571722.hstgr.cloud:/opt/wacrm` + `docker compose build/up` (SSH IPv4 ok, sem WARP). Migration nova checada contra o banco vivo.
 
