@@ -44,6 +44,15 @@ export function buildChannelOptions(args: {
   return out
 }
 
+export function channelBadgeLabel(
+  contact: { provider?: 'meta' | 'uazapi' | null; connection_id?: string | null },
+  connections: Array<{ id: string; label: string; is_active_for_crm?: boolean }>,
+): string {
+  if (contact.provider !== 'uazapi') return 'Oficial'
+  const conn = connections.find((c) => c.id === contact.connection_id)
+  return conn?.label ?? 'Não Oficial'
+}
+
 export function currentChannelId(
   contact: { provider?: 'meta' | 'uazapi' | null; connection_id?: string | null },
   options: ChannelOption[],

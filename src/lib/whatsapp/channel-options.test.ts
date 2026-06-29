@@ -1,10 +1,25 @@
 import { describe, it, expect } from 'vitest'
-import { buildChannelOptions, currentChannelId } from './channel-options'
+import { buildChannelOptions, currentChannelId, channelBadgeLabel } from './channel-options'
 
 const conns = [
   { id: 'c1', label: 'Comercial', base_url: 'https://free.uazapi.com', is_active_for_crm: true },
   { id: 'c2', label: 'Suporte', base_url: 'https://free.uazapi.com', is_active_for_crm: false },
 ]
+
+describe('channelBadgeLabel', () => {
+  it('meta = Oficial', () => {
+    expect(channelBadgeLabel({ provider: 'meta', connection_id: null }, [])).toBe('Oficial')
+  })
+  it('uazapi usa label da conexão', () => {
+    expect(channelBadgeLabel(
+      { provider: 'uazapi', connection_id: 'c1' },
+      [{ id: 'c1', label: 'Ian', is_active_for_crm: true }],
+    )).toBe('Ian')
+  })
+  it('uazapi sem label conhecido = Não Oficial', () => {
+    expect(channelBadgeLabel({ provider: 'uazapi', connection_id: 'x' }, [])).toBe('Não Oficial')
+  })
+})
 
 describe('buildChannelOptions', () => {
   it('lists Meta first (when configured) then each UazAPI connection', () => {

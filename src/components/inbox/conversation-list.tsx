@@ -16,6 +16,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  channelBadgeLabel,
+  type UazapiConnectionLike,
+} from "@/lib/whatsapp/channel-options";
 
 interface ConversationListProps {
   activeConversationId: string | null;
@@ -58,6 +62,7 @@ export function ConversationList({
   const [filter, setFilter] = useState<InboxFilter>("all");
   const [loading, setLoading] = useState(true);
   const [newOpen, setNewOpen] = useState(false);
+  const [connections, setConnections] = useState<UazapiConnectionLike[]>([]);
 
   // Keep the latest callback in a ref so the fetch effect below can
   // have a stable, empty-dep identity. Previously the fetch useCallback
@@ -111,6 +116,22 @@ export function ConversationList({
     // the realtime channel reconnects or the tab regains focus — catches
     // up on any events sent while the WS was disconnected or throttled.
   }, [resyncToken]);
+
+  // Load UazAPI connections once so ConversationItem can render the
+  // channel badge label without a per-row fetch. Mirrors the fetch in
+  // contact-sidebar.tsx (~L120-124).
+  useEffect(() => {
+    let cancelled = false;
+    createClient()
+      .from("wa_connections")
+      .select("id, label, is_active_for_crm")
+      .then(({ data }) => {
+        if (!cancelled) setConnections((data ?? []) as UazapiConnectionLike[]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const filtered = useMemo(() => {
     let result = conversations;
@@ -242,6 +263,7 @@ export function ConversationList({
                 conversation={conv}
                 isActive={conv.id === activeConversationId}
                 onSelect={handleSelect}
+                connections={connections}
               />
             ))}
           </div>
@@ -255,12 +277,14 @@ interface ConversationItemProps {
   conversation: Conversation;
   isActive: boolean;
   onSelect: (conversation: Conversation) => void;
+  connections: UazapiConnectionLike[];
 }
 
 function ConversationItem({
   conversation,
   isActive,
   onSelect,
+  connections,
 }: ConversationItemProps) {
   const contact = conversation.contact;
   const displayName = contact?.name || contact?.phone || "Desconhecido";
@@ -306,9 +330,16 @@ function ConversationItem({
           <span className="shrink-0 text-[10px] text-muted-foreground">{timeAgo}</span>
         </div>
         <div className="mt-0.5 flex items-center justify-between gap-2">
-          <p className="truncate text-xs text-muted-foreground">
-            {conversation.last_message_text || "Nenhuma mensagem ainda"}
-          </p>
+          <div className="flex min-w-0 items-center gap-1">
+            <p className="truncate text-xs text-muted-foreground">
+              {conversation.last_message_text || "Nenhuma mensagem ainda"}
+            </p>
+            {contact?.provider && (
+              <span className="shrink-0 rounded bg-muted px-1 text-[10px] text-muted-foreground">
+                {channelBadgeLabel(contact, connections)}
+              </span>
+            )}
+          </div>
           <div className="flex shrink-0 items-center gap-1.5">
             {conversation.unread_count > 0 && (
               <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold text-primary-foreground">

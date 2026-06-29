@@ -50,6 +50,13 @@ import { deleteAccountMedia } from "@/lib/storage/upload-media";
 import { TemplatePicker } from "./template-picker";
 import { buildReplyPreview } from "./reply-quote";
 import { toast } from "sonner";
+import {
+  buildChannelOptions,
+  currentChannelId,
+  channelBadgeLabel,
+  type ChannelOption,
+  type UazapiConnectionLike,
+} from "@/lib/whatsapp/channel-options";
 
 interface ReplyDraft {
   id: string;
@@ -177,7 +184,7 @@ export function MessageThread({
   listCollapsed,
   onToggleList,
 }: MessageThreadProps) {
-  const { user } = useAuth();
+  const { user, accountId } = useAuth();
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
@@ -248,6 +255,78 @@ export function MessageThread({
       cancelled = true;
     };
   }, []);
+
+  // Channel-origin state for the badge + switcher dropdown in the header.
+  // Mirrors the fetch + write pattern of contact-sidebar.tsx (~L109-176).
+  const [connections, setConnections] = useState<UazapiConnectionLike[]>([]);
+  const [channels, setChannels] = useState<ChannelOption[]>([]);
+  const [channelOverride, setChannelOverride] = useState<string | null>(null);
+  const [switchingChannel, setSwitchingChannel] = useState(false);
+
+  useEffect(() => {
+    if (!accountId) return;
+    let cancelled = false;
+    const supabase = createClient();
+    (async () => {
+      const [cfgRes, connRes] = await Promise.all([
+        supabase
+          .from("whatsapp_config")
+          .select("phone_number_id")
+          .eq("account_id", accountId)
+          .maybeSingle(),
+        supabase
+          .from("wa_connections")
+          .select("id, label, base_url, is_active_for_crm")
+          .eq("account_id", accountId)
+          .order("created_at", { ascending: true }),
+      ]);
+      if (cancelled) return;
+      const conns = (connRes.data ?? []) as UazapiConnectionLike[];
+      setConnections(conns);
+      setChannels(
+        buildChannelOptions({
+          metaConfigured: !!cfgRes.data?.phone_number_id,
+          connections: conns,
+        }),
+      );
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [accountId]);
+
+  // Drop the optimistic channel selection when switching contacts.
+  useEffect(() => {
+    setChannelOverride(null);
+  }, [contact?.id]);
+
+  const selectedChannelId =
+    channelOverride ?? currentChannelId(contact ?? {}, channels, connections);
+
+  const handleChannelChange = useCallback(
+    async (opt: ChannelOption) => {
+      if (!contact) return;
+      setChannelOverride(opt.id);
+      setSwitchingChannel(true);
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("contacts")
+        .update({
+          provider: opt.provider,
+          connection_id: opt.connectionId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", contact.id);
+      setSwitchingChannel(false);
+      if (error) {
+        setChannelOverride(null);
+        toast.error("Falha ao mudar o canal de origem");
+      } else {
+        toast.success(`Origem alterada para ${opt.label}`);
+      }
+    },
+    [contact],
+  );
 
   // 24-hour session timer — Meta official channel only.
   const sessionInfo = useMemo(() => {
@@ -943,6 +1022,16 @@ export function MessageThread({
               {sessionInfo.remaining}
             </Badge>
           )}
+          {/* Canal de origem badge — shows which channel (Meta/UazAPI) this
+              contact uses. Hidden on smallest phones where space is tight. */}
+          {contact?.provider && (
+            <Badge
+              variant="outline"
+              className="ml-1 hidden border-border text-[10px] text-muted-foreground sm:inline-flex sm:ml-2"
+            >
+              {channelBadgeLabel(contact, connections)}
+            </Badge>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -1033,6 +1122,37 @@ export function MessageThread({
               />
             </label>
           </div>
+
+          {/* Canal de origem dropdown — only rendered when the account has
+              at least two channel options so there's something to switch to.
+              Write pattern mirrors contact-sidebar.tsx handleChannelChange. */}
+          {channels.length > 1 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                disabled={switchingChannel}
+                className="inline-flex items-center justify-center h-7 gap-1 px-2 text-xs text-muted-foreground rounded-md hover:bg-muted disabled:opacity-60"
+                title="Mudar canal de origem"
+              >
+                {channels.find((c) => c.id === selectedChannelId)?.label ?? "Canal"}
+                <ChevronDown className="h-3 w-3" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="border-border bg-popover">
+                {channels.map((opt) => (
+                  <DropdownMenuItem
+                    key={opt.id}
+                    onClick={() => handleChannelChange(opt)}
+                    className={cn(
+                      "text-sm",
+                      opt.id === selectedChannelId ? "text-primary" : "text-popover-foreground",
+                    )}
+                  >
+                    {opt.label}
+                    {opt.id === selectedChannelId && <Check className="ml-2 h-3 w-3" />}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
 
           {/* Status dropdown */}
           <DropdownMenu>
