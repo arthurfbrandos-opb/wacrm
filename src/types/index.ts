@@ -133,6 +133,19 @@ export interface Contact {
   updated_at: string;
 }
 
+/** Lead captured by the "setup de agentes" lead magnet form.
+ *  Written by the n8n WF-NS-SETUP-CAPTURE-DELIVER workflow (parallel to
+ *  the PDF delivery). Account-agnostic — a single global capture list. */
+export interface SetupAgentesLead {
+  id: string;
+  name: string;
+  email: string;
+  source: string | null;
+  /** UTM blob from the form (utm_source/medium/campaign). Empty for organic. */
+  utm: Record<string, unknown> | null;
+  created_at: string;
+}
+
 export interface Tag {
   id: string;
   user_id: string;
