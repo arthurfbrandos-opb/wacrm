@@ -42,3 +42,31 @@ export async function osEmitEvent(db: SupabaseClient, rec: OsEventRecord): Promi
     ref: rec.ref ?? {},
   })
 }
+
+export interface OsGuardCtx {
+  accountId: string
+  agent?: string | null
+  action: string
+  switchKey?: string
+  correlationId?: string | null
+}
+
+export async function osGuard<T>(
+  db: SupabaseClient,
+  ctx: OsGuardCtx,
+  fn: () => Promise<T>,
+): Promise<{ blocked: true } | { blocked: false; result: T }> {
+  const base = { accountId: ctx.accountId, agent: ctx.agent, action: ctx.action, correlationId: ctx.correlationId }
+  if (ctx.switchKey && (await osIsBlocked(db, ctx.accountId, ctx.switchKey))) {
+    await osEmitAudit(db, { ...base, status: 'blocked' })
+    return { blocked: true }
+  }
+  try {
+    const result = await fn()
+    await osEmitAudit(db, { ...base, status: 'success' })
+    return { blocked: false, result }
+  } catch (err) {
+    await osEmitAudit(db, { ...base, status: 'failure', detail: { error: err instanceof Error ? err.message : String(err) } })
+    throw err
+  }
+}
