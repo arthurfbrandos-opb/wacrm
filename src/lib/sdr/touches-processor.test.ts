@@ -57,26 +57,35 @@ function makeTouch(over: Record<string, unknown> = {}) {
 }
 
 // Minimal chainable Supabase admin double for the processor's inline queries.
-function makeAdmin(opts: { aiStatus?: string; name?: string; metaConfig?: boolean } = {}) {
+// Supports multi-eq chaining: select().eq().eq().maybeSingle() and select().eq().limit().maybeSingle()
+function makeAdmin(opts: { aiStatus?: string; name?: string; metaConfig?: boolean; uazConnectionId?: string | null } = {}) {
   const inserts: Array<{ table: string; row: unknown }> = []
+
+  const uazId = opts.uazConnectionId !== undefined ? opts.uazConnectionId : 'uaz-conn-1'
+
+  function makeChainable(table: string) {
+    const chain: Record<string, unknown> = {}
+    chain.maybeSingle = async () => {
+      if (table === 'conversations') return { data: { ai_status: opts.aiStatus ?? 'on' } }
+      if (table === 'contacts') return { data: { name: opts.name ?? 'João Silva' } }
+      if (table === 'accounts') return { data: { owner_user_id: 'u1' } }
+      if (table === 'sdr_config') return { data: { fap01_source: 'meta' } }
+      if (table === 'wa_connections') return { data: uazId ? { id: uazId } : null }
+      return { data: null }
+    }
+    chain.eq = () => chain
+    chain.limit = () => ({
+      maybeSingle: async () => {
+        if (table === 'whatsapp_config') return { data: opts.metaConfig ? { account_id: 'acc-1' } : null }
+        return { data: null }
+      },
+    })
+    return chain
+  }
+
   const admin = {
     from: (table: string) => ({
-      select: () => ({
-        eq: () => ({
-          maybeSingle: async () => {
-            if (table === 'conversations') return { data: { ai_status: opts.aiStatus ?? 'on' } }
-            if (table === 'contacts') return { data: { name: opts.name ?? 'João Silva' } }
-            if (table === 'accounts') return { data: { owner_user_id: 'u1' } }
-            return { data: null }
-          },
-          limit: () => ({
-            maybeSingle: async () => {
-              if (table === 'whatsapp_config') return { data: opts.metaConfig ? { account_id: 'acc-1' } : null }
-              return { data: null }
-            },
-          }),
-        }),
-      }),
+      select: () => makeChainable(table),
       insert: async (row: unknown) => {
         inserts.push({ table, row })
         return { error: null }

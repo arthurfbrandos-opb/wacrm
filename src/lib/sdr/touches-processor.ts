@@ -25,6 +25,7 @@ import {
 import { chaseBubbles, confirmBubbles, reminder24hBubbles, reminder2hBubbles } from './templates'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { ensureTag } from './ensure-tag'
+import { pickFap01Provider } from './fap01-source'
 
 const BUBBLE_DELAY_MS = Number(process.env.BUBBLE_DELAY_MS ?? 1500)
 
@@ -87,14 +88,31 @@ async function persistAgentMessage(
 }
 
 /**
- * 1º contato do FAP01. Conta com Meta → template aprovado (agendou/não).
- * Sem Meta → comportamento atual: bubbles via canal ativo (UazAPI).
+ * 1º contato do FAP01. Respeita sdr_config.fap01_source com fallback automático
+ * pro outro canal. Carimba contacts.provider/connection_id com o canal usado.
  */
 async function sendFirstContact(
   admin: Admin, accountId: string,
-  opts: { conversationId: string; phone: string; name: string; agendou: boolean; eventStartIso?: string },
+  opts: { contactId: string; conversationId: string; phone: string; name: string; agendou: boolean; eventStartIso?: string },
 ): Promise<void> {
-  if (await accountHasMetaConfig(admin, accountId)) {
+  // Origem principal + disponibilidade
+  const { data: cfg } = await admin
+    .from('sdr_config').select('fap01_source').eq('account_id', accountId).maybeSingle()
+  const source = (cfg?.fap01_source ?? 'meta') as 'meta' | 'uazapi'
+
+  const metaAvail = await accountHasMetaConfig(admin, accountId)
+  const { data: uaz } = await admin
+    .from('wa_connections').select('id').eq('account_id', accountId).eq('is_active_for_crm', true).maybeSingle()
+  const uazAvail = !!uaz
+
+  const chosen = pickFap01Provider(source, { meta: metaAvail, uaz: uazAvail })
+  if (!chosen) throw new Error('FAP01: nenhum canal disponível') // fica pending, retry no próximo tick
+
+  if (chosen !== source) {
+    console.warn('[sdr] FAP01 fallback de canal', { accountId, source, chosen })
+  }
+
+  if (chosen === 'meta') {
     const firstName = (opts.name || '').trim().split(/\s+/)[0] || opts.name || ''
     const templateName = opts.agendou ? FAP01_TEMPLATES.agendou : FAP01_TEMPLATES.naoAgendou
     await sendTemplate(admin, accountId, {
@@ -102,11 +120,36 @@ async function sendFirstContact(
     })
     const text = opts.agendou ? renderAgendou(firstName) : renderNaoAgendou(firstName)
     await persistAgentMessage(admin, opts.conversationId, text, 'meta', 'template')
+    await stampContactChannel(admin, opts.contactId, 'meta', null)
     return
   }
-  const provider = await resolveAccountProvider(admin, accountId)
-  const bubbles = opts.agendou ? confirmBubbles(opts.name, opts.eventStartIso!) : chaseBubbles(opts.name)
-  await sendAndPersist(admin, accountId, provider, opts.conversationId, opts.phone, bubbles)
+
+  // UazAPI: bubbles; se falhar duro (ex: 463) e Meta disponível, cai pro Meta no mesmo tick.
+  try {
+    const bubbles = opts.agendou ? confirmBubbles(opts.name, opts.eventStartIso!) : chaseBubbles(opts.name)
+    await sendAndPersist(admin, accountId, 'uazapi', opts.conversationId, opts.phone, bubbles)
+    await stampContactChannel(admin, opts.contactId, 'uazapi', uaz!.id)
+  } catch (err) {
+    if (!metaAvail) throw err
+    console.warn('[sdr] FAP01 UazAPI falhou, fallback Meta no mesmo tick', { accountId }, err)
+    const firstName = (opts.name || '').trim().split(/\s+/)[0] || opts.name || ''
+    const templateName = opts.agendou ? FAP01_TEMPLATES.agendou : FAP01_TEMPLATES.naoAgendou
+    await sendTemplate(admin, accountId, {
+      phone: opts.phone, templateName, languageCode: FAP01_TEMPLATE_LANG, bodyParams: [firstName],
+    })
+    await persistAgentMessage(admin, opts.conversationId,
+      opts.agendou ? renderAgendou(firstName) : renderNaoAgendou(firstName), 'meta', 'template')
+    await stampContactChannel(admin, opts.contactId, 'meta', null)
+  }
+}
+
+/** Carimba o canal de fato usado no contato, p/ IA e humano seguirem depois. */
+async function stampContactChannel(
+  admin: Admin, contactId: string, provider: 'meta' | 'uazapi', connectionId: string | null,
+): Promise<void> {
+  await admin.from('contacts')
+    .update({ provider, connection_id: connectionId, updated_at: new Date().toISOString() })
+    .eq('id', contactId)
 }
 
 export async function processDueTouches(
@@ -171,7 +214,7 @@ async function processOne(admin: Admin, accountId: string, t: SdrTouchRow): Prom
     const ev = events[0] ?? null
 
     if (ev) {
-      await sendFirstContact(admin, accountId, { conversationId: t.conversation_id, phone: t.phone, name, agendou: true, eventStartIso: ev.start_iso })
+      await sendFirstContact(admin, accountId, { contactId: t.contact_id, conversationId: t.conversation_id, phone: t.phone, name, agendou: true, eventStartIso: ev.start_iso })
       // A write failure below re-runs as already_talking next tick (losing the
       // appointment/stage/reminders) — accepted for now; the monitor covers it.
       await moveDealToStage(admin, t.deal_id, 'agendamento_realizado')
@@ -206,7 +249,7 @@ async function processOne(admin: Admin, accountId: string, t: SdrTouchRow): Prom
       return 'confirm'
     }
 
-    await sendFirstContact(admin, accountId, { conversationId: t.conversation_id, phone: t.phone, name, agendou: false })
+    await sendFirstContact(admin, accountId, { contactId: t.contact_id, conversationId: t.conversation_id, phone: t.phone, name, agendou: false })
     await moveDealToStage(admin, t.deal_id, 'primeiro_contato')
     // Engate FU1: marca o contato e dispara a régua (gatilho tag_added).
     // conversation_id no contexto se propaga pelos waits → toques no inbox.
