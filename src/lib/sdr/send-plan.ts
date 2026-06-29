@@ -33,15 +33,17 @@ export function computeMode(provider: Provider, windowOpen: boolean): SendMode {
 }
 
 async function accountHasMetaConfig(admin: Admin, accountId: string): Promise<boolean> {
-  const { data } = await admin
+  const { data, error } = await admin
     .from('whatsapp_config').select('account_id').eq('account_id', accountId).limit(1).maybeSingle()
+  if (error) throw new Error(`resolveSendPlan: whatsapp_config lookup failed: ${error.message}`)
   return !!data
 }
 
 async function activeUazConnectionId(admin: Admin, accountId: string): Promise<string | null> {
-  const { data } = await admin
+  const { data, error } = await admin
     .from('wa_connections').select('id')
     .eq('account_id', accountId).eq('is_active_for_crm', true).maybeSingle()
+  if (error) throw new Error(`resolveSendPlan: wa_connections lookup failed: ${error.message}`)
   return data?.id ?? null
 }
 
