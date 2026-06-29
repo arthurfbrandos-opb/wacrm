@@ -188,6 +188,9 @@ export interface Conversation {
   assigned_agent_id?: string;
   last_message_text?: string;
   last_message_at?: string;
+  /** Timestamp of the most recent inbound message from the customer.
+   *  Used to gate the Meta 24h customer-service window (migration). */
+  last_inbound_at?: string | null;
   unread_count: number;
   created_at: string;
   updated_at: string;

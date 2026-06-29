@@ -22,6 +22,7 @@ import {
 } from '@/lib/rate-limit'
 import type { MessageTemplate } from '@/types'
 import { isMessageTemplate } from '@/lib/whatsapp/template-row-guard'
+import { isWindowOpen } from '@/lib/sdr/send-plan'
 
 export async function POST(request: Request) {
   try {
@@ -303,6 +304,21 @@ export async function POST(request: Request) {
         message_id: uazRecord.id,
         whatsapp_message_id: uazMessageId,
       })
+    }
+
+    // Gate: Meta 24h customer-service window. Text/media cannot be sent
+    // outside the window — only approved templates can. UazAPI has no window
+    // and is already handled by the early-return above, so this check is
+    // Meta-only. Template sends bypass the gate (they ARE the escape hatch).
+    if (message_type !== 'template' &&
+        !isWindowOpen('meta', conversation.last_inbound_at ?? null, Date.now())) {
+      return NextResponse.json(
+        {
+          error: 'Janela de 24h fechada — no canal oficial use um template aprovado.',
+          code: 'template_required',
+        },
+        { status: 400 },
+      )
     }
 
     // Fetch and decrypt WhatsApp config

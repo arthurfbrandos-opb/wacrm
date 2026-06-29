@@ -57,6 +57,7 @@ import {
   type ChannelOption,
   type UazapiConnectionLike,
 } from "@/lib/whatsapp/channel-options";
+import { isWindowOpen } from "@/lib/sdr/send-plan";
 
 interface ReplyDraft {
   id: string;
@@ -357,6 +358,25 @@ export function MessageThread({
 
     return { expired, remaining };
   }, [messages, hasMetaConfig, contact?.provider]);
+
+  // Gate de janela 24h para o composer humano. Usa o canal efetivo
+  // (channelOverride → channels lookup → contact.provider) para detectar
+  // Meta, então checa conversation.last_inbound_at via isWindowOpen.
+  // Atualiza quando channelOverride muda (Task 6 não é tocada).
+  const metaWindowClosed = useMemo(() => {
+    // Derive the effective provider from the already-computed selectedChannelId.
+    // channels array is built from the same DB state the send route uses.
+    const effectiveProvider =
+      channels.find((c) => c.id === selectedChannelId)?.provider ??
+      contact?.provider ??
+      "meta";
+    if (effectiveProvider !== "meta") return false;
+    return !isWindowOpen(
+      "meta",
+      conversation?.last_inbound_at ?? null,
+      Date.now(),
+    );
+  }, [selectedChannelId, channels, contact?.provider, conversation?.last_inbound_at]);
 
   // Store latest callback in a ref so fetchMessages doesn't need to
   // depend on `onMessagesLoaded` — otherwise parent re-renders cause
@@ -1312,7 +1332,7 @@ export function MessageThread({
       {/* Composer */}
       <MessageComposer
         conversationId={conversation.id}
-        sessionExpired={sessionInfo.expired}
+        sessionExpired={sessionInfo.expired || metaWindowClosed}
         onSend={handleSend}
         onSendMedia={handleSendMedia}
         onOpenTemplates={handleOpenTemplates}
