@@ -58,8 +58,10 @@ function makeTouch(over: Record<string, unknown> = {}) {
 
 // Minimal chainable Supabase admin double for the processor's inline queries.
 // Supports multi-eq chaining: select().eq().eq().maybeSingle() and select().eq().limit().maybeSingle()
-function makeAdmin(opts: { aiStatus?: string; name?: string; metaConfig?: boolean; uazConnectionId?: string | null } = {}) {
+function makeAdmin(opts: { aiStatus?: string; name?: string; metaConfig?: boolean; uazConnectionId?: string | null; noSdrConfig?: boolean } = {}) {
   const inserts: Array<{ table: string; row: unknown }> = []
+  // Records contacts.update calls: { payload, contactId }
+  const contactUpdates: Array<{ payload: unknown; contactId: unknown }> = []
 
   const uazId = opts.uazConnectionId !== undefined ? opts.uazConnectionId : 'uaz-conn-1'
 
@@ -69,7 +71,7 @@ function makeAdmin(opts: { aiStatus?: string; name?: string; metaConfig?: boolea
       if (table === 'conversations') return { data: { ai_status: opts.aiStatus ?? 'on' } }
       if (table === 'contacts') return { data: { name: opts.name ?? 'João Silva' } }
       if (table === 'accounts') return { data: { owner_user_id: 'u1' } }
-      if (table === 'sdr_config') return { data: { fap01_source: 'meta' } }
+      if (table === 'sdr_config') return opts.noSdrConfig ? { data: null } : { data: { fap01_source: 'meta' } }
       if (table === 'wa_connections') return { data: uazId ? { id: uazId } : null }
       return { data: null }
     }
@@ -90,10 +92,22 @@ function makeAdmin(opts: { aiStatus?: string; name?: string; metaConfig?: boolea
         inserts.push({ table, row })
         return { error: null }
       },
-      update: () => ({ eq: async () => ({ error: null }) }),
+      update: (payload: unknown) => {
+        if (table === 'contacts') {
+          // Return a chainable that records the eq('id', contactId) argument
+          return {
+            eq: async (col: unknown, val: unknown) => {
+              contactUpdates.push({ payload, contactId: val })
+              return { error: null }
+            },
+          }
+        }
+        return { eq: async () => ({ error: null }) }
+      },
       upsert: async () => ({ error: null }),
     }),
     inserts,
+    contactUpdates,
   }
   return admin
 }
@@ -250,5 +264,39 @@ describe('processDueTouches', () => {
     await processDueTouches(admin, ACCOUNT)
     expect(send.sendTemplate).not.toHaveBeenCalled()
     expect(send.sendText).toHaveBeenCalled()
+  })
+
+  // Fix 2: stampContactChannel must fire with the touch's contact_id
+  it('first_touch via Meta stamps contacts with correct contactId and provider', async () => {
+    const touch = makeTouch({ contact_id: 'contact-xyz' })
+    touches.listDueTouches.mockResolvedValue([touch])
+    calendarFind.mockResolvedValue({ events: [] })
+    send.accountHasMetaConfig.mockResolvedValue(true)
+    const admin = makeAdmin({ metaConfig: true, name: 'Ana Lima' })
+
+    await processDueTouches(admin, ACCOUNT)
+
+    // Must have stamped the contacts table
+    expect(admin.contactUpdates.length).toBeGreaterThan(0)
+    const stamp = admin.contactUpdates[0]
+    // The eq('id', contactId) arg must match the touch's contact_id
+    expect(stamp.contactId).toBe('contact-xyz')
+    expect((stamp.payload as Record<string, unknown>).provider).toBe('meta')
+  })
+
+  // Fix 4: when sdr_config row is absent, source defaults to 'meta'
+  it('first_touch with no sdr_config row → defaults to meta channel', async () => {
+    touches.listDueTouches.mockResolvedValue([makeTouch()])
+    calendarFind.mockResolvedValue({ events: [] })
+    send.accountHasMetaConfig.mockResolvedValue(true)
+    const admin = makeAdmin({ metaConfig: true, noSdrConfig: true })
+
+    await processDueTouches(admin, ACCOUNT)
+
+    // Should have sent via Meta template (source defaulted to 'meta')
+    expect(send.sendTemplate).toHaveBeenCalledWith(admin, ACCOUNT, expect.objectContaining({
+      templateName: 'fap01_1contato_nao_agendou',
+    }))
+    expect(send.sendText).not.toHaveBeenCalled()
   })
 })

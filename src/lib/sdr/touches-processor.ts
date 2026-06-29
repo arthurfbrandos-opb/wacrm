@@ -112,8 +112,9 @@ async function sendFirstContact(
     console.warn('[sdr] FAP01 fallback de canal', { accountId, source, chosen })
   }
 
+  const firstName = (opts.name || '').trim().split(/\s+/)[0] || opts.name || ''
+
   if (chosen === 'meta') {
-    const firstName = (opts.name || '').trim().split(/\s+/)[0] || opts.name || ''
     const templateName = opts.agendou ? FAP01_TEMPLATES.agendou : FAP01_TEMPLATES.naoAgendou
     await sendTemplate(admin, accountId, {
       phone: opts.phone, templateName, languageCode: FAP01_TEMPLATE_LANG, bodyParams: [firstName],
@@ -132,7 +133,6 @@ async function sendFirstContact(
   } catch (err) {
     if (!metaAvail) throw err
     console.warn('[sdr] FAP01 UazAPI falhou, fallback Meta no mesmo tick', { accountId }, err)
-    const firstName = (opts.name || '').trim().split(/\s+/)[0] || opts.name || ''
     const templateName = opts.agendou ? FAP01_TEMPLATES.agendou : FAP01_TEMPLATES.naoAgendou
     await sendTemplate(admin, accountId, {
       phone: opts.phone, templateName, languageCode: FAP01_TEMPLATE_LANG, bodyParams: [firstName],
@@ -147,9 +147,10 @@ async function sendFirstContact(
 async function stampContactChannel(
   admin: Admin, contactId: string, provider: 'meta' | 'uazapi', connectionId: string | null,
 ): Promise<void> {
-  await admin.from('contacts')
+  const { error } = await admin.from('contacts')
     .update({ provider, connection_id: connectionId, updated_at: new Date().toISOString() })
     .eq('id', contactId)
+  if (error) throw new Error(`stampContactChannel failed: ${error.message}`)
 }
 
 export async function processDueTouches(
