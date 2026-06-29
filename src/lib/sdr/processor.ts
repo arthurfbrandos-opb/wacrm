@@ -25,6 +25,7 @@ import { moveDealFollowupToEmConversa } from './regua-exit'
 import { cancelPendingForContact } from '@/lib/automations/engine'
 import { isReachoutBlock } from '@/lib/whatsapp/uazapi-send'
 import { handleReachoutBlock } from './reachout-block'
+import { emitSdrReplyEvent } from '@/lib/os-guard/emitters'
 
 const BUBBLE_DELAY_MS = Number(process.env.BUBBLE_DELAY_MS ?? 1500)
 const BRAIN_DEBOUNCE_MS = Number(process.env.BRAIN_DEBOUNCE_MS ?? 6000)
@@ -337,6 +338,17 @@ export async function runSdrReply(args: {
         updated_at: new Date().toISOString(),
       })
       .eq('id', conversationId)
+
+    // Emit OS event — best-effort, never breaks the reply path.
+    try {
+      await emitSdrReplyEvent(admin, {
+        accountId,
+        contactId: contact.id,
+        conversationId,
+      })
+    } catch (e) {
+      console.warn('[os] emitSdrReplyEvent falhou (best-effort):', e)
+    }
   } catch (e) {
     console.error('[sdr] brain loop failed', { conversationId, phone: contact.phone }, e)
     // 463 reachout-timelock: number barred from opening a new conversation.
