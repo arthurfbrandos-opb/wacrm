@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { osIsBlocked } from './index'
+import { osIsBlocked, osEmitAudit, osEmitEvent } from './index'
 
 function fakeDb(opts: { switchRow?: { enabled: boolean } | null; switchError?: boolean } = {}) {
   return {
@@ -27,5 +27,34 @@ describe('osIsBlocked', () => {
   })
   it('libera quando a leitura falha (não derruba operação viva)', async () => {
     expect(await osIsBlocked(fakeDb({ switchError: true }), 'acc', 'sdr_ai')).toBe(false)
+  })
+})
+
+function fakeInsertDb() {
+  const inserts: { table: string; row: Record<string, unknown> }[] = []
+  const db = {
+    inserts,
+    from(table: string) {
+      return { async insert(row: Record<string, unknown>) { inserts.push({ table, row }); return { error: null } } }
+    },
+  }
+  return db as any
+}
+
+describe('osEmitAudit', () => {
+  it('insere em os_audit com os campos mapeados', async () => {
+    const db = fakeInsertDb()
+    await osEmitAudit(db, { accountId: 'acc', agent: 'ian', action: 'sdr_reply', status: 'success' })
+    expect(db.inserts[0].table).toBe('os_audit')
+    expect(db.inserts[0].row).toMatchObject({ account_id: 'acc', agent: 'ian', action: 'sdr_reply', status: 'success' })
+  })
+})
+
+describe('osEmitEvent', () => {
+  it('insere em os_events com os campos mapeados', async () => {
+    const db = fakeInsertDb()
+    await osEmitEvent(db, { accountId: 'acc', agent: 'ian', kind: 'sdr.reply_sent', summary: 'reply enviado' })
+    expect(db.inserts[0].table).toBe('os_events')
+    expect(db.inserts[0].row).toMatchObject({ account_id: 'acc', kind: 'sdr.reply_sent' })
   })
 })
