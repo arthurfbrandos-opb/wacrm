@@ -48,6 +48,8 @@ export function AgentPanel() {
   const [newFieldId, setNewFieldId] = useState("");
   const [newFallback, setNewFallback] = useState("");
 
+  const [fap01Source, setFap01Source] = useState<'meta' | 'uazapi'>('meta');
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -59,6 +61,7 @@ export function AgentPanel() {
           updated_at: string | null;
           variables: CustomVariable[];
           custom_fields: CustomField[];
+          fap01_source: 'meta' | 'uazapi';
         };
         if (cancelled) return;
         setLoaded(data.system_prompt);
@@ -67,6 +70,7 @@ export function AgentPanel() {
         setVars(data.variables ?? []);
         setLoadedVars(JSON.stringify(data.variables ?? []));
         setCustomFields(data.custom_fields ?? []);
+        setFap01Source(data.fap01_source ?? 'meta');
       } catch {
         if (!cancelled) toast.error("Falha ao carregar o agente");
       } finally {
@@ -153,6 +157,24 @@ export function AgentPanel() {
       toast.error(e instanceof Error ? `Falha ao salvar: ${e.message}` : "Falha ao salvar");
     } finally {
       setSavingVars(false);
+    }
+  }
+
+  async function handleSaveFap01Source(next: 'meta' | 'uazapi') {
+    setFap01Source(next);
+    try {
+      const res = await fetch('/api/sdr/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fap01_source: next }),
+      });
+      if (!res.ok) {
+        const { error } = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(error ?? String(res.status));
+      }
+      toast.success('Origem do 1º contato atualizada');
+    } catch (e) {
+      toast.error(e instanceof Error ? `Falha ao salvar: ${e.message}` : 'Falha ao salvar');
     }
   }
 
@@ -374,6 +396,32 @@ export function AgentPanel() {
               agenda do Arthur são anexados ao prompt a cada mensagem — o Ian
               usa pra confirmar, nunca re-pergunta.
             </p>
+          </div>
+        </div>
+      </TerminalWindow>
+
+      {/* ORIGEM FAP01 */}
+      <TerminalWindow title="settings/agent/origem-fap01" className="mt-4">
+        <p className="border-b border-border px-5 py-2 font-mono text-xs text-muted-foreground">
+          # canal usado pelo ian para o 1º contato com leads captados (fap01). mude só se o canal oficial estiver indisponível.
+        </p>
+        <div className="space-y-4 p-5 text-sm">
+          <div className="grid gap-2">
+            <Label className="text-muted-foreground">Origem do 1º contato (captação/abordagem)</Label>
+            <select
+              value={fap01Source}
+              disabled={readOnly}
+              onChange={(e) => handleSaveFap01Source(e.target.value as 'meta' | 'uazapi')}
+              className="h-9 w-56 rounded-lg border border-border bg-muted px-2 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <option value="meta">Oficial (Meta)</option>
+              <option value="uazapi">Não Oficial (UazAPI)</option>
+            </select>
+            {!canEditSettings && !profileLoading && (
+              <p className="text-xs text-muted-foreground">
+                Só admins da conta podem alterar a origem.
+              </p>
+            )}
           </div>
         </div>
       </TerminalWindow>

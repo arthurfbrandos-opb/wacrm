@@ -69,7 +69,7 @@ export async function GET() {
   const admin = supabaseAdmin()
   const { data, error } = await admin
     .from('sdr_config')
-    .select('system_prompt, updated_at, variables')
+    .select('system_prompt, updated_at, variables, fap01_source')
     .eq('account_id', caller.accountId)
     .maybeSingle()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -87,6 +87,7 @@ export async function GET() {
     variables: (data?.variables ?? []) as CustomVariable[],
     custom_fields: (fields ?? []) as { id: string; field_name: string }[],
     can_edit: isAdmin(caller.role),
+    fap01_source: (data?.fap01_source ?? 'meta') as 'meta' | 'uazapi',
   })
 }
 
@@ -124,9 +125,9 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: 'Admin role required' }, { status: 403 })
   }
 
-  let body: { system_prompt?: unknown; variables?: unknown }
+  let body: { system_prompt?: unknown; variables?: unknown; fap01_source?: unknown }
   try {
-    body = (await request.json()) as { system_prompt?: unknown; variables?: unknown }
+    body = (await request.json()) as { system_prompt?: unknown; variables?: unknown; fap01_source?: unknown }
   } catch {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
   }
@@ -160,7 +161,14 @@ export async function PUT(request: Request) {
     patch.variables = v.variables
   }
 
-  if (patch.system_prompt === undefined && patch.variables === undefined) {
+  if (body.fap01_source !== undefined) {
+    if (body.fap01_source !== 'meta' && body.fap01_source !== 'uazapi') {
+      return NextResponse.json({ error: "fap01_source deve ser 'meta' ou 'uazapi'" }, { status: 400 })
+    }
+    patch.fap01_source = body.fap01_source
+  }
+
+  if (patch.system_prompt === undefined && patch.variables === undefined && patch.fap01_source === undefined) {
     return NextResponse.json({ error: 'nothing to update' }, { status: 400 })
   }
 
