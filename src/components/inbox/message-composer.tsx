@@ -100,7 +100,7 @@ interface MessageComposerProps {
   conversationId: string;
   sessionExpired: boolean;
   /** UazAPI channel: hide template + media buttons (send route rejects them). */
-  isUazapi?: boolean;
+  isUazapi: boolean;
   onSend: (text: string, replyToId?: string) => void;
   onSendMedia: (payload: SendMediaPayload) => void;
   onOpenTemplates: () => void;
@@ -135,7 +135,7 @@ const COMPOSER_EMOJIS = [
 export function MessageComposer({
   conversationId,
   sessionExpired,
-  isUazapi = false,
+  isUazapi,
   onSend,
   onSendMedia,
   onOpenTemplates,

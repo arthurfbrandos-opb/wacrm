@@ -359,35 +359,36 @@ export function MessageThread({
     return { expired, remaining };
   }, [messages, hasMetaConfig, contact?.provider]);
 
+  // Derive the effective provider once from the already-computed selectedChannelId.
+  // channels array is built from the same DB state the send route uses.
+  const effectiveProvider = useMemo(
+    () =>
+      channels.find((c) => c.id === selectedChannelId)?.provider ??
+      contact?.provider ??
+      "meta",
+    [selectedChannelId, channels, contact?.provider],
+  );
+
   // Gate de janela 24h para o composer humano. Usa o canal efetivo
   // (channelOverride → channels lookup → contact.provider) para detectar
   // Meta, então checa conversation.last_inbound_at via isWindowOpen.
   // Atualiza quando channelOverride muda (Task 6 não é tocada).
   const metaWindowClosed = useMemo(() => {
-    // Derive the effective provider from the already-computed selectedChannelId.
-    // channels array is built from the same DB state the send route uses.
-    const effectiveProvider =
-      channels.find((c) => c.id === selectedChannelId)?.provider ??
-      contact?.provider ??
-      "meta";
     if (effectiveProvider !== "meta") return false;
     return !isWindowOpen(
       "meta",
       conversation?.last_inbound_at ?? null,
       Date.now(),
     );
-  }, [selectedChannelId, channels, contact?.provider, conversation?.last_inbound_at]);
+  }, [effectiveProvider, conversation?.last_inbound_at]);
 
   // Canal efetivo é UazAPI? O send route rejeita template/mídia nesses canais —
   // o composer esconde os botões para não oferecer algo que vai errar.
-  // Usa a mesma fonte de effectiveProvider que metaWindowClosed.
-  const isUazapi = useMemo(() => {
-    const effectiveProvider =
-      channels.find((c) => c.id === selectedChannelId)?.provider ??
-      contact?.provider ??
-      "meta";
-    return effectiveProvider === "uazapi";
-  }, [selectedChannelId, channels, contact?.provider]);
+  // Usa a mesma fonte de effectiveProvider acima.
+  const isUazapi = useMemo(
+    () => effectiveProvider === "uazapi",
+    [effectiveProvider],
+  );
 
   // Store latest callback in a ref so fetchMessages doesn't need to
   // depend on `onMessagesLoaded` — otherwise parent re-renders cause
