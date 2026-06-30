@@ -25,3 +25,18 @@ export interface OsOverview {
   switchesOn: number
   switchesTotal: number
 }
+
+/** Deal aberto do pipeline Closer (Receita potencial + propostas paradas). */
+export interface CloserDeal {
+  id: string
+  title: string
+  value: number | string
+  updated_at: string
+}
+
+export interface CommercialMetrics {
+  /** SUM(value) dos deals 'open' no Closer. */
+  receitaPotencial: number
+  /** Contagem desses deals abertos. */
+  propostasAbertas: number
+}

@@ -1,5 +1,27 @@
 import { describe, it, expect } from 'vitest'
-import { buildOsOverview } from './os-queries'
+import { buildOsOverview, buildCommercialMetrics, formatBRL } from './os-queries'
+
+describe('formatBRL', () => {
+  it('formata em reais', () => {
+    const s = formatBRL(42000)
+    expect(s).toContain('R$')
+    expect(s).toContain('42.000')
+  })
+})
+
+describe('buildCommercialMetrics', () => {
+  it('soma value (number|string) e conta propostas', () => {
+    const m = buildCommercialMetrics([{ value: 5000 }, { value: '2000.5' }, { value: 0 }])
+    expect(m.receitaPotencial).toBe(7000.5)
+    expect(m.propostasAbertas).toBe(3)
+  })
+  it('lista vazia → zeros', () => {
+    expect(buildCommercialMetrics([])).toEqual({ receitaPotencial: 0, propostasAbertas: 0 })
+  })
+  it('value inválido vira 0', () => {
+    expect(buildCommercialMetrics([{ value: 'abc' }, { value: 1000 }]).receitaPotencial).toBe(1000)
+  })
+})
 
 describe('buildOsOverview', () => {
   it('conta agentes ativos/total, eventos do dia e switches ligados/total', () => {
