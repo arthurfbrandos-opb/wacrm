@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useTotalUnread } from "@/hooks/use-total-unread";
 import {
   CalendarDays,
+  Cpu,
   Crown,
   GitBranch,
   LayoutDashboard,
@@ -92,6 +93,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { href: "/dashboard", label: "Painel", icon: LayoutDashboard },
+  { href: "/dashboard/os", label: "OS", icon: Cpu },
   { href: "/dashboard/anuncios", label: "Anúncios", icon: Megaphone },
   { href: "/inbox", label: "Conversas", icon: MessageSquare },
   { href: "/contacts", label: "Contatos", icon: Users },
