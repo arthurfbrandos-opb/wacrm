@@ -8,8 +8,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { useTotalUnread } from "@/hooks/use-total-unread";
 import {
   CalendarDays,
-  Cpu,
   Crown,
+  Gauge,
   GitBranch,
   LayoutDashboard,
   LogOut,
@@ -29,6 +29,7 @@ import {
   Zap,
 } from "lucide-react";
 import type { AccountRole } from "@/lib/auth/roles";
+import { ContextSelector } from "@/components/layout/context-selector";
 
 // Per-role chip metadata used in the sidebar's account strip + the
 // Members tab roster. Keeping this near both consumers in a single
@@ -92,8 +93,8 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
+  { href: "/dashboard/os", label: "Cockpit", icon: Gauge },
   { href: "/dashboard", label: "Painel", icon: LayoutDashboard },
-  { href: "/dashboard/os", label: "OS", icon: Cpu },
   { href: "/dashboard/anuncios", label: "Anúncios", icon: Megaphone },
   { href: "/inbox", label: "Conversas", icon: MessageSquare },
   { href: "/contacts", label: "Contatos", icon: Users },
@@ -234,6 +235,7 @@ export function Sidebar({
 
         {/* Main navigation */}
         <nav className="flex-1 overflow-y-auto px-3 py-4">
+          <ContextSelector />
           <ul className="flex flex-col gap-1">
             {navItems.map((item) => {
               const isActive =

@@ -50,3 +50,11 @@ export function mondayIndex(d: Date): number {
 }
 
 export const DOW_SHORT_MON_FIRST = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const
+
+/** 1º dia do mês corrente às 00:00 no fuso LOCAL (espelha startOfLocalDay). */
+export function startOfLocalMonth(d: Date = new Date()): Date {
+  const out = new Date(d)
+  out.setDate(1)
+  out.setHours(0, 0, 0, 0)
+  return out
+}
