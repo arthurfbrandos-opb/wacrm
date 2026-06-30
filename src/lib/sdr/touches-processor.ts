@@ -24,7 +24,7 @@ import {
   accountHasChannel,
   type SdrTouchRow,
 } from './touches'
-import { chaseBubbles, confirmBubbles, reminder24hBubbles, reminder2hBubbles } from './templates'
+import { chaseBubbles, confirmBubbles, reminder24hBubbles, reminder2hBubbles, spDayHour } from './templates'
 import { runAutomationsForTrigger } from '@/lib/automations/engine'
 import { ensureTag } from './ensure-tag'
 import { pickFap01Provider } from './fap01-source'
@@ -304,8 +304,16 @@ async function processOne(admin: Admin, accountId: string, t: SdrTouchRow): Prom
       return 'deferred_no_template' // NÃO resolve o toque → fica pending
     }
     const firstName = (name || '').trim().split(/\s+/)[0] || name || ''
+    // {{2}} = data/hora do evento (24h: "13/06 às 15h" · 2h: "15h"). Os
+    // lembretes sempre têm event_start_iso (scheduleReminder o grava); o
+    // guard evita mandar 1 param p/ um template de 2 vars caso falte.
+    const bodyParams = [firstName]
+    if (t.event_start_iso) {
+      const { ddmm, hour } = spDayHour(t.event_start_iso)
+      bodyParams.push(t.type === 'reminder_24h' ? `${ddmm} às ${hour}` : hour)
+    }
     await sendTemplate(admin, accountId, {
-      phone: t.phone, templateName: tpl.name, languageCode: tpl.lang, bodyParams: [firstName],
+      phone: t.phone, templateName: tpl.name, languageCode: tpl.lang, bodyParams,
     })
     await persistAgentMessage(admin, t.conversation_id, `[${t.type}]`, 'meta', 'template')
     await resolveTouch(admin, t.id, 'done', 'sent_template')

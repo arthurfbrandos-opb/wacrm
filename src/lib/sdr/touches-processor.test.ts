@@ -249,6 +249,39 @@ describe('processDueTouches', () => {
     expect(send.sendText).toHaveBeenCalledTimes(2) // greeting + meet link bubble
   })
 
+  it('reminder_24h fora da janela Meta → template lembrete_24h com {{2}}="DD/MM às Hh"', async () => {
+    touches.listDueTouches.mockResolvedValue([
+      makeTouch({ type: 'reminder_24h', event_start_iso: '2099-01-01T10:00:00-03:00' }),
+    ])
+    calendarFind.mockResolvedValue({ events: [{ start_iso: '2099-01-01T10:00:00-03:00' }] })
+    sendPlan.resolveSendPlan.mockResolvedValue({ provider: 'meta', mode: 'template_required', windowOpen: false })
+    const admin = makeAdmin({ name: 'João Silva' })
+
+    await processDueTouches(admin, ACCOUNT)
+
+    expect(send.sendTemplate).toHaveBeenCalledWith(admin, ACCOUNT, expect.objectContaining({
+      templateName: 'lembrete_24h', languageCode: 'pt_BR', bodyParams: ['João', '01/01 às 10h'],
+    }))
+    expect(send.sendText).not.toHaveBeenCalled()
+    expect(touches.resolveTouch).toHaveBeenCalledWith(admin, 't1', 'done', 'sent_template')
+  })
+
+  it('reminder_2h fora da janela Meta → template lembrete_2h com {{2}}="Hh"', async () => {
+    touches.listDueTouches.mockResolvedValue([
+      makeTouch({ type: 'reminder_2h', event_start_iso: '2099-01-01T10:00:00-03:00' }),
+    ])
+    calendarFind.mockResolvedValue({ events: [{ start_iso: '2099-01-01T10:00:00-03:00' }] })
+    sendPlan.resolveSendPlan.mockResolvedValue({ provider: 'meta', mode: 'template_required', windowOpen: false })
+    const admin = makeAdmin({ name: 'João Silva' })
+
+    await processDueTouches(admin, ACCOUNT)
+
+    expect(send.sendTemplate).toHaveBeenCalledWith(admin, ACCOUNT, expect.objectContaining({
+      templateName: 'lembrete_2h', languageCode: 'pt_BR', bodyParams: ['João', '10h'],
+    }))
+    expect(send.sendText).not.toHaveBeenCalled()
+  })
+
   it('first_touch sem evento + conta Meta → template não_agendou (não usa bubbles)', async () => {
     touches.listDueTouches.mockResolvedValue([makeTouch()])
     calendarFind.mockResolvedValue({ events: [] })
