@@ -250,11 +250,21 @@ export default function InboxPage() {
           setMessages((prev) => {
             // Avoid duplicates
             if (prev.some((m) => m.id === newMsg.id)) return prev;
-            // Replace optimistic message if it exists
-            const withoutOptimistic = prev.filter(
-              (m) => !m.id.startsWith("temp-")
+            // Replace ONLY the matching optimistic echo (same sender + content),
+            // leaving other in-flight optimistic bubbles intact. A message that
+            // matches no temp slot (e.g. an inbound) is simply appended.
+            const idx = prev.findIndex(
+              (m) =>
+                m.id.startsWith("temp-") &&
+                m.sender_type === newMsg.sender_type &&
+                m.content_text === newMsg.content_text,
             );
-            return [...withoutOptimistic, newMsg];
+            if (idx !== -1) {
+              const next = [...prev];
+              next[idx] = newMsg;
+              return next;
+            }
+            return [...prev, newMsg];
           });
         }
 
