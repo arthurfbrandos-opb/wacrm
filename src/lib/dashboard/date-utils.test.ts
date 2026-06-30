@@ -6,6 +6,7 @@ import {
   localDayKey,
   mondayIndex,
   startOfLocalDay,
+  startOfLocalMonth,
 } from "./date-utils";
 
 describe("startOfLocalDay", () => {
@@ -121,3 +122,16 @@ describe("mondayIndex", () => {
     );
   });
 });
+
+describe('startOfLocalMonth', () => {
+  it('zera para o 1º dia do mês às 00:00 local', () => {
+    const d = new Date(2026, 5, 30, 14, 35, 12) // 30/jun/2026 14:35 local
+    const m = startOfLocalMonth(d)
+    expect(m.getFullYear()).toBe(2026)
+    expect(m.getMonth()).toBe(5) // junho (0-based)
+    expect(m.getDate()).toBe(1)
+    expect(m.getHours()).toBe(0)
+    expect(m.getMinutes()).toBe(0)
+    expect(m.getSeconds()).toBe(0)
+  })
+})
