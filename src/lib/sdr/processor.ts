@@ -16,7 +16,8 @@ import {
   slotLabel,
   splitBubbles,
 } from './prompt'
-import { sendText, resolveReplyProvider, setAccountPresence } from './send'
+import { sendText, setAccountPresence } from './send'
+import { resolveSendPlan } from './send-plan'
 import { notifyArthur } from './notify'
 import { SDR_PIPELINE_ID } from './ids'
 import { substituteVariables, type CustomVariable } from './variables'
@@ -298,11 +299,24 @@ export async function runSdrReply(args: {
       return
     }
 
-    // Reply on the channel the lead is actually on (contact.provider), set by
-    // the inbound webhook. 'meta' is honored only when a Meta config exists
-    // (a FAP01 lead is stamped 'meta' even on Meta-less accounts); otherwise
-    // we fall back to the account's active channel.
-    const provider = await resolveReplyProvider(admin, accountId, { provider: contact.provider })
+    // Reply on the channel the lead is actually on. Use resolveSendPlan so
+    // Meta's 24h window gate is enforced: if the window is closed, the IA
+    // cannot send free text (template_required). In practice the IA replies
+    // right after the lead writes, so the window is almost always open; this
+    // just makes the edge case safe.
+    const { data: convWindow } = await admin
+      .from('conversations').select('last_inbound_at').eq('id', conversationId).maybeSingle()
+    const plan = await resolveSendPlan(
+      admin,
+      accountId,
+      { provider: contact.provider, connection_id: contact.connection_id },
+      convWindow ?? {},
+    )
+    if (plan.mode === 'template_required') {
+      console.warn('[sdr] resposta da IA bloqueada: janela Meta fechada', { accountId, conversationId })
+      return
+    }
+    const provider = plan.provider
     // Appear "online" only while actually responding (human-like): mark
     // available before the bubbles, back to unavailable after.
     if (provider === 'uazapi') await setAccountPresence(admin, accountId, true)
@@ -311,7 +325,7 @@ export async function runSdrReply(args: {
         await sendText(
           admin,
           accountId,
-          { provider, phone: contact.phone, connectionId: contact.connection_id },
+          { provider, phone: contact.phone, connectionId: plan.connectionId },
           bubbles[i],
         )
         if (i < bubbles.length - 1) await new Promise((r) => setTimeout(r, BUBBLE_DELAY_MS))
