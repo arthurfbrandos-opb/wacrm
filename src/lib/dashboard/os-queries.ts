@@ -68,7 +68,7 @@ const TOUCH_LABEL: Record<string, string> = {
 
 const MS_DAY = 24 * 60 * 60 * 1000
 
-/** Pura: deals abertos sem movimento há >= staleDays. */
+/** Pura: deals abertos sem movimento há MAIS de staleDays dias. */
 export function selectStaleDeals(deals: CloserDeal[], staleDays: number, now: Date): CloserDeal[] {
   const cutoff = now.getTime() - staleDays * MS_DAY
   return deals.filter((d) => new Date(d.updated_at).getTime() < cutoff)

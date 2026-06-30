@@ -45,30 +45,49 @@ export default function OsCockpitPage() {
     void loadOsAgents(db).then(setAgents).catch((e) => console.error('[os] agents', e))
 
     void (async () => {
-      try {
-        const now = new Date()
-        const [closerDeals, overdue, prova] = await Promise.all([
-          loadCloserOpenDeals(db),
-          loadOverdueFollowups(db),
-          loadProvaVivaCount(db),
-        ])
-        const metrics = buildCommercialMetrics(closerDeals)
-        const stale = selectStaleDeals(closerDeals, 7, now)
-        const pend = buildPendingDecisions(overdue, stale, now)
-        setCommercial(metrics)
-        setOverdueCount(overdue.length)
-        setProvaViva(prova)
-        setDecisions(pend)
-        setHero(
-          buildGrowthHero({
-            receitaPotencial: metrics.receitaPotencial,
-            overdueCount: overdue.length,
-            decisionsCount: pend.length,
-          }),
-        )
-      } catch (e) {
-        console.error('[os] cockpit business', e)
+      const now = new Date()
+      const [closerResult, overdueResult, provaResult] = await Promise.allSettled([
+        loadCloserOpenDeals(db),
+        loadOverdueFollowups(db),
+        loadProvaVivaCount(db),
+      ])
+
+      if (provaResult.status === 'fulfilled') {
+        setProvaViva(provaResult.value)
+      } else {
+        console.error('[os] prova viva', provaResult.reason)
       }
+
+      let metrics: CommercialMetrics | null = null
+      if (closerResult.status === 'fulfilled') {
+        metrics = buildCommercialMetrics(closerResult.value)
+        setCommercial(metrics)
+      } else {
+        console.error('[os] closer deals', closerResult.reason)
+      }
+
+      let overdueLen = 0
+      if (overdueResult.status === 'fulfilled') {
+        overdueLen = overdueResult.value.length
+        setOverdueCount(overdueLen)
+      } else {
+        console.error('[os] overdue followups', overdueResult.reason)
+      }
+
+      const overdueOrEmpty = overdueResult.status === 'fulfilled' ? overdueResult.value : []
+      const staleOrEmpty = closerResult.status === 'fulfilled'
+        ? selectStaleDeals(closerResult.value, 7, now)
+        : []
+      const pend = buildPendingDecisions(overdueOrEmpty, staleOrEmpty, now)
+      setDecisions(pend)
+
+      setHero(
+        buildGrowthHero({
+          receitaPotencial: metrics?.receitaPotencial ?? 0,
+          overdueCount: overdueLen,
+          decisionsCount: pend.length,
+        }),
+      )
     })()
   }, [])
 
