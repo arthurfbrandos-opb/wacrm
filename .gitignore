@@ -49,3 +49,6 @@ supabase/.temp/
 # pre-migration schema backups (created by the dev workflow
 # when changing existing migrations — not part of the repo)
 /.backup-*/
+
+# SDD scratch (briefs, diffs, reports, ledger)
+.superpowers/
