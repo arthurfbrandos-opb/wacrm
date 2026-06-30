@@ -18,6 +18,8 @@
 - **PT-BR** em todo texto de UI. Sem inventar números — todo dado vem de query real; bloco sem fonte = card "em breve" explícito.
 - **RLS:** `deals`/`pipelines` são escopados por `user_id` (dono); `sdr_touches`/`os_events` por `account_id` (`is_account_member`). Para Minha Empresa / tenant zero (Arthur logado) o resultado é correto.
 - Worktree: `~/Projects/_wacrm-worktrees/os-cockpit` (branch `feat/os-cockpit`). Comandos: `npm test` (vitest) · `npm run typecheck` (tsc --noEmit) · `npm run lint` (eslint).
+- **Baseline reds (pré-existentes — NÃO mexer/consertar):** `npm test` já tem 5 falhas pré-existentes — `src/lib/currency.test.ts` (3, locale/ICU) + `src/lib/dashboard/date-utils.test.ts` (2, locale/tz). Sucesso = seus testes novos verdes + **zero falha NOVA**; as 5 ficam exatamente como estão.
+- **Imports no arquivo de teste:** ao adicionar funções de `./os-queries`, **mesclar numa única linha de import** (não criar várias `from './os-queries'` — evita lint `no-duplicate-imports`).
 
 ---
 
@@ -25,7 +27,7 @@
 
 **Files:**
 - Modify: `src/lib/dashboard/date-utils.ts` (adiciona função no fim)
-- Test: `src/lib/dashboard/date-utils.test.ts` (criar)
+- Test: `src/lib/dashboard/date-utils.test.ts` (**já existe** — adicionar describe ao fim + mesclar `startOfLocalMonth` no import existente; NÃO tocar nos testes pré-existentes, inclusive os 2 reds de baseline)
 
 **Interfaces:**
 - Consumes: nada.
@@ -33,12 +35,9 @@
 
 - [ ] **Step 1: Write the failing test**
 
-Criar `src/lib/dashboard/date-utils.test.ts`:
+O arquivo `src/lib/dashboard/date-utils.test.ts` já existe. (a) Adicionar `startOfLocalMonth` ao bloco de import existente (`import { ... startOfLocalDay } from "./date-utils";` → incluir `startOfLocalMonth`). (b) Adicionar este describe ao **fim** do arquivo (deixar todo o resto intacto):
 
 ```ts
-import { describe, it, expect } from 'vitest'
-import { startOfLocalMonth } from './date-utils'
-
 describe('startOfLocalMonth', () => {
   it('zera para o 1º dia do mês às 00:00 local', () => {
     const d = new Date(2026, 5, 30, 14, 35, 12) // 30/jun/2026 14:35 local
