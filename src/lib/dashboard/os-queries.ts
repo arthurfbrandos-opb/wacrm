@@ -1,7 +1,7 @@
 // src/lib/dashboard/os-queries.ts
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { startOfLocalDay } from './date-utils'
-import type { OsEventRow, OsAgentRow, OsOverview, CloserDeal, CommercialMetrics, OverdueFollowup, PendingDecision, DecisionUrgency } from './os-types'
+import { startOfLocalDay, startOfLocalMonth } from './date-utils'
+import type { OsEventRow, OsAgentRow, OsOverview, CloserDeal, CommercialMetrics, OverdueFollowup, PendingDecision, DecisionUrgency, GrowthHero } from './os-types'
 
 type DB = SupabaseClient
 
@@ -141,4 +141,24 @@ export async function loadOsOverview(db: DB): Promise<OsOverview> {
     eventsTodayCount: eventsToday.count ?? 0,
     switchEnabled: (switches.data ?? []) as { enabled: boolean }[],
   })
+}
+
+/** Pura: monta o hero a partir dos números já calculados. */
+export function buildGrowthHero(input: { receitaPotencial: number; overdueCount: number; decisionsCount: number }): GrowthHero {
+  return {
+    receitaPotencialFmt: formatBRL(input.receitaPotencial),
+    overdueCount: input.overdueCount,
+    decisionsCount: input.decisionsCount,
+  }
+}
+
+/** Prova viva = nº de os_events no mês corrente (RLS por conta). */
+export async function loadProvaVivaCount(db: DB): Promise<number> {
+  const monthStart = startOfLocalMonth().toISOString()
+  const { count, error } = await db
+    .from('os_events')
+    .select('id', { count: 'exact', head: true })
+    .gte('created_at', monthStart)
+  if (error) throw error
+  return count ?? 0
 }

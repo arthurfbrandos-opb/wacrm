@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildOsOverview, buildCommercialMetrics, formatBRL, selectStaleDeals, buildPendingDecisions } from './os-queries'
+import { buildOsOverview, buildCommercialMetrics, formatBRL, selectStaleDeals, buildPendingDecisions, buildGrowthHero } from './os-queries'
 
 describe('formatBRL', () => {
   it('formata em reais', () => {
@@ -72,5 +72,14 @@ describe('buildPendingDecisions', () => {
   })
   it('nada pendente → lista vazia', () => {
     expect(buildPendingDecisions([], [], NOW)).toEqual([])
+  })
+})
+
+describe('buildGrowthHero', () => {
+  it('formata receita e repassa contagens', () => {
+    const h = buildGrowthHero({ receitaPotencial: 42000, overdueCount: 9, decisionsCount: 7 })
+    expect(h.receitaPotencialFmt).toContain('42.000')
+    expect(h.overdueCount).toBe(9)
+    expect(h.decisionsCount).toBe(7)
   })
 })

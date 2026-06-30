@@ -62,3 +62,10 @@ export interface PendingDecision {
   href: string
   cta: string
 }
+
+/** Dados do hero narrativo do cockpit. */
+export interface GrowthHero {
+  receitaPotencialFmt: string
+  overdueCount: number
+  decisionsCount: number
+}
