@@ -40,3 +40,25 @@ export interface CommercialMetrics {
   /** Contagem desses deals abertos. */
   propostasAbertas: number
 }
+
+/** Follow-up vencido (sdr_touches pending + due_at no passado). */
+export interface OverdueFollowup {
+  id: string
+  type: string
+  due_at: string
+  contact_id: string
+  conversation_id: string
+}
+
+export type DecisionUrgency = 'red' | 'warn' | 'normal'
+
+/** Item da Central de Ações (read-first: só leva ao lugar onde se age). */
+export interface PendingDecision {
+  id: string
+  kind: 'followup' | 'deal'
+  urgency: DecisionUrgency
+  title: string
+  subtitle: string
+  href: string
+  cta: string
+}

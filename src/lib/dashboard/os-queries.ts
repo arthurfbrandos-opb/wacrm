@@ -1,7 +1,7 @@
 // src/lib/dashboard/os-queries.ts
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { startOfLocalDay } from './date-utils'
-import type { OsEventRow, OsAgentRow, OsOverview, CloserDeal, CommercialMetrics } from './os-types'
+import type { OsEventRow, OsAgentRow, OsOverview, CloserDeal, CommercialMetrics, OverdueFollowup, PendingDecision, DecisionUrgency } from './os-types'
 
 type DB = SupabaseClient
 
@@ -58,6 +58,61 @@ export async function loadOsActivity(db: DB, limit = 20): Promise<OsEventRow[]> 
     .limit(limit)
   if (error) throw error
   return (data ?? []) as OsEventRow[]
+}
+
+const TOUCH_LABEL: Record<string, string> = {
+  first_touch: '1º contato',
+  reminder_24h: 'lembrete 24h',
+  reminder_2h: 'lembrete 2h',
+}
+
+const MS_DAY = 24 * 60 * 60 * 1000
+
+/** Pura: deals abertos sem movimento há >= staleDays. */
+export function selectStaleDeals(deals: CloserDeal[], staleDays: number, now: Date): CloserDeal[] {
+  const cutoff = now.getTime() - staleDays * MS_DAY
+  return deals.filter((d) => new Date(d.updated_at).getTime() < cutoff)
+}
+
+/** Pura: monta a fila da Central de Ações (read-first), ordenada por urgência. */
+export function buildPendingDecisions(overdue: OverdueFollowup[], stale: CloserDeal[], now: Date): PendingDecision[] {
+  const followups: PendingDecision[] = overdue.map((f) => {
+    const days = Math.floor((now.getTime() - new Date(f.due_at).getTime()) / MS_DAY)
+    return {
+      id: `followup:${f.id}`,
+      kind: 'followup',
+      urgency: days >= 2 ? 'red' : 'warn',
+      title: `Follow-up vencido · ${TOUCH_LABEL[f.type] ?? f.type}`,
+      subtitle: days <= 0 ? 'venceu hoje' : `vencido há ${days} dia${days === 1 ? '' : 's'}`,
+      href: `/inbox?c=${f.conversation_id}`,
+      cta: 'Ver',
+    }
+  })
+  const deals: PendingDecision[] = stale.map((d) => ({
+    id: `deal:${d.id}`,
+    kind: 'deal',
+    urgency: 'normal' as DecisionUrgency,
+    title: d.title,
+    subtitle: `Proposta parada · ${formatBRL(Number(d.value) || 0)} · sem movimento`,
+    href: '/pipelines',
+    cta: 'Abrir',
+  }))
+  const rank: Record<DecisionUrgency, number> = { red: 0, warn: 1, normal: 2 }
+  return [...followups, ...deals].sort((a, b) => rank[a.urgency] - rank[b.urgency])
+}
+
+/** Follow-ups vencidos: sdr_touches pending + due_at no passado (RLS por conta). */
+export async function loadOverdueFollowups(db: DB, limit = 50): Promise<OverdueFollowup[]> {
+  const nowIso = new Date().toISOString()
+  const { data, error } = await db
+    .from('sdr_touches')
+    .select('id, type, due_at, contact_id, conversation_id')
+    .eq('status', 'pending')
+    .lt('due_at', nowIso)
+    .order('due_at', { ascending: true })
+    .limit(limit)
+  if (error) throw error
+  return (data ?? []) as OverdueFollowup[]
 }
 
 /** Registro de agentes (os_agent_registry). RLS escopa por conta. */
