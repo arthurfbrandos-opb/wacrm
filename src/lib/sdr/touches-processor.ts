@@ -11,7 +11,9 @@
  *   - real `sdr_touches` table instead of a crm_kv blob.
  */
 import { pedroFromEnv } from '@/lib/pkg/pedro/client'
-import { sendText, sendTemplate, resolveAccountProvider, setAccountPresence, accountHasMetaConfig } from './send'
+import { sendText, sendTemplate, setAccountPresence, accountHasMetaConfig } from './send'
+import { resolveSendPlan } from './send-plan'
+import { templateForTouch } from './touch-templates'
 import { FAP01_TEMPLATES, FAP01_TEMPLATE_LANG, renderAgendou, renderNaoAgendou } from './meta-templates'
 import {
   listDueTouches,
@@ -202,7 +204,6 @@ async function processOne(admin: Admin, accountId: string, t: SdrTouchRow): Prom
     .maybeSingle()
   const name = (contact as { name?: string } | null)?.name ?? ''
 
-  const provider = await resolveAccountProvider(admin, accountId)
   const pedro = pedroFromEnv()
 
   if (t.type === 'first_touch') {
@@ -286,6 +287,32 @@ async function processOne(admin: Admin, accountId: string, t: SdrTouchRow): Prom
     await resolveTouch(admin, t.id, 'skipped', 'event_gone')
     return 'event_gone'
   }
+
+  // Resolve canal pela origem atual do contato (não pelo canal padrão da conta).
+  const { data: contactChannel } = await admin
+    .from('contacts').select('provider, connection_id').eq('id', t.contact_id).maybeSingle()
+  const { data: convRow } = await admin
+    .from('conversations').select('last_inbound_at').eq('id', t.conversation_id).maybeSingle()
+  const plan = await resolveSendPlan(admin, accountId, contactChannel ?? {}, convRow ?? {})
+
+  if (plan.mode === 'template_required') {
+    const tpl = templateForTouch(t.type)
+    if (!tpl) {
+      // Rede de segurança: sem template aprovado → adia (deixa pending) em vez de
+      // enviar texto livre rejeitado pela Meta. Retry natural no próximo tick.
+      console.warn('[sdr] toque adiado: janela Meta fechada e sem template aprovado', { id: t.id, type: t.type })
+      return 'deferred_no_template' // NÃO resolve o toque → fica pending
+    }
+    const firstName = (name || '').trim().split(/\s+/)[0] || name || ''
+    await sendTemplate(admin, accountId, {
+      phone: t.phone, templateName: tpl.name, languageCode: tpl.lang, bodyParams: [firstName],
+    })
+    await persistAgentMessage(admin, t.conversation_id, `[${t.type}]`, 'meta', 'template')
+    await resolveTouch(admin, t.id, 'done', 'sent_template')
+    return 'sent_template'
+  }
+
+  // Janela aberta / UazAPI: bubbles de texto livre, pelo canal atual.
   const bubbles =
     t.type === 'reminder_24h'
       ? reminder24hBubbles(name, t.event_start_iso!)
@@ -293,6 +320,6 @@ async function processOne(admin: Admin, accountId: string, t: SdrTouchRow): Prom
   // Resolve BEFORE sending: a write failure after the send would re-spam the
   // lead every tick. A lost reminder is benign (Calendly emails its own).
   await resolveTouch(admin, t.id, 'done', 'sent')
-  await sendAndPersist(admin, accountId, provider, t.conversation_id, t.phone, bubbles)
+  await sendAndPersist(admin, accountId, plan.provider, t.conversation_id, t.phone, bubbles)
   return 'sent'
 }

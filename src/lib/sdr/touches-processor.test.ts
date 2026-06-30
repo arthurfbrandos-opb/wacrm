@@ -20,6 +20,16 @@ vi.mock('./touches', () => ({
   moveDealToStage: vi.fn(async () => {}),
   accountHasChannel: vi.fn(async () => true),
 }))
+// Reminders roteiam pela origem atual via resolveSendPlan. Default = janela aberta
+// (UazAPI) → bubbles de texto livre, que é o comportamento dos testes existentes.
+vi.mock('./send-plan', () => ({
+  resolveSendPlan: vi.fn(async () => ({
+    provider: 'uazapi',
+    connectionId: 'uaz-conn-1',
+    windowOpen: true,
+    mode: 'text',
+  })),
+}))
 
 // Imported after env is set so BUBBLE_DELAY_MS=0 (no real waits between bubbles).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -28,12 +38,15 @@ let processDueTouches: any
 let touches: any
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let send: any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let sendPlan: any
 
 beforeAll(async () => {
   process.env.BUBBLE_DELAY_MS = '0'
   ;({ processDueTouches } = await import('./touches-processor'))
   touches = await import('./touches')
   send = await import('./send')
+  sendPlan = await import('./send-plan')
 })
 
 const ACCOUNT = 'acc-1'
@@ -117,6 +130,10 @@ beforeEach(() => {
   touches.conversationHasMessages.mockResolvedValue(false)
   touches.accountHasChannel.mockResolvedValue(true)
   send.accountHasMetaConfig.mockResolvedValue(false)
+  // Restore default: janela aberta (UazAPI) → bubbles de texto livre.
+  sendPlan?.resolveSendPlan?.mockResolvedValue({
+    provider: 'uazapi', connectionId: 'uaz-conn-1', windowOpen: true, mode: 'text',
+  })
 })
 
 describe('processDueTouches', () => {
