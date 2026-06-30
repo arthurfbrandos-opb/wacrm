@@ -378,6 +378,17 @@ export function MessageThread({
     );
   }, [selectedChannelId, channels, contact?.provider, conversation?.last_inbound_at]);
 
+  // Canal efetivo é UazAPI? O send route rejeita template/mídia nesses canais —
+  // o composer esconde os botões para não oferecer algo que vai errar.
+  // Usa a mesma fonte de effectiveProvider que metaWindowClosed.
+  const isUazapi = useMemo(() => {
+    const effectiveProvider =
+      channels.find((c) => c.id === selectedChannelId)?.provider ??
+      contact?.provider ??
+      "meta";
+    return effectiveProvider === "uazapi";
+  }, [selectedChannelId, channels, contact?.provider]);
+
   // Store latest callback in a ref so fetchMessages doesn't need to
   // depend on `onMessagesLoaded` — otherwise parent re-renders cause
   // fetchMessages to change → useEffect re-fires → refetch → realtime
@@ -1333,6 +1344,7 @@ export function MessageThread({
       <MessageComposer
         conversationId={conversation.id}
         sessionExpired={sessionInfo.expired || metaWindowClosed}
+        isUazapi={isUazapi}
         onSend={handleSend}
         onSendMedia={handleSendMedia}
         onOpenTemplates={handleOpenTemplates}
