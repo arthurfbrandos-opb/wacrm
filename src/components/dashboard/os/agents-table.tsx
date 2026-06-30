@@ -12,6 +12,12 @@ const STATUS_TONE: Record<string, string> = {
   retired: 'border-border bg-muted text-muted-foreground',
 }
 
+const STATUS_LABEL: Record<string, string> = {
+  active: 'ativo',
+  paused: 'pausado',
+  retired: 'inativo',
+}
+
 export function OsAgentsTable({ data }: OsAgentsTableProps) {
   return (
     <TerminalWindow title="os/agentes">
@@ -38,7 +44,7 @@ export function OsAgentsTable({ data }: OsAgentsTableProps) {
                 <span
                   className={`shrink-0 rounded-full border px-2 py-0.5 text-xs ${STATUS_TONE[a.status] ?? STATUS_TONE.retired}`}
                 >
-                  ● {a.status}
+                  ● {STATUS_LABEL[a.status] ?? a.status}
                 </span>
               </li>
             ))}
