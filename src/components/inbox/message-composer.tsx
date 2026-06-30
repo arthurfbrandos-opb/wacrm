@@ -432,7 +432,7 @@ export function MessageComposer({
       {sessionExpired && (
         <div className="mb-2 flex items-center justify-between rounded-lg bg-amber-500/10 px-3 py-2">
           <p className="text-xs text-amber-400">
-            Sessão de 24h expirada. Use um template para retomar o contato.
+            Use um template aprovado para enviar agora.
           </p>
           <Button
             variant="ghost"
@@ -611,7 +611,7 @@ export function MessageComposer({
               readOnly
                 ? "Somente leitura — visualizadores podem navegar mas não responder"
                 : sessionExpired
-                  ? "Sessão expirada — use um template"
+                  ? "Janela fechada — use um template"
                   : "Digite uma mensagem... (Shift+Enter para nova linha)"
             }
             disabled={sessionExpired || readOnly}

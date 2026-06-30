@@ -1055,13 +1055,21 @@ export function MessageThread({
             </Badge>
           )}
           {/* Canal de origem badge — shows which channel (Meta/UazAPI) this
-              contact uses. Hidden on smallest phones where space is tight. */}
+              contact uses. Reads from effectiveProvider so it follows the
+              channel switcher immediately (no lag from contact.provider). */}
           {contact?.provider && (
             <Badge
               variant="outline"
               className="ml-1 hidden border-border text-[10px] text-muted-foreground sm:inline-flex sm:ml-2"
             >
-              {channelBadgeLabel(contact, connections)}
+              {channelBadgeLabel(
+                {
+                  provider: effectiveProvider,
+                  connection_id:
+                    channels.find((c) => c.id === selectedChannelId)?.connectionId ?? null,
+                },
+                connections,
+              )}
             </Badge>
           )}
         </div>
