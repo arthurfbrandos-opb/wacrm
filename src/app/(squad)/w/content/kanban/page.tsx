@@ -5,6 +5,8 @@
 // cards ricos (prévia + tipo + data) clicáveis pro detalhe. Arrastar card
 // não existe: quem move a peça é o processo (produção/aprovação/publicação).
 import Link from "next/link";
+import { useState } from "react";
+import { Trash2 } from "lucide-react";
 import { useContentPieces } from "@/hooks/use-content-pieces";
 import { useWorkspaceModules } from "@/hooks/use-workspace-modules";
 import { squadKanbanEnabled } from "@/lib/workspace/catalog";
@@ -12,6 +14,7 @@ import {
   groupByStatus,
   KANBAN_COLUMNS,
   KIND_LABEL,
+  pieceDeletable,
   type ContentPiece,
   type PieceStatus,
 } from "@/lib/workspace/content";
@@ -28,13 +31,43 @@ const STATUS_COLOR: Record<PieceStatus, string> = {
   publicada: "#4ADE80",
 };
 
-function PieceCard({ piece }: { piece: ContentPiece }) {
+function PieceCard({ piece, onDeleted }: { piece: ContentPiece; onDeleted: () => void }) {
   const dateIso = piece.scheduled_at ?? piece.published_at;
+  const [deleting, setDeleting] = useState(false);
+
+  async function excluir(e: React.MouseEvent) {
+    // O card inteiro é um Link — a lixeira não pode navegar.
+    e.preventDefault();
+    e.stopPropagation();
+    if (!window.confirm(`Excluir a peça "${piece.title}"? Isso não tem volta.`)) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/workspace/content/pieces/${piece.id}`, { method: "DELETE" });
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(json.error ?? `erro ${res.status}`);
+      onDeleted();
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : String(err));
+      setDeleting(false);
+    }
+  }
+
   return (
     <Link
       href={`/w/content/pecas/${piece.id}`}
-      className="block rounded-lg border border-border bg-card p-3 transition-colors hover:border-primary/40 hover:bg-muted"
+      className={`group relative block rounded-lg border border-border bg-card p-3 transition-colors hover:border-primary/40 hover:bg-muted ${deleting ? "pointer-events-none opacity-50" : ""}`}
     >
+      {pieceDeletable(piece.status) ? (
+        <button
+          type="button"
+          onClick={excluir}
+          aria-label={`Excluir peça ${piece.title}`}
+          title="Excluir peça"
+          className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-md border border-border bg-card/90 text-muted-foreground opacity-0 transition-opacity hover:border-red-400/50 hover:text-red-400 focus-visible:opacity-100 group-hover:opacity-100"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
+      ) : null}
       {piece.preview_url ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -58,7 +91,7 @@ function PieceCard({ piece }: { piece: ContentPiece }) {
 }
 
 export default function SquadContentKanbanPage() {
-  const { pieces, error } = useContentPieces();
+  const { pieces, error, reload } = useContentPieces();
   const grouped = pieces ? groupByStatus(pieces) : null;
 
   // "Gostinho": kanban fora do plano — mostra as etapas, não os cards.
@@ -151,7 +184,7 @@ export default function SquadContentKanbanPage() {
                       sem peças aqui
                     </div>
                   ) : (
-                    items.map((p) => <PieceCard key={p.id} piece={p} />)
+                    items.map((p) => <PieceCard key={p.id} piece={p} onDeleted={reload} />)
                   )}
                 </div>
               </div>

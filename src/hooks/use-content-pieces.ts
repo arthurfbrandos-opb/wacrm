@@ -1,7 +1,7 @@
 "use client";
 
 // Peças da Squad Content (conta atual). Client no effect (prerender-safe).
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { loadPieces } from "@/lib/workspace/content-queries";
 import type { ContentPiece } from "@/lib/workspace/content";
@@ -9,6 +9,8 @@ import type { ContentPiece } from "@/lib/workspace/content";
 export function useContentPieces() {
   const [pieces, setPieces] = useState<ContentPiece[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [tick, setTick] = useState(0);
+  const reload = useCallback(() => setTick((t) => t + 1), []);
 
   useEffect(() => {
     let alive = true;
@@ -23,7 +25,7 @@ export function useContentPieces() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [tick]);
 
-  return { pieces, error };
+  return { pieces, error, reload };
 }
