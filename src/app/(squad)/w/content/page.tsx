@@ -10,11 +10,14 @@ import { useContentPieces } from "@/hooks/use-content-pieces";
 import {
   buildContentDashboard,
   KIND_LABEL,
+  piecePropostaPendente,
   STATUS_LABEL,
 } from "@/lib/workspace/content";
 
 export default function SquadContentDashboardPage() {
-  const { pieces, error } = useContentPieces();
+  const { pieces: todas, error } = useContentPieces();
+  // Proposta da linha só conta nos painéis depois que o cliente aprova a ideia.
+  const pieces = todas ? todas.filter((p) => !piecePropostaPendente(p)) : null;
   const dash = pieces ? buildContentDashboard(pieces, new Date()) : null;
   const recent = (pieces ?? []).slice(0, 6);
 

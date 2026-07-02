@@ -10,7 +10,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useWorkspaceModules } from "@/hooks/use-workspace-modules";
 import { useContentPieces } from "@/hooks/use-content-pieces";
 import { buildWorkspaceMenu, moduleAvailability } from "@/lib/workspace/catalog";
-import { buildContentDashboard } from "@/lib/workspace/content";
+import { buildContentDashboard, piecePropostaPendente } from "@/lib/workspace/content";
 import { buildWorkspaceActions, nextScheduled } from "@/lib/workspace/overview";
 import { MetricCard } from "@/components/dashboard/metric-card";
 import { TerminalWindow } from "@/components/ui/terminal-window";
@@ -23,7 +23,9 @@ function fmtDia(iso: string): string {
 export default function WorkspaceOverviewPage() {
   const { profile, account } = useAuth();
   const { states, loading } = useWorkspaceModules();
-  const { pieces } = useContentPieces();
+  const { pieces: todas } = useContentPieces();
+  // Proposta da linha editorial não conta na visão geral até ser aprovada.
+  const pieces = todas ? todas.filter((p) => !piecePropostaPendente(p)) : null;
 
   const firstName = profile?.full_name?.split(" ")[0] ?? "";
   const contentOn = states ? moduleAvailability(states, "squad_content") === "on" : false;

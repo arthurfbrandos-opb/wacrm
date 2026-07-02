@@ -208,8 +208,87 @@ export function pecasDaLinha(accountId, lineId, pecas) {
     kind: p.tipo,
     status: 'pauta',
     channel: 'instagram',
-    meta: { line_id: lineId, planned_date: p.data, ...(p.tema ? { tema: p.tema } : {}) },
+    // pauta:'proposta' — a ideia nasce DENTRO da linha editorial; só entra no
+    // kanban/calendário depois que o cliente aprovar (pedido Arthur 02/07).
+    meta: {
+      line_id: lineId,
+      planned_date: p.data,
+      pauta: 'proposta',
+      ...(p.tema ? { tema: p.tema } : {}),
+    },
   }));
+}
+
+/** Prompt do job PRODUZIR_PAUTA — escrever SÓ o conteúdo (copy/roteiro) da peça. */
+export function montarPromptProduzirPauta(payload) {
+  const titulo = String(payload?.titulo ?? '').trim();
+  const tipo = payload?.tipo === 'estatico' ? 'estatico' : payload?.tipo === 'video' ? 'video' : 'carrossel';
+  const tema = String(payload?.tema ?? '').trim();
+  const nota = String(payload?.note ?? '').trim();
+  return [
+    'Você é a SQUAD CONTENT operando ESTE repositório de conteúdo do cliente (Dr. Rodolfo · HMR).',
+    `Escreva SÓ O CONTEÚDO (sem arte) da peça de pauta abaixo — o cliente aprova o texto ANTES da arte.`,
+    '',
+    `PEÇA: "${titulo}" · tipo ${tipo.toUpperCase()}`,
+    tema ? `ÂNGULO DA PAUTA: ${tema}` : 'ÂNGULO: puxe da pauta em linha-editorial/calendario.md.',
+    nota ? `AJUSTE PEDIDO PELO CLIENTE (refaça o conteúdo considerando isto): ${nota}` : '',
+    '',
+    'REGRAS:',
+    tipo === 'video'
+      ? '- Roteiro pela skill roteiro-video → producao/<slug>/roteiro.md. SEM passo de arte.'
+      : `- Copy pela skill construtor-copy → producao/<slug>/${tipo === 'carrossel' ? 'carrossel.md' : 'estatico.md'}. NÃO renderize arte nenhuma (nada de scripts de editor) — a arte vem DEPOIS da aprovação.`,
+    '- Fundação: referencia/fundacao-workspace/ PREVALECE sobre marca/*.md. Humanize (SEM travessão · máx 5 hashtags).',
+    '- NUNCA invente fatos, leis ou números.',
+    '- No campo "corpo" devolva o conteúdo COMPLETO em markdown (slides/cenas) SEM a legenda dentro',
+    '  (a legenda vai SÓ no campo "legenda").',
+    '',
+    'FORMATO DA SUA ÚLTIMA MENSAGEM — SOMENTE este JSON, sem texto em volta:',
+    '{"reply": "<aviso curto pro chat, linguagem de cliente>", "peca": {"slug": "<pasta em producao/>", "legenda": "<legenda completa>", "corpo": "<conteúdo completo em markdown>"}}',
+  ].join('\n');
+}
+
+/** Extrai o contrato do produzir_pauta ({reply, peca:{slug, legenda, corpo}}). */
+export function parseConteudoPauta(texto) {
+  const s = String(texto ?? '');
+  const start = s.indexOf('{');
+  const end = s.lastIndexOf('}');
+  if (start === -1 || end <= start) return null;
+  try {
+    const obj = JSON.parse(s.slice(start, end + 1));
+    if (typeof obj?.reply !== 'string' || !obj.reply.trim()) return null;
+    const p = obj.peca;
+    if (!p || typeof p !== 'object') return null;
+    if (typeof p.slug !== 'string' || !p.slug.trim()) return null;
+    if (typeof p.corpo !== 'string' || !p.corpo.trim()) return null;
+    return {
+      reply: obj.reply.trim(),
+      peca: {
+        slug: p.slug.trim(),
+        legenda: typeof p.legenda === 'string' ? p.legenda : '',
+        corpo: limparRoteiro(p.corpo) || p.corpo.trim(),
+      },
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Prompt do job GERAR_ARTE — renderizar a arte de um conteúdo JÁ aprovado. */
+export function montarPromptGerarArte(payload) {
+  const titulo = String(payload?.titulo ?? '').trim();
+  const slug = String(payload?.slug ?? '').trim();
+  const tipo = payload?.tipo === 'estatico' ? 'estatico' : 'carrossel';
+  return [
+    'Você é a SQUAD CONTENT operando ESTE repositório de conteúdo do cliente (Dr. Rodolfo · HMR).',
+    `O cliente APROVOU o conteúdo da peça "${titulo}" (producao/${slug}/). Agora renderize a ARTE.`,
+    '',
+    'REGRAS:',
+    `- NÃO reescreva a copy (ela está aprovada). Renderize com a skill ${tipo === 'carrossel' ? 'editor-carrossel/render_carrossel.py' : 'editor-estatico/render_estatico.py'} salvando em producao/${slug}/.`,
+    '- Fundo/foto: se existir referencia/fundos-cliente/ com imagens, PREFIRA essas (são do cliente).',
+    '',
+    'FORMATO DA SUA ÚLTIMA MENSAGEM — SOMENTE este JSON, sem texto em volta:',
+    `{"reply": "<aviso curto pro chat, linguagem de cliente>", "peca": {"slug": "${slug}", "arquivo_preview": "producao/${slug}/<primeiro-png>"}}`,
+  ].join('\n');
 }
 
 /** URL pública de um objeto no bucket público. */
@@ -884,6 +963,174 @@ async function processarLinhaEditorial(job) {
   }
 }
 
+/** PRODUZIR_PAUTA: escreve o CONTEÚDO de uma peça da pauta (arte vem depois da aprovação). */
+async function processarProduzirPauta(job) {
+  const pieceId = job.payload?.piece_id;
+  if (!pieceId) throw new Error('produzir_pauta sem piece_id no payload');
+  const { repo } = cfg();
+
+  const rows = await rest(
+    'GET',
+    `content_pieces?id=eq.${pieceId}&account_id=eq.${job.account_id}&select=id,title,kind,meta`,
+  );
+  const peca = rows?.[0];
+  if (!peca) throw new Error('peça da pauta não encontrada');
+
+  try {
+    let resultado;
+    let costUsd = null;
+    let model = ENV.GERADOR_MODEL ?? null;
+
+    if (FAKE) {
+      resultado = {
+        reply: '[FAKE] Conteúdo de teste pronto pra aprovar.',
+        peca: { slug: 'peca-fake', legenda: 'Legenda fake.', corpo: '# Conteúdo fake\n\nSlide 1…' },
+      };
+    } else {
+      await sincronizarFundacao(job.account_id).catch((e) =>
+        console.error(`[worker] sync da fundação falhou (segue sem): ${e instanceof Error ? e.message : e}`),
+      );
+      const saida = await rodarClaude(
+        montarPromptProduzirPauta({
+          piece_id: pieceId,
+          titulo: peca.title,
+          tipo: peca.kind,
+          tema: peca.meta?.tema ?? '',
+          note: job.payload?.note ?? '',
+        }),
+        repo,
+      );
+      costUsd = saida.costUsd;
+      model = saida.model;
+      resultado = parseConteudoPauta(saida.result);
+      if (!resultado) {
+        throw new Error(`agente respondeu fora do contrato do conteúdo: ${String(saida.result).slice(0, 300)}`);
+      }
+    }
+
+    // Conteúdo pronto → "Pra aprovar" (fase conteúdo). Vídeo guarda como roteiro.
+    const metaNova = {
+      ...(peca.meta ?? {}),
+      slug: resultado.peca.slug,
+      pauta: 'aprovada',
+      fase: 'conteudo',
+      ...(peca.kind === 'video'
+        ? { roteiro: resultado.peca.corpo }
+        : { copy: resultado.peca.corpo }),
+    };
+    await rest('PATCH', `content_pieces?id=eq.${pieceId}&account_id=eq.${job.account_id}`, {
+      status: 'aprovacao',
+      caption: resultado.peca.legenda || null,
+      meta: metaNova,
+      updated_at: new Date().toISOString(),
+    });
+    await rest('POST', 'content_chat_messages', {
+      account_id: job.account_id,
+      author: 'squad',
+      body: resultado.reply,
+      job_id: job.id,
+      piece_id: pieceId,
+    });
+    if (costUsd !== null) {
+      await rest('POST', 'os_cost_ledger', {
+        account_id: job.account_id,
+        agent: 'squad-content',
+        model,
+        date: new Date().toISOString().slice(0, 10),
+        cost_usd: costUsd,
+      });
+    }
+    await finalizarJob(job.id, { status: 'done', piece_id: pieceId, cost_usd: costUsd, model });
+    console.log(`[worker] job ${job.id} (produzir pauta) done · peça ${pieceId}`);
+  } catch (e) {
+    // Devolve a peça pra Pauta — a tela nunca fica presa em "produzindo".
+    await rest('PATCH', `content_pieces?id=eq.${pieceId}&account_id=eq.${job.account_id}`, {
+      status: 'pauta',
+      updated_at: new Date().toISOString(),
+    }).catch(() => {});
+    throw e;
+  }
+}
+
+/** GERAR_ARTE: renderiza a arte de um conteúdo aprovado e volta pra "Pra aprovar". */
+async function processarGerarArte(job) {
+  const pieceId = job.payload?.piece_id;
+  if (!pieceId) throw new Error('gerar_arte sem piece_id no payload');
+  const { repo } = cfg();
+
+  const rows = await rest(
+    'GET',
+    `content_pieces?id=eq.${pieceId}&account_id=eq.${job.account_id}&select=id,title,kind,meta`,
+  );
+  const peca = rows?.[0];
+  if (!peca) throw new Error('peça da arte não encontrada');
+  const slug = peca.meta?.slug;
+  if (!slug) throw new Error('peça sem slug — o conteúdo foi produzido pela ferramenta?');
+
+  try {
+    let resultado;
+    let costUsd = null;
+    let model = ENV.GERADOR_MODEL ?? null;
+
+    if (FAKE) {
+      resultado = { reply: '[FAKE] Arte de teste pronta.', peca: { slug, arquivo_preview: null } };
+    } else {
+      await sincronizarFundos(job.account_id).catch((e) =>
+        console.error(`[worker] sync de fundos falhou (segue sem): ${e instanceof Error ? e.message : e}`),
+      );
+      const saida = await rodarClaude(
+        montarPromptGerarArte({ piece_id: pieceId, titulo: peca.title, tipo: peca.kind, slug }),
+        repo,
+      );
+      costUsd = saida.costUsd;
+      model = saida.model;
+      resultado = parseResultado(saida.result);
+      if (!resultado) {
+        throw new Error(`agente respondeu fora do contrato da arte: ${String(saida.result).slice(0, 300)}`);
+      }
+    }
+
+    let previewUrl = null;
+    const rel = resultado.peca?.arquivo_preview;
+    if (!FAKE && rel) {
+      const abs = join(repo, rel);
+      if (existsSync(abs)) previewUrl = await uploadPreview(job.account_id, slug, abs);
+    }
+
+    await rest('PATCH', `content_pieces?id=eq.${pieceId}&account_id=eq.${job.account_id}`, {
+      status: 'aprovacao',
+      ...(previewUrl ? { preview_url: previewUrl } : {}),
+      meta: { ...(peca.meta ?? {}), fase: 'arte' },
+      updated_at: new Date().toISOString(),
+    });
+    await rest('POST', 'content_chat_messages', {
+      account_id: job.account_id,
+      author: 'squad',
+      body: resultado.reply,
+      job_id: job.id,
+      piece_id: pieceId,
+    });
+    if (costUsd !== null) {
+      await rest('POST', 'os_cost_ledger', {
+        account_id: job.account_id,
+        agent: 'squad-content',
+        model,
+        date: new Date().toISOString().slice(0, 10),
+        cost_usd: costUsd,
+      });
+    }
+    await finalizarJob(job.id, { status: 'done', piece_id: pieceId, cost_usd: costUsd, model });
+    console.log(`[worker] job ${job.id} (gerar arte) done · peça ${pieceId}`);
+  } catch (e) {
+    // Arte falhou → conteúdo segue aprovado; peça volta pra aprovação da fase conteúdo.
+    await rest('PATCH', `content_pieces?id=eq.${pieceId}&account_id=eq.${job.account_id}`, {
+      status: 'aprovacao',
+      updated_at: new Date().toISOString(),
+    }).catch(() => {});
+    throw e;
+  }
+}
+
 async function processar(job) {
   try {
     if (job.kind === 'chat') {
@@ -896,6 +1143,10 @@ async function processar(job) {
       await processarAgendamento(job);
     } else if (job.kind === 'gerar_semana') {
       await processarLinhaEditorial(job);
+    } else if (job.kind === 'produzir_pauta') {
+      await processarProduzirPauta(job);
+    } else if (job.kind === 'gerar_arte') {
+      await processarGerarArte(job);
     } else {
       throw new Error(`kind não suportado ainda: ${job.kind}`);
     }

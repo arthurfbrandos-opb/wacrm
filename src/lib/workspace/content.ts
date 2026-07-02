@@ -23,11 +23,17 @@ export interface ContentPiece {
   published_at: string | null
   created_at: string
   updated_at: string
-  /** line_id/planned_date/tema (linha editorial) · roteiro + video_url (vídeo). */
+  /**
+   * line_id/planned_date/tema (linha editorial) · pauta proposta→aprovada ·
+   * copy/fase (produção em dois portões) · roteiro + video_url (vídeo).
+   */
   meta?: {
     line_id?: string
     planned_date?: string
     tema?: string
+    pauta?: 'proposta' | 'aprovada'
+    copy?: string
+    fase?: 'conteudo' | 'arte'
     roteiro?: string
     video_url?: string
   } | null
@@ -52,6 +58,15 @@ export const KIND_LABEL: Record<PieceKind, string> = {
 export const STATUS_LABEL: Record<PieceStatus, string> = Object.fromEntries(
   KANBAN_COLUMNS.map((c) => [c.status, c.label]),
 ) as Record<PieceStatus, string>
+
+/**
+ * Pura: a peça ainda é PROPOSTA da linha editorial (o cliente não aprovou a
+ * ideia)? Proposta vive só na tela Linha editorial — kanban/calendário/painéis
+ * filtram com isto até a aprovação.
+ */
+export function piecePropostaPendente(piece: ContentPiece): boolean {
+  return piece.status === 'pauta' && piece.meta?.pauta === 'proposta'
+}
 
 /**
  * Pura: a peça pode ser excluída pelo cliente? Publicada nunca sai (histórico).

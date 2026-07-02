@@ -14,7 +14,12 @@ import {
   type EditorialLine,
   type NewLineInput,
 } from "@/lib/workspace/editorial";
-import { KIND_LABEL, STATUS_LABEL } from "@/lib/workspace/content";
+import {
+  KIND_LABEL,
+  piecePropostaPendente,
+  STATUS_LABEL,
+  type ContentPiece,
+} from "@/lib/workspace/content";
 import { useContentPieces } from "@/hooks/use-content-pieces";
 import { TerminalWindow } from "@/components/ui/terminal-window";
 
@@ -246,11 +251,199 @@ function GerandoSteps({ createdAt }: { createdAt: string }) {
   );
 }
 
+// Barra de aprovação em bloco: a pauta nasce como PROPOSTA (fora do kanban e
+// do calendário) — aqui o cliente aprova tudo de uma vez.
+function PautaAprovarTudo({
+  lineId,
+  count,
+  onChanged,
+}: {
+  lineId: string;
+  count: number;
+  onChanged: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function aprovarTudo() {
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await fetch(`/api/workspace/content/editorial-line/${lineId}/aprovar`, {
+        method: "POST",
+      });
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(json.error ?? `erro ${res.status}`);
+      onChanged();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300/30 bg-amber-300/5 px-3 py-2">
+      <p className="font-mono text-xs text-muted-foreground">
+        ▸ {count} ideia{count === 1 ? "" : "s"} esperando sua aprovação — clica em cada uma pra
+        ver o ângulo, ou aprova tudo:
+      </p>
+      {err ? <p className="font-mono text-xs text-red-400">{err}</p> : null}
+      <button
+        type="button"
+        disabled={busy}
+        onClick={aprovarTudo}
+        className="rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 font-mono text-xs font-medium text-primary transition-colors hover:bg-primary/20 disabled:opacity-50"
+      >
+        {busy ? "aprovando…" : "✓ Aprovar pauta inteira"}
+      </button>
+    </div>
+  );
+}
+
+// Um item da pauta na gestão visual da linha: clica → expande com o ângulo
+// completo e as ações do estado (aprovar ideia · produzir · revisar · agendar).
+function PautaItem({ piece, onChanged }: { piece: ContentPiece; onChanged: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const proposta = piecePropostaPendente(piece);
+
+  async function decidir(action: "aprovar" | "produzir") {
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await fetch(`/api/workspace/content/pieces/${piece.id}/pauta`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action }),
+      });
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(json.error ?? `erro ${res.status}`);
+      onChanged();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const chip = proposta
+    ? { label: "ideia · aprovar", cls: "border-amber-300/40 bg-amber-300/10 text-amber-300" }
+    : piece.status === "producao"
+      ? { label: "produzindo…", cls: "border-amber-300/40 bg-amber-300/10 text-amber-300" }
+      : piece.status === "aprovacao"
+        ? { label: "pra aprovar", cls: "border-[#A78BD8]/40 bg-[#A78BD8]/10 text-[#A78BD8]" }
+        : { label: STATUS_LABEL[piece.status], cls: "border-border text-muted-foreground" };
+
+  return (
+    <li className="rounded-lg border border-border bg-card/40">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left transition-colors hover:bg-muted/40"
+      >
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium text-foreground">{piece.title}</span>
+          <span className="font-mono text-[10px] text-muted-foreground">
+            {piece.meta?.planned_date
+              ? DATE_FMT.format(new Date(`${piece.meta.planned_date}T12:00:00`))
+              : ""}{" "}
+            · {KIND_LABEL[piece.kind]}
+          </span>
+        </span>
+        {piece.status === "producao" ? (
+          <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-amber-300" />
+        ) : null}
+        <span
+          className={`shrink-0 rounded-full border px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider ${chip.cls}`}
+        >
+          {chip.label}
+        </span>
+        <span className="shrink-0 font-mono text-xs text-muted-foreground">{open ? "▾" : "▸"}</span>
+      </button>
+
+      {open ? (
+        <div className="flex flex-col gap-2 border-t border-border/60 px-3 py-2.5">
+          {piece.meta?.tema ? (
+            <p className="text-sm text-muted-foreground">
+              <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground/70">
+                ângulo ·{" "}
+              </span>
+              {piece.meta.tema}
+            </p>
+          ) : null}
+          {err ? <p className="font-mono text-xs text-red-400">{err}</p> : null}
+
+          {proposta ? (
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => decidir("aprovar")}
+                className="rounded-md border border-primary/40 bg-primary/10 px-3 py-1.5 font-mono text-xs font-medium text-primary transition-colors hover:bg-primary/20 disabled:opacity-50"
+              >
+                ✓ Aprovar ideia
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => decidir("produzir")}
+                className="rounded-md border border-primary bg-primary px-3 py-1.5 font-mono text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+              >
+                ▶ Aprovar e produzir
+              </button>
+            </div>
+          ) : piece.status === "pauta" ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => decidir("produzir")}
+                className="rounded-md border border-primary bg-primary px-3 py-1.5 font-mono text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+              >
+                ▶ Produzir agora
+              </button>
+              <Link
+                href={`/w/content/pecas/${piece.id}`}
+                className="font-mono text-xs text-primary hover:underline"
+              >
+                abrir peça ▸
+              </Link>
+            </div>
+          ) : piece.status === "producao" ? (
+            <p className="font-mono text-xs text-muted-foreground">
+              {piece.meta?.fase === "conteudo" || piece.meta?.copy || piece.meta?.roteiro
+                ? "▸ a squad está fazendo a arte — volta pra sua aprovação já já."
+                : "▸ a squad está escrevendo o conteúdo — você aprova o texto antes da arte."}
+            </p>
+          ) : piece.status === "aprovacao" ? (
+            <Link
+              href={`/w/content/pecas/${piece.id}`}
+              className="self-start rounded-md border border-primary bg-primary px-3 py-1.5 font-mono text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            >
+              {piece.meta?.fase === "conteudo" ? "revisar o conteúdo ▸" : "revisar e aprovar ▸"}
+            </Link>
+          ) : (
+            <Link
+              href={`/w/content/pecas/${piece.id}`}
+              className="font-mono text-xs text-primary hover:underline"
+            >
+              abrir peça ▸
+            </Link>
+          )}
+        </div>
+      ) : null}
+    </li>
+  );
+}
+
 export default function LinhaEditorialPage() {
   const [lines, setLines] = useState<EditorialLine[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const { pieces } = useContentPieces();
+  const { pieces, reload: reloadPieces } = useContentPieces();
 
   const reload = useCallback(() => {
     const supabase = createClient();
@@ -263,13 +456,18 @@ export default function LinhaEditorialPage() {
     reload();
   }, [reload]);
 
-  // Enquanto tem linha "montando", atualiza sozinho a cada 5s.
+  // Atualiza sozinho enquanto tem trabalho em andamento: linha "montando" OU
+  // peça da linha em produção (a tela é a gestão visual do ciclo).
   const gerando = lines?.some((l) => l.status === "gerando") ?? false;
+  const produzindo = pieces?.some((p) => p.status === "producao") ?? false;
   useEffect(() => {
-    if (!gerando) return;
-    const t = setInterval(reload, 5000);
+    if (!gerando && !produzindo) return;
+    const t = setInterval(() => {
+      reload();
+      reloadPieces();
+    }, 5000);
     return () => clearInterval(t);
-  }, [gerando, reload]);
+  }, [gerando, produzindo, reload, reloadPieces]);
 
   const atual = lines?.[0] ?? null;
   const historico = lines?.slice(1) ?? [];
@@ -352,36 +550,35 @@ export default function LinhaEditorialPage() {
                   </p>
                 ) : null}
                 {pecasDaAtual.length > 0 ? (
-                  <ul className="flex flex-col gap-2">
-                    {pecasDaAtual
-                      .slice()
-                      .sort((a, b) =>
-                        String(a.meta?.planned_date ?? "").localeCompare(String(b.meta?.planned_date ?? "")),
-                      )
-                      .map((p) => (
-                        <li key={p.id}>
-                          <Link
-                            href={`/w/content/pecas/${p.id}`}
-                            className="flex items-center justify-between gap-2 rounded-lg border border-border bg-card/40 px-3 py-2 transition-colors hover:border-primary/40"
-                          >
-                            <span className="min-w-0 flex-1">
-                              <span className="block truncate text-sm font-medium text-foreground">
-                                {p.title}
-                              </span>
-                              <span className="font-mono text-[10px] text-muted-foreground">
-                                {p.meta?.planned_date
-                                  ? DATE_FMT.format(new Date(`${p.meta.planned_date}T12:00:00`))
-                                  : ""}{" "}
-                                · {KIND_LABEL[p.kind]}
-                              </span>
-                            </span>
-                            <span className="shrink-0 rounded-full border border-border px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
-                              {STATUS_LABEL[p.status]}
-                            </span>
-                          </Link>
-                        </li>
-                      ))}
-                  </ul>
+                  <>
+                    {pecasDaAtual.some((p) => piecePropostaPendente(p)) ? (
+                      <PautaAprovarTudo
+                        lineId={atual.id}
+                        count={pecasDaAtual.filter((p) => piecePropostaPendente(p)).length}
+                        onChanged={() => {
+                          reload();
+                          reloadPieces();
+                        }}
+                      />
+                    ) : null}
+                    <ul className="flex flex-col gap-2">
+                      {pecasDaAtual
+                        .slice()
+                        .sort((a, b) =>
+                          String(a.meta?.planned_date ?? "").localeCompare(String(b.meta?.planned_date ?? "")),
+                        )
+                        .map((p) => (
+                          <PautaItem
+                            key={p.id}
+                            piece={p}
+                            onChanged={() => {
+                              reload();
+                              reloadPieces();
+                            }}
+                          />
+                        ))}
+                    </ul>
+                  </>
                 ) : atual.status === "ativa" ? (
                   <p className="font-mono text-xs text-muted-foreground">
                     ▸ pauta montada — as peças aparecem aqui e no calendário.
