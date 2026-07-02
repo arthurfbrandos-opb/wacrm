@@ -6,6 +6,7 @@ import {
   extractDriveFolderId,
   montarPrompt,
   montarPromptAjuste,
+  montarPromptGeracao,
   montarPromptPublisher,
   parsePublisher,
   parseResultado,
@@ -92,6 +93,20 @@ describe('decryptGcm', () => {
 
   it('explode em formato inesperado', () => {
     expect(() => decryptGcm('so-uma-parte', KEY)).toThrow()
+  })
+})
+
+describe('montarPromptGeracao', () => {
+  it('gera prompt de estático com o tema', () => {
+    const p = montarPromptGeracao({ tema: 'tarifa de cadastro indevida', tipo: 'estatico' })
+    expect(p).toContain('ESTATICO')
+    expect(p).toContain('tarifa de cadastro indevida')
+    expect(p).toContain('render_estatico.py')
+    expect(p).toContain('"tipo": "estatico"')
+  })
+  it('tipo desconhecido cai pra carrossel', () => {
+    const p = montarPromptGeracao({ tema: 'x', tipo: 'reels' })
+    expect(p).toContain('render_carrossel.py')
   })
 })
 

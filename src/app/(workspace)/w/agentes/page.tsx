@@ -3,6 +3,7 @@
 // Tela Agentes — só especialistas individuais (kind='agent'; squads têm tela própria).
 // Cards vêm do os_agent_registry da conta (RLS). O botão "Usar agente" liga na
 // fatia ④ (worker de produção) — até lá o estado é explícito no chip.
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Bot } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -86,14 +87,23 @@ export default function WorkspaceAgentsPage() {
                     {AGENT_STATUS_LABEL[a.status] ?? a.status}
                   </span>
                 </div>
-                <button
-                  type="button"
-                  disabled
-                  title={active ? "Liga junto com a ativação da squad" : "Em breve"}
-                  className="mt-4 w-full cursor-not-allowed rounded-lg border border-border px-3 py-2 font-mono text-sm text-muted-foreground opacity-60"
-                >
-                  Usar agente · {active ? "ativação em andamento" : "em breve"}
-                </button>
+                {active ? (
+                  <Link
+                    href={`/w/agentes/${a.key}`}
+                    className="mt-4 block w-full rounded-lg border border-primary/40 bg-primary/10 px-3 py-2 text-center font-mono text-sm font-medium text-primary transition-colors hover:bg-primary/20"
+                  >
+                    Usar agente ▸
+                  </Link>
+                ) : (
+                  <button
+                    type="button"
+                    disabled
+                    title="Em breve"
+                    className="mt-4 w-full cursor-not-allowed rounded-lg border border-border px-3 py-2 font-mono text-sm text-muted-foreground opacity-60"
+                  >
+                    Usar agente · em breve
+                  </button>
+                )}
               </div>
             );
           })}

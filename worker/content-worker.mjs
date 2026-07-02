@@ -109,6 +109,27 @@ export function decryptGcm(encryptedText, keyHex) {
   return out;
 }
 
+/** Prompt do job de GERAÇÃO direta (tela "Usar agente" — sem chat). */
+export function montarPromptGeracao(payload) {
+  const tema = String(payload?.tema ?? '').trim();
+  const tipo = payload?.tipo === 'estatico' ? 'estatico' : 'carrossel';
+  return [
+    'Você é a SQUAD CONTENT operando ESTE repositório de conteúdo do cliente (Dr. Rodolfo · HMR).',
+    `Produza UMA peça do tipo ${tipo.toUpperCase()} sobre o tema abaixo, ponta a ponta.`,
+    '',
+    `TEMA: ${tema}`,
+    '',
+    'REGRAS:',
+    '- Copy pela skill construtor-copy (voz da fundação em marca/ · humanize · SEM travessão · máx 5 hashtags).',
+    `- Arte pelo script da skill ${tipo === 'carrossel' ? 'editor-carrossel/render_carrossel.py' : 'editor-estatico/render_estatico.py'}, salvando em producao/<slug>/.`,
+    '- Fundo/foto: se existir referencia/fundos-cliente/ com imagens, PREFIRA essas (são do cliente).',
+    '- NUNCA invente fatos, leis, números ou resultados.',
+    '',
+    'FORMATO DA SUA ÚLTIMA MENSAGEM — SOMENTE este JSON, sem texto em volta:',
+    '{"reply": "<resumo curto do que produziu>", "peca": {"slug": "<pasta em producao/>", "titulo": "<título>", "tipo": "' + tipo + '", "legenda": "<legenda completa>", "arquivo_preview": "producao/<slug>/<primeiro-png>"}}',
+  ].join('\n');
+}
+
 /** Prompt do job de AJUSTE — refazer a peça existente com a observação do cliente. */
 export function montarPromptAjuste(payload) {
   const nota = String(payload?.note ?? '').trim();
@@ -334,7 +355,8 @@ async function sincronizarFundos(accountId) {
   if (baixadas) console.log(`[worker] fundos do cliente: ${baixadas} imagem(ns) nova(s) sincronizada(s)`);
 }
 
-async function processarChat(job) {
+/** Produz (chat OU geração direta) e persiste: peça + mensagem + ledger + job. */
+async function produzirEPersistir(job, prompt, tituloFake) {
   const { repo } = cfg();
 
   if (!FAKE) {
@@ -353,14 +375,14 @@ async function processarChat(job) {
       reply: '[FAKE] Peça de teste produzida — confere no kanban em "Pra aprovar".',
       peca: {
         slug: 'peca-fake',
-        titulo: `[FAKE] ${String(job.payload?.message ?? 'peça de teste').slice(0, 60)}`,
+        titulo: `[FAKE] ${String(tituloFake ?? 'peça de teste').slice(0, 60)}`,
         tipo: 'carrossel',
         legenda: 'Legenda de teste do worker (modo FAKE).',
         arquivo_preview: null,
       },
     };
   } else {
-    const saida = await rodarClaude(montarPrompt(job.payload), repo);
+    const saida = await rodarClaude(prompt, repo);
     costUsd = saida.costUsd;
     model = saida.model;
     resultado = parseResultado(saida.result);
@@ -411,6 +433,14 @@ async function processarChat(job) {
 
   await finalizarJob(job.id, { status: 'done', piece_id: pieceId, cost_usd: costUsd, model });
   console.log(`[worker] job ${job.id} done${pieceId ? ` · peça ${pieceId}` : ''}${costUsd !== null ? ` · $${costUsd}` : ''}`);
+}
+
+async function processarChat(job) {
+  await produzirEPersistir(job, montarPrompt(job.payload), job.payload?.message);
+}
+
+async function processarGeracao(job) {
+  await produzirEPersistir(job, montarPromptGeracao(job.payload), job.payload?.tema);
 }
 
 // ── Ajuste de peça (cliente pediu mudança na aprovação) ─────────────────────
@@ -587,6 +617,8 @@ async function processar(job) {
   try {
     if (job.kind === 'chat') {
       await processarChat(job);
+    } else if (job.kind === 'gerar_peca') {
+      await processarGeracao(job);
     } else if (job.kind === 'ajustar_peca') {
       await processarAjuste(job);
     } else if (job.kind === 'agendar_publicacao') {
