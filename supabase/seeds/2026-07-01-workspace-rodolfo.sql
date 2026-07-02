@@ -7,8 +7,10 @@
 -- Obs.: plan_id fica de fora até o Arthur reconciliar nomes/preços oficiais (spec-mãe §13).
 
 -- ⚠️ SUBSTITUIR antes de rodar:
+-- (nunca comentar na MESMA linha de um \set — o psql engole o comentário como argumento)
+-- ns_account_id = id real da NS, conferido em prod 02/07.
 \set rodolfo_account_id '\'<ACCOUNT-ID-DO-RODOLFO>\''
-\set ns_account_id '\'7eb23b90-ce66-40bc-8e23-1d2ac6458300\''  -- id real da NS (conferido em prod 02/07)
+\set ns_account_id '\'7eb23b90-ce66-40bc-8e23-1d2ac6458300\''
 
 -- ── Módulos da conta Rodolfo ──────────────────────────────────────────────
 -- workspace = marcador de conta-cliente (login cai no /w) · squad_content ON ·
