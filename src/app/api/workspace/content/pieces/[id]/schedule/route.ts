@@ -32,7 +32,7 @@ export async function POST(
 
   const { data: piece, error: pieceErr } = await db
     .from("content_pieces")
-    .select("id, title, status, meta")
+    .select("id, title, status, kind, meta")
     .eq("id", id)
     .eq("account_id", accountId)
     .maybeSingle();
@@ -41,6 +41,14 @@ export async function POST(
   if (piece.status !== "aprovada") {
     return NextResponse.json(
       { error: `só peça aprovada pode ser agendada (status atual: ${piece.status})` },
+      { status: 409 },
+    );
+  }
+  // Vídeo só agenda depois que ele gravou e colou o link (senão vai post sem mídia).
+  const videoUrl = (piece.meta as { video_url?: string } | null)?.video_url ?? null;
+  if (piece.kind === "video" && !videoUrl) {
+    return NextResponse.json(
+      { error: "grave o vídeo e cole o link dele na peça antes de agendar" },
       { status: 409 },
     );
   }
@@ -67,6 +75,7 @@ export async function POST(
       when: when.toISOString(),
       slug: (piece.meta as { slug?: string } | null)?.slug ?? null,
       title: piece.title,
+      ...(videoUrl ? { video_url: videoUrl } : {}),
     },
     created_by: userId,
   });
