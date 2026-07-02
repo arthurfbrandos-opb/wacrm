@@ -181,7 +181,7 @@ export default function UsarAgentePage() {
                     </div>
                   ) : job.status === "done" ? (
                     <div className="flex items-center justify-between gap-2">
-                      <p className="font-mono text-xs text-primary">✓ Peça pronta — está em "Pra aprovar".</p>
+                      <p className="font-mono text-xs text-primary">✓ Peça pronta — está em &ldquo;Pra aprovar&rdquo;.</p>
                       {job.piece_id ? (
                         <Link
                           href={`/w/content/pecas/${job.piece_id}`}

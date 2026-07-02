@@ -9,6 +9,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
+import { useWorkspaceModules } from "@/hooks/use-workspace-modules";
+import { moduleAvailability } from "@/lib/workspace/catalog";
 import {
   ArrowLeft,
   CalendarDays,
@@ -155,11 +157,40 @@ function SquadShellInner({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
 
+  // Gate de módulo na rota (C9): URL direta sem squad_content ligado → bloqueio
+  // honesto (o RLS já protege os dados; isto protege a experiência).
+  const { states: moduleStates, loading: modulesLoading } = useWorkspaceModules();
+  const squadOff =
+    !modulesLoading &&
+    moduleStates !== null &&
+    moduleAvailability(moduleStates, "squad_content") !== "on";
+
   useEffect(() => {
     if (!loading && !user) {
       router.push("/login");
     }
   }, [user, loading, router]);
+
+  if (squadOff) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background p-6">
+        <div className="max-w-md rounded-xl border border-dashed border-border bg-card p-8 text-center">
+          <p className="font-mono text-sm font-medium text-foreground">
+            Squad Content não está no seu plano
+          </p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Fale com a Negócio Simples pra ativar este módulo.
+          </p>
+          <Link
+            href="/w"
+            className="mt-4 inline-block rounded-lg border border-primary/40 bg-primary/10 px-4 py-2 font-mono text-sm text-primary transition-colors hover:bg-primary/20"
+          >
+            ← Voltar ao workspace
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

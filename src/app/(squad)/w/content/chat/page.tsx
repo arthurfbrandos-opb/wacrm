@@ -116,7 +116,7 @@ export default function SquadContentChatPage() {
           <p className="text-sm text-muted-foreground">carregando…</p>
         ) : messages.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            Nenhuma conversa ainda. Exemplo: <span className="text-foreground">"gera um carrossel sobre juros abusivos em financiamento de carro"</span>
+            Nenhuma conversa ainda. Exemplo: <span className="text-foreground">&ldquo;gera um carrossel sobre juros abusivos em financiamento de carro&rdquo;</span>
           </p>
         ) : (
           messages.map((m) => (
