@@ -47,6 +47,16 @@ export const STATUS_LABEL: Record<PieceStatus, string> = Object.fromEntries(
   KANBAN_COLUMNS.map((c) => [c.status, c.label]),
 ) as Record<PieceStatus, string>
 
+/**
+ * Pura: a peça pode ser excluída pelo cliente? Publicada nunca sai (histórico).
+ * Agendada também não: o agendamento já vive no Metricool — deletar só o card
+ * deixaria o post sair fantasma (cancelar lá primeiro, aí a peça volta pra
+ * Aprovada e pode ser excluída).
+ */
+export function pieceDeletable(status: PieceStatus): boolean {
+  return status !== 'publicada' && status !== 'agendada'
+}
+
 /** Pura: agrupa as peças por coluna do kanban, preservando a ordem das colunas. */
 export function groupByStatus(pieces: ContentPiece[]): Map<PieceStatus, ContentPiece[]> {
   const grouped = new Map<PieceStatus, ContentPiece[]>(

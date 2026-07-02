@@ -5,6 +5,7 @@ import {
   groupByStatus,
   KANBAN_COLUMNS,
   pieceCalendarDate,
+  pieceDeletable,
   type ContentPiece,
 } from './content'
 
@@ -69,6 +70,17 @@ describe('pieceCalendarDate', () => {
       pieceCalendarDate(piece({ scheduled_at: '2026-07-20T10:00:00Z', published_at: '2026-07-01T10:00:00Z' }))!.getDate(),
     ).toBe(20)
     expect(pieceCalendarDate(piece({}))).toBeNull()
+  })
+})
+
+describe('pieceDeletable', () => {
+  it('publicada e agendada não saem; o resto pode', () => {
+    expect(pieceDeletable('publicada')).toBe(false)
+    expect(pieceDeletable('agendada')).toBe(false)
+    expect(pieceDeletable('pauta')).toBe(true)
+    expect(pieceDeletable('producao')).toBe(true)
+    expect(pieceDeletable('aprovacao')).toBe(true)
+    expect(pieceDeletable('aprovada')).toBe(true)
   })
 })
 

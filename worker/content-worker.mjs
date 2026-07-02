@@ -22,7 +22,7 @@
 
 import { spawn } from 'node:child_process';
 import { createDecipheriv } from 'node:crypto';
-import { readFileSync, existsSync, writeFileSync, mkdtempSync, mkdirSync } from 'node:fs';
+import { readFileSync, existsSync, writeFileSync, mkdtempSync, mkdirSync, readdirSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -467,11 +467,17 @@ async function sincronizarFundacao(accountId) {
     `content_brand_profile?account_id=eq.${accountId}&select=section_key,title,content&order=sort_order`,
   );
   const arquivos = fundacaoParaArquivos(rows);
-  if (!arquivos.length) return;
   const { repo } = cfg();
-  mkdirSync(join(repo, 'referencia', 'fundacao-workspace'), { recursive: true });
+  const dir = join(repo, 'referencia', 'fundacao-workspace');
+  mkdirSync(dir, { recursive: true });
   for (const a of arquivos) writeFileSync(join(repo, a.rel), a.body);
-  console.log(`[worker] fundação do workspace: ${arquivos.length} seção(ões) sincronizada(s)`);
+  // Seção que saiu do banco (deletada/esvaziada) não pode ficar prevalecendo
+  // como arquivo órfão — remove o que não está no conjunto atual.
+  const atuais = new Set(arquivos.map((a) => a.rel.split('/').pop()));
+  for (const f of readdirSync(dir)) {
+    if (f.endsWith('.md') && !atuais.has(f)) unlinkSync(join(dir, f));
+  }
+  if (arquivos.length) console.log(`[worker] fundação do workspace: ${arquivos.length} seção(ões) sincronizada(s)`);
 }
 
 /** Produz (chat OU geração direta) e persiste: peça + mensagem + ledger + job. */
