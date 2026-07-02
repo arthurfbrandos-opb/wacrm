@@ -39,6 +39,9 @@ export default function WorkspaceConfigPage() {
 
   const metricool = connections?.find((c) => c.provider === "metricool");
   const metricoolOn = metricool?.status === "connected";
+  const gdrive = connections?.find((c) => c.provider === "google_drive");
+  const gdriveOn = gdrive?.status === "connected";
+  const [folderUrl, setFolderUrl] = useState("");
 
   const save = async (payload: Record<string, unknown>, okMsg: string) => {
     setBusy(true);
@@ -135,11 +138,17 @@ export default function WorkspaceConfigPage() {
           )}
         </div>
 
-        {/* Google Drive — fatia ⑥ */}
+        {/* Google Drive — pasta de imagens de fundo (compartilhada por link) */}
         <div className="rounded-xl border border-border bg-card p-4">
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-2">
-              <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-muted text-muted-foreground">
+              <span
+                className={
+                  gdriveOn
+                    ? "flex h-9 w-9 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary"
+                    : "flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-muted text-muted-foreground"
+                }
+              >
                 <FolderOpen className="h-4 w-4" />
               </span>
               <div>
@@ -149,17 +158,57 @@ export default function WorkspaceConfigPage() {
                 </p>
               </div>
             </div>
-            <span className="rounded-full border border-border px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-muted-foreground">
-              em breve
+            <span
+              className={
+                gdriveOn
+                  ? "rounded-full border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-primary"
+                  : "rounded-full border border-border px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-muted-foreground"
+              }
+            >
+              {connections === null ? "…" : gdriveOn ? "conectado" : "desconectado"}
             </span>
           </div>
-          <button
-            type="button"
-            disabled
-            className="mt-4 w-full cursor-not-allowed rounded-lg border border-border px-3 py-2 font-mono text-sm text-muted-foreground opacity-60"
-          >
-            Conectar · em breve
-          </button>
+
+          {gdriveOn ? (
+            <div className="mt-4 flex flex-col gap-2">
+              <p className="truncate rounded-lg border border-border/60 bg-background px-3 py-2 font-mono text-xs text-muted-foreground">
+                {String((gdrive?.config as { folder_url?: string })?.folder_url ?? "")}
+              </p>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() =>
+                  save({ provider: "google_drive", disconnect: true }, "Pasta desconectada.")
+                }
+                className="rounded-lg border border-border px-3 py-2 font-mono text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+              >
+                Desconectar
+              </button>
+            </div>
+          ) : (
+            <div className="mt-4 flex flex-col gap-2">
+              <input
+                type="url"
+                value={folderUrl}
+                onChange={(e) => setFolderUrl(e.target.value)}
+                placeholder="Cole o link da pasta (compartilhada: qualquer pessoa com o link)"
+                className="rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm text-foreground placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none"
+              />
+              <button
+                type="button"
+                disabled={busy || !folderUrl.trim()}
+                onClick={() =>
+                  save(
+                    { provider: "google_drive", config: { folder_url: folderUrl.trim() } },
+                    "Pasta conectada — o squad passa a usar suas imagens de fundo.",
+                  )
+                }
+                className="rounded-lg border border-primary/40 bg-primary/10 px-3 py-2 font-mono text-sm font-medium text-primary transition-colors hover:bg-primary/20 disabled:opacity-50"
+              >
+                Conectar pasta
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

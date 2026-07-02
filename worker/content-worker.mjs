@@ -22,7 +22,7 @@
 
 import { spawn } from 'node:child_process';
 import { createDecipheriv } from 'node:crypto';
-import { readFileSync, existsSync, writeFileSync, mkdtempSync } from 'node:fs';
+import { readFileSync, existsSync, writeFileSync, mkdtempSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -43,6 +43,7 @@ export function montarPrompt(payload) {
     '  arte pelos scripts das skills (editor-carrossel/render_carrossel.py ou editor-estatico/render_estatico.py),',
     '  salvando em producao/<slug>/. Use uma imagem de referencia/ como foto/fundo se precisar.',
     '- Se NÃO for pedido de peça (dúvida, ajuste de rota, conversa): apenas responda no campo "reply" e "peca": null.',
+    '- Fundo/foto: se existir referencia/fundos-cliente/ com imagens, PREFIRA essas (são do cliente).',
     '- NUNCA invente fatos, leis, números ou resultados. Na dúvida, pergunte no "reply".',
     '- Responda em PT-BR, tom direto e claro (o leitor é o cliente).',
     '',
@@ -147,6 +148,21 @@ export function montarPromptPublisher(payload, peca) {
     'FORMATO DA SUA ÚLTIMA MENSAGEM — SOMENTE este JSON, sem texto em volta:',
     '{"ok": true|false, "detalhe": "<confirmação ou motivo da falha>"}',
   ].join('\n');
+}
+
+/** Extrai o id da pasta de um link do Google Drive (folders/<id> ou ?id=). */
+export function extractDriveFolderId(url) {
+  const s = String(url ?? '');
+  const byPath = s.match(/\/folders\/([A-Za-z0-9_-]+)/);
+  if (byPath) return byPath[1];
+  const byQuery = s.match(/[?&]id=([A-Za-z0-9_-]+)/);
+  return byQuery ? byQuery[1] : null;
+}
+
+/** URL da listagem de imagens da pasta pública (Drive API v3 + API key). */
+export function driveListUrl(folderId, apiKey) {
+  const q = encodeURIComponent(`'${folderId}' in parents and mimeType contains 'image/' and trashed = false`);
+  return `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,mimeType)&pageSize=100&key=${apiKey}`;
 }
 
 /** Extrai o contrato do Publisher ({ok, detalhe}) da resposta do agente. */
@@ -285,8 +301,47 @@ async function uploadPreview(accountId, slug, absPath) {
   return publicUrl(url, BUCKET, objectPath);
 }
 
+// ── Fundos do cliente (Google Drive · pasta por link · fatia ⑥) ─────────────
+// Best-effort ANTES de produzir: baixa imagens novas da pasta conectada pra
+// referencia/fundos-cliente/ do repo-cérebro. Falha NUNCA bloqueia a produção.
+async function sincronizarFundos(accountId) {
+  const apiKey = ENV.GOOGLE_API_KEY;
+  if (!apiKey) return; // sem API key da NS → agente usa referencia/ padrão
+  const rows = await rest(
+    'GET',
+    `integration_connections?account_id=eq.${accountId}&provider=eq.google_drive&status=eq.connected&select=config`,
+  );
+  const folderUrl = rows?.[0]?.config?.folder_url;
+  const folderId = extractDriveFolderId(folderUrl);
+  if (!folderId) return;
+
+  const listRes = await fetch(driveListUrl(folderId, apiKey));
+  if (!listRes.ok) throw new Error(`drive list HTTP ${listRes.status}`);
+  const { files = [] } = await listRes.json();
+
+  const destDir = join(cfg().repo, 'referencia', 'fundos-cliente');
+  mkdirSync(destDir, { recursive: true });
+  let baixadas = 0;
+  for (const f of files) {
+    const safeName = String(f.name || f.id).replace(/[^\w.\-]+/g, '_');
+    const dest = join(destDir, safeName);
+    if (existsSync(dest)) continue; // já sincronizada
+    const dl = await fetch(`https://www.googleapis.com/drive/v3/files/${f.id}?alt=media&key=${apiKey}`);
+    if (!dl.ok) continue;
+    writeFileSync(dest, Buffer.from(await dl.arrayBuffer()));
+    baixadas++;
+  }
+  if (baixadas) console.log(`[worker] fundos do cliente: ${baixadas} imagem(ns) nova(s) sincronizada(s)`);
+}
+
 async function processarChat(job) {
   const { repo } = cfg();
+
+  if (!FAKE) {
+    await sincronizarFundos(job.account_id).catch((e) =>
+      console.error(`[worker] sync de fundos falhou (segue sem): ${e instanceof Error ? e.message : e}`),
+    );
+  }
 
   let resultado;
   let costUsd = null;
@@ -364,6 +419,12 @@ async function processarAjuste(job) {
   const { repo } = cfg();
   const pieceId = job.payload?.piece_id;
   if (!pieceId) throw new Error('ajustar_peca sem piece_id no payload');
+
+  if (!FAKE) {
+    await sincronizarFundos(job.account_id).catch((e) =>
+      console.error(`[worker] sync de fundos falhou (segue sem): ${e instanceof Error ? e.message : e}`),
+    );
+  }
 
   let resultado;
   let costUsd = null;

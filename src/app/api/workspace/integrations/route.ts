@@ -55,16 +55,29 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, status: "disconnected" });
   }
 
+  // google_drive é config-only (pasta compartilhada por link — sem credencial);
+  // os demais providers exigem token.
   const token = body?.token?.trim();
-  if (!token) return NextResponse.json({ error: "token obrigatório" }, { status: 400 });
-  if (token.length > 4000) return NextResponse.json({ error: "token grande demais" }, { status: 400 });
+  const configOnly = provider === "google_drive";
+  if (!configOnly && !token) {
+    return NextResponse.json({ error: "token obrigatório" }, { status: 400 });
+  }
+  if (token && token.length > 4000) {
+    return NextResponse.json({ error: "token grande demais" }, { status: 400 });
+  }
+  if (configOnly) {
+    const folderUrl = String((body?.config as { folder_url?: unknown } | undefined)?.folder_url ?? "").trim();
+    if (!/^https:\/\/drive\.google\.com\//.test(folderUrl)) {
+      return NextResponse.json({ error: "cole o link da pasta do Google Drive" }, { status: 400 });
+    }
+  }
 
   const { error } = await db.from("integration_connections").upsert(
     {
       account_id: accountId,
       provider,
       status: "connected",
-      credentials_enc: encrypt(token),
+      credentials_enc: token ? encrypt(token) : null,
       config: body?.config ?? {},
       updated_at: new Date().toISOString(),
     },

@@ -2,6 +2,8 @@ import { randomBytes, createCipheriv } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import {
   decryptGcm,
+  driveListUrl,
+  extractDriveFolderId,
   montarPrompt,
   montarPromptAjuste,
   montarPromptPublisher,
@@ -108,6 +110,29 @@ describe('prompts de ajuste e publisher', () => {
     expect(p).toContain('legenda x')
     expect(p).toContain('https://img/x.png')
     expect(p).toContain('Não invente confirmação')
+  })
+})
+
+describe('extractDriveFolderId + driveListUrl', () => {
+  it('extrai id de /folders/<id> com e sem query', () => {
+    expect(extractDriveFolderId('https://drive.google.com/drive/folders/1AbC_d-9xYz')).toBe('1AbC_d-9xYz')
+    expect(
+      extractDriveFolderId('https://drive.google.com/drive/folders/1AbC_d-9xYz?usp=sharing'),
+    ).toBe('1AbC_d-9xYz')
+  })
+  it('extrai id de ?id= (formato antigo)', () => {
+    expect(extractDriveFolderId('https://drive.google.com/open?id=XyZ-123_ab')).toBe('XyZ-123_ab')
+  })
+  it('null pra link que não é do Drive', () => {
+    expect(extractDriveFolderId('https://example.com/pasta')).toBeNull()
+    expect(extractDriveFolderId('')).toBeNull()
+  })
+  it('lista só imagens da pasta, com a key', () => {
+    const url = driveListUrl('FOLDER1', 'KEY9')
+    expect(url).toContain('googleapis.com/drive/v3/files')
+    expect(url).toContain(encodeURIComponent("'FOLDER1' in parents"))
+    expect(url).toContain(encodeURIComponent("mimeType contains 'image/'"))
+    expect(url).toContain('key=KEY9')
   })
 })
 
