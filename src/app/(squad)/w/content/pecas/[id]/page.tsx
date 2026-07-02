@@ -10,6 +10,7 @@ import { TerminalWindow } from "@/components/ui/terminal-window";
 import { createClient } from "@/lib/supabase/client";
 import { loadPiece } from "@/lib/workspace/content-queries";
 import {
+  FUNIL_LABEL,
   KIND_LABEL,
   STATUS_LABEL,
   type ContentPiece,
@@ -35,6 +36,12 @@ export default function ContentPieceDetailPage() {
   const [when, setWhen] = useState("");
   const [videoLink, setVideoLink] = useState("");
   const [editingLink, setEditingLink] = useState(false);
+  // Veio da Linha editorial? O "voltar" devolve pra lá (window pra não exigir
+  // Suspense do useSearchParams no prerender).
+  const [deLinha, setDeLinha] = useState(false);
+  useEffect(() => {
+    setDeLinha(new URLSearchParams(window.location.search).get("de") === "linha");
+  }, []);
 
   const refetch = useCallback(() => {
     const supabase = createClient();
@@ -117,8 +124,11 @@ export default function ContentPieceDetailPage() {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
       <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-primary">
-        <Link href="/w/content/kanban" className="hover:text-foreground">
-          kanban
+        <Link
+          href={deLinha ? "/w/content/linha-editorial" : "/w/content/kanban"}
+          className="hover:text-foreground"
+        >
+          ← {deLinha ? "linha editorial" : "kanban"}
         </Link>{" "}
         / peça
       </p>
@@ -140,6 +150,11 @@ export default function ContentPieceDetailPage() {
               <span className="rounded-full border border-border px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-muted-foreground">
                 {KIND_LABEL[piece.kind]}
               </span>
+              {piece.meta?.funil ? (
+                <span className="rounded-full border border-border px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-muted-foreground">
+                  {FUNIL_LABEL[piece.meta.funil]}
+                </span>
+              ) : null}
               <span className="rounded-full border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-primary">
                 {STATUS_LABEL[piece.status]}
               </span>

@@ -62,7 +62,6 @@ export default function SquadContentDashboardPage() {
         {/* Atalhos do ciclo — tudo a 1 clique do dashboard. */}
         <div className="mt-3 flex flex-wrap gap-2">
           {[
-            { href: "/w/content/chat", label: "falar com a squad" },
             { href: "/w/content/linha-editorial", label: "linha editorial" },
             { href: "/w/content/kanban", label: "kanban" },
             { href: "/w/content/calendario", label: "calendário" },

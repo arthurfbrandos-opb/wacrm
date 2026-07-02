@@ -129,13 +129,13 @@ export default function SquadContentKanbanPage() {
           </p>
           <p className="mt-2 text-xs text-muted-foreground">
             Suas peças continuam andando normalmente — você acompanha e aprova pela
-            Visão geral e pelo chat. Quer a esteira visual completa? Fale com a Negócio Simples.
+            Visão geral e pela Linha editorial. Quer a esteira visual completa? Fale com a Negócio Simples.
           </p>
           <Link
-            href="/w/content/chat"
+            href="/w/content/linha-editorial"
             className="mt-4 inline-block rounded-lg border border-primary/40 bg-primary/10 px-4 py-2 font-mono text-sm text-primary transition-colors hover:bg-primary/20"
           >
-            ir pro chat do squad ▸
+            ir pra linha editorial ▸
           </Link>
         </div>
       </div>

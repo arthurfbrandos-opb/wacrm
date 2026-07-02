@@ -31,6 +31,7 @@ export interface ContentPiece {
     line_id?: string
     planned_date?: string
     tema?: string
+    funil?: 'topo' | 'meio' | 'fundo'
     pauta?: 'proposta' | 'aprovada'
     copy?: string
     fase?: 'conteudo' | 'arte'
@@ -66,6 +67,13 @@ export const STATUS_LABEL: Record<PieceStatus, string> = Object.fromEntries(
  */
 export function piecePropostaPendente(piece: ContentPiece): boolean {
   return piece.status === 'pauta' && piece.meta?.pauta === 'proposta'
+}
+
+/** Rótulo humano do andar de funil da peça (vem da pauta da linha editorial). */
+export const FUNIL_LABEL: Record<string, string> = {
+  topo: 'topo de funil',
+  meio: 'meio de funil',
+  fundo: 'fundo de funil',
 }
 
 /**

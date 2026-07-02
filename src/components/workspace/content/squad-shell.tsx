@@ -20,7 +20,6 @@ import {
   ListChecks,
   LogOut,
   Menu,
-  MessageSquare,
   X,
   Zap,
 } from "lucide-react";
@@ -32,11 +31,10 @@ const SQUAD_NAV: {
   icon: typeof Gauge;
   soon?: boolean;
 }[] = [
-  // Ordem pedida pelo Arthur (02/07): chat logo abaixo do dashboard —
-  // é quase a tela principal, a conversa de produção acontece ali.
-  // Linha editorial = passo 1 do ciclo (dela nascem as peças do kanban/calendário).
+  // Chat do squad DESATIVADO por ora (Arthur 02/07): o ciclo inteiro acontece
+  // pela Linha editorial (pauta → conteúdo → arte → aprovação) — o chat volta
+  // quando fizer sentido de novo (rota /w/content/chat segue existindo).
   { key: "dashboard", label: "Dashboard", href: "/w/content", icon: Gauge },
-  { key: "chat", label: "Chat do squad", href: "/w/content/chat", icon: MessageSquare },
   { key: "linha-editorial", label: "Linha editorial", href: "/w/content/linha-editorial", icon: ListChecks },
   { key: "kanban", label: "Kanban", href: "/w/content/kanban", icon: Kanban },
   { key: "calendario", label: "Calendário", href: "/w/content/calendario", icon: CalendarDays },

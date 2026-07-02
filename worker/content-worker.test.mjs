@@ -21,12 +21,27 @@ import {
 } from './content-worker.mjs'
 
 describe('produção em dois portões (pauta → conteúdo → arte)', () => {
-  it('pecasDaLinha nasce como PROPOSTA (fora do kanban até aprovar)', () => {
+  it('pecasDaLinha nasce como PROPOSTA (fora do kanban até aprovar) e carrega o funil', () => {
     const rows = pecasDaLinha('acc', 'line1', [
-      { titulo: 'X', tipo: 'carrossel', data: '2026-07-06', tema: 'ângulo' },
+      { titulo: 'X', tipo: 'carrossel', data: '2026-07-06', tema: 'ângulo', funil: 'topo' },
     ])
     expect(rows[0].meta.pauta).toBe('proposta')
     expect(rows[0].status).toBe('pauta')
+    expect(rows[0].meta.funil).toBe('topo')
+  })
+
+  it('parseLinhaEditorial valida o funil (inválido vira null)', () => {
+    const r = parseLinhaEditorial(
+      JSON.stringify({
+        reply: 'ok',
+        pecas: [
+          { titulo: 'A', tipo: 'carrossel', data: '2026-07-06', tema: 't', funil: 'meio' },
+          { titulo: 'B', tipo: 'estatico', data: '2026-07-07', tema: 't', funil: 'qualquer' },
+        ],
+      }),
+    )
+    expect(r.pecas[0].funil).toBe('meio')
+    expect(r.pecas[1].funil).toBeNull()
   })
 
   it('montarPromptProduzirPauta proíbe arte e cobra corpo sem legenda', () => {
