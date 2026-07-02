@@ -118,15 +118,23 @@ function NovaLinhaForm({ onCreated, onCancel }: { onCreated: () => void; onCance
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span className={labelCls}>
-              Vídeos{" "}
-              <span className="rounded-full border border-border px-1.5 py-0.5 text-[9px] normal-case tracking-wider">
-                em breve
-              </span>
-            </span>
-            <input type="number" value={0} disabled className={`${inputCls} cursor-not-allowed opacity-50`} />
+            <span className={labelCls}>Vídeos</span>
+            <input
+              type="number"
+              min={0}
+              value={form.video}
+              onChange={(e) => setForm({ ...form, video: Number(e.target.value) })}
+              className={inputCls}
+            />
           </label>
         </div>
+
+        {form.video > 0 ? (
+          <p className="rounded-lg border border-dashed border-border px-3 py-2 font-mono text-[11px] text-muted-foreground">
+            ▸ vídeo: a squad entrega o <span className="text-foreground">roteiro pronto</span> — você
+            grava no celular e sobe o vídeo no Google Drive antes de agendar a publicação.
+          </p>
+        ) : null}
 
         <label className="flex flex-col gap-1">
           <span className={labelCls}>Temas que você quer puxar (opcional)</span>
@@ -139,9 +147,18 @@ function NovaLinhaForm({ onCreated, onCancel }: { onCreated: () => void; onCance
           />
         </label>
 
-        <p className="font-mono text-xs text-muted-foreground">
+        {/* Anotação do limite — fica VERMELHA quando estoura 1/dia (pedido Arthur 02/07). */}
+        <p
+          className={
+            check.days >= 1 && check.total > check.days
+              ? "font-mono text-xs font-semibold text-red-400"
+              : "font-mono text-xs text-muted-foreground"
+          }
+        >
           {check.days >= 1
-            ? `${check.total} conteúdo(s) em ${check.days} dia(s) — máximo de 1 por dia.`
+            ? check.total > check.days
+              ? `⚠ ${check.total} conteúdos em ${check.days} dia(s) — o máximo é 1 por dia (${check.days} no total).`
+              : `${check.total} conteúdo(s) em ${check.days} dia(s) — máximo de 1 por dia.`
             : "escolhe o período pra eu calcular o limite (1 conteúdo por dia)."}
         </p>
 
@@ -174,6 +191,58 @@ function NovaLinhaForm({ onCreated, onCancel }: { onCreated: () => void; onCance
         </div>
       </div>
     </TerminalWindow>
+  );
+}
+
+// Etapas reais do worker (ordem verdadeira do job gerar_semana). O avanço é
+// estimado pelo tempo decorrido (~90-120s no total) — a squad não reporta
+// progresso fino; a última etapa só fecha quando a linha vira "ativa".
+const GERANDO_STEPS: { at: number; label: string }[] = [
+  { at: 0, label: "lendo a fundação da sua marca (tom de voz · cliente ideal · base)" },
+  { at: 15, label: "escolhendo os temas na base de conhecimento" },
+  { at: 40, label: "montando a pauta e distribuindo pelos dias do período" },
+  { at: 70, label: "conferindo o mix pedido e gravando as peças na Pauta" },
+];
+
+function GerandoSteps({ createdAt }: { createdAt: string }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const elapsed = Math.max(0, Math.floor((now - new Date(createdAt).getTime()) / 1000));
+  const currentIdx = GERANDO_STEPS.reduce((acc, s, i) => (elapsed >= s.at ? i : acc), 0);
+
+  return (
+    <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-card/40 px-3 py-2.5">
+      {GERANDO_STEPS.map((s, i) => (
+        <div key={s.label} className="flex items-center gap-2">
+          {i < currentIdx ? (
+            <span className="w-3 text-center font-mono text-[10px] text-primary">✓</span>
+          ) : i === currentIdx ? (
+            <span className="flex w-3 justify-center">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-amber-300" />
+            </span>
+          ) : (
+            <span className="w-3 text-center font-mono text-[10px] text-muted-foreground/40">·</span>
+          )}
+          <span
+            className={
+              i === currentIdx
+                ? "font-mono text-xs text-foreground"
+                : i < currentIdx
+                  ? "font-mono text-xs text-muted-foreground"
+                  : "font-mono text-xs text-muted-foreground/50"
+            }
+          >
+            {s.label}
+          </span>
+        </div>
+      ))}
+      <p className="mt-1 font-mono text-[10px] text-muted-foreground/60">
+        {elapsed}s — a tela atualiza sozinha quando a pauta ficar pronta
+      </p>
+    </div>
   );
 }
 
@@ -276,14 +345,7 @@ export default function LinhaEditorialPage() {
                 {atual.themes ? (
                   <p className="font-mono text-xs text-muted-foreground">temas: {atual.themes}</p>
                 ) : null}
-                {atual.status === "gerando" ? (
-                  <div className="flex items-center gap-2 rounded-lg border border-border bg-card/40 px-3 py-2">
-                    <span className="h-2 w-2 animate-pulse rounded-full bg-amber-300" />
-                    <span className="font-mono text-xs text-muted-foreground">
-                      a squad está montando sua pauta… (~1-2 min, atualiza sozinho)
-                    </span>
-                  </div>
-                ) : null}
+                {atual.status === "gerando" ? <GerandoSteps createdAt={atual.created_at} /> : null}
                 {atual.status === "falhou" ? (
                   <p className="font-mono text-xs text-red-400">
                     A montagem falhou — tenta de novo em alguns minutos (a equipe já foi avisada).
