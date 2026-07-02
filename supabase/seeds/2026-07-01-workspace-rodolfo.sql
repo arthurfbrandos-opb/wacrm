@@ -8,7 +8,7 @@
 
 -- ⚠️ SUBSTITUIR antes de rodar:
 \set rodolfo_account_id '\'<ACCOUNT-ID-DO-RODOLFO>\''
-\set ns_account_id '\'7eb23b90-0000-0000-0000-000000000000\''  -- conferir o id real da NS
+\set ns_account_id '\'7eb23b90-ce66-40bc-8e23-1d2ac6458300\''  -- id real da NS (conferido em prod 02/07)
 
 -- ── Módulos da conta Rodolfo ──────────────────────────────────────────────
 -- workspace = marcador de conta-cliente (login cai no /w) · squad_content ON ·
