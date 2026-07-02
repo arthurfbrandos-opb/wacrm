@@ -5,7 +5,8 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import type { Conversation, ConversationStatus } from "@/types";
 import { Search, ChevronDown, Plus } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
+import { shortTimeAgo } from "@/lib/inbox/time-ago";
+import { deriveLeadOrigin } from "@/lib/contacts/origin";
 import { Input } from "@/components/ui/input";
 import { NewConversationDialog } from "@/components/inbox/new-conversation-dialog";
 import {
@@ -294,11 +295,12 @@ function ConversationItem({
     onSelect(conversation);
   }, [onSelect, conversation]);
 
+  // Compacto e PT-BR ("4h", "2d", "12/06") — o formatDistanceToNow saía
+  // em inglês ("about 4 hours") e comia largura da linha.
   const timeAgo = conversation.last_message_at
-    ? formatDistanceToNow(new Date(conversation.last_message_at), {
-        addSuffix: false,
-      })
+    ? shortTimeAgo(conversation.last_message_at)
     : "";
+  const leadOrigin = deriveLeadOrigin(contact?.fap01_data);
 
   return (
     <button
@@ -337,6 +339,15 @@ function ConversationItem({
             {contact?.provider && (
               <span className="shrink-0 rounded bg-muted px-1 text-[10px] text-muted-foreground">
                 {channelBadgeLabel(contact, connections)}
+              </span>
+            )}
+            {/* Origem do lead (funil + campanha do cadastro). */}
+            {leadOrigin.kind !== "inbound" && (
+              <span
+                className="shrink-0 rounded bg-primary/10 px-1 text-[10px] text-primary"
+                title={leadOrigin.referrer}
+              >
+                {leadOrigin.label}
               </span>
             )}
           </div>

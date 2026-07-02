@@ -18,7 +18,10 @@ import type {
 } from '@/types'
 import { supabaseAdmin } from './admin-client'
 import { engineSendText, engineSendTemplate } from './meta-send'
-import { resolveAccountProvider, sendText, setAccountPresence } from '@/lib/sdr/send'
+import { sendText, sendTemplate, setAccountPresence } from '@/lib/sdr/send'
+import { resolveSendPlan } from '@/lib/sdr/send-plan'
+import { notifyArthur } from '@/lib/sdr/notify'
+import { renderTemplateBody } from '@/lib/sdr/meta-templates'
 import { splitBubbles } from '@/lib/sdr/prompt'
 import { pedroFromEnv } from '@/lib/pkg/pedro/client'
 import { isReachoutBlock } from '@/lib/whatsapp/uazapi-send'
@@ -611,13 +614,67 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
 
       const { data: contact } = await db
         .from('contacts')
-        .select('phone, name')
+        .select('phone, name, provider, connection_id')
         .eq('id', args.contactId)
         .eq('account_id', args.automation.account_id)
         .maybeSingle()
       const phone = (contact as { phone?: string } | null)?.phone
       const contactName = (contact as { name?: string | null } | null)?.name ?? null
       if (!phone) throw new Error('send_ai: contact has no phone')
+
+      // Canal + janela pelo CONTATO (não pelo canal padrão da conta), igual
+      // aos lembretes: Meta com janela de 24h fechada exige template.
+      const convIdForPlan = args.context.conversation_id
+      let convRow: { last_inbound_at?: string | null } = {}
+      if (convIdForPlan) {
+        const { data: conv } = await db
+          .from('conversations')
+          .select('last_inbound_at')
+          .eq('id', convIdForPlan)
+          .maybeSingle()
+        convRow = (conv as { last_inbound_at?: string | null } | null) ?? {}
+      }
+      const plan = await resolveSendPlan(
+        db,
+        args.automation.account_id,
+        (contact as { provider?: 'meta' | 'uazapi' | null; connection_id?: string | null }) ?? {},
+        convRow,
+      )
+
+      if (plan.mode === 'template_required') {
+        const tpl = cfg.template
+        if (!tpl?.name) {
+          // Rede de segurança (mesma regra dos lembretes): sem template
+          // aprovado, pula o toque em vez de mandar texto livre que a Meta
+          // rejeita — e a régua segue viva até o próximo passo.
+          return 'skipped: janela Meta fechada e toque sem template'
+        }
+        const firstName = (contactName ?? '').trim().split(/\s+/)[0] || ''
+        try {
+          const { messageId } = await sendTemplate(db, args.automation.account_id, {
+            phone,
+            templateName: tpl.name,
+            languageCode: tpl.lang ?? 'pt_BR',
+            bodyParams: [firstName],
+          })
+          if (convIdForPlan) {
+            await db.from('messages').insert({
+              conversation_id: convIdForPlan,
+              sender_type: 'bot',
+              content_type: 'text',
+              content_text: tpl.body
+                ? renderTemplateBody(tpl.body, [firstName])
+                : `[template ${tpl.name}]`,
+              message_id: messageId,
+              status: 'sent',
+            })
+          }
+          return `send_ai sent template ${tpl.name} via meta (${messageId ?? 'no-id'})`
+        } catch (err) {
+          await surfaceSendAiFailure(db, args, { phone, name: contactName, error: err })
+          throw err
+        }
+      }
 
       const { data: sdrCfg } = await db
         .from('sdr_config')
@@ -646,7 +703,7 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
       const { text } = await pedroFromEnv().reply(system, messages)
       if (!text?.trim()) throw new Error('send_ai: brain returned empty text')
 
-      const provider = await resolveAccountProvider(db, args.automation.account_id)
+      const provider = plan.provider
 
       // Bubbles humanas: presença "digitando" + envio sequencial com pausa,
       // igual ao C1 (reply) e C2 (touch). splitBubbles quebra parágrafos e
@@ -658,7 +715,12 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
       let lastId: string | null = null
       try {
         for (let i = 0; i < bubbles.length; i++) {
-          const { messageId } = await sendText(db, args.automation.account_id, { provider, phone }, bubbles[i])
+          const { messageId } = await sendText(
+            db,
+            args.automation.account_id,
+            { provider, phone, connectionId: plan.connectionId },
+            bubbles[i],
+          )
           lastId = messageId ?? lastId
           if (i < bubbles.length - 1) await new Promise((r) => setTimeout(r, delay))
         }
@@ -685,6 +747,10 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
             .eq('automation_id', args.automation.id)
             .eq('contact_id', args.contactId)
             .eq('status', 'pending')
+        } else {
+          // Qualquer OUTRA falha de envio também não pode ser silenciosa
+          // (ex.: Meta rejeitando fora da janela, instância caída).
+          await surfaceSendAiFailure(db, args, { phone, name: contactName, error: err })
         }
         throw err
       } finally {
@@ -715,6 +781,42 @@ async function runStep(step: AutomationStep, args: ExecuteArgs): Promise<string>
 // ------------------------------------------------------------
 // Helpers
 // ------------------------------------------------------------
+
+/**
+ * Falha de envio da régua NUNCA pode ser silenciosa: nota no contato +
+ * ping pro Arthur + pausa dos toques pendentes deste lead (senão cada
+ * tick bateria de novo no mesmo erro). Best-effort — um erro aqui não
+ * pode mascarar o erro original (o step já loga como failed).
+ */
+async function surfaceSendAiFailure(
+  db: ReturnType<typeof supabaseAdmin>,
+  args: ExecuteArgs,
+  info: { phone: string; name: string | null; error: unknown },
+): Promise<void> {
+  const who = info.name || info.phone
+  const msg = info.error instanceof Error ? info.error.message : String(info.error)
+  try {
+    await db.from('contact_notes').insert({
+      contact_id: args.contactId,
+      account_id: args.automation.account_id,
+      user_id: args.automation.user_id,
+      note_text: `⚠️ Follow-up automático falhou: ${msg}. Toques pendentes da régua pausados — verificar o canal e retomar manualmente.`,
+    })
+    await db
+      .from('automation_pending_executions')
+      .update({ status: 'failed' })
+      .eq('automation_id', args.automation.id)
+      .eq('contact_id', args.contactId)
+      .eq('status', 'pending')
+    await notifyArthur(
+      db,
+      args.automation.account_id,
+      `⚠️ CRM: follow-up automático pra ${who} falhou (${msg}). Régua pausada pra esse lead.`,
+    )
+  } catch (e) {
+    console.error('[automations] surfaceSendAiFailure failed', e)
+  }
+}
 
 /**
  * Pick the conversation a send-type step should use. Prefer the id the

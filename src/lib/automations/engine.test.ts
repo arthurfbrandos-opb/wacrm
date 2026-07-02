@@ -12,6 +12,11 @@ const h = vi.hoisted(() => ({
     updateCalls: [] as { table: string; filters: [string, string, unknown][] }[],
     upsertCalls: [] as { table: string; payload: unknown }[],
     deleteCalls: [] as { table: string; filters: [string, string, unknown][] }[],
+    insertCalls: [] as { table: string; payload: unknown }[],
+    // Canal/janela (send_ai window-aware): conversa da régua + conexão UazAPI
+    // ativa da conta (null = conta Meta-only).
+    conversation: null as { last_inbound_at: string | null } | null,
+    waConnection: { id: "wa1" } as { id: string } | null,
   },
 }));
 
@@ -50,7 +55,31 @@ vi.mock("./admin-client", () => {
         state.deleteCalls.push({ table, filters: ops.filters });
         return { data: [{ id: "p1" }], error: null };
       }
+      if (type === "insert") {
+        state.insertCalls.push({ table, payload: ops.payload });
+        return { data: null, error: null };
+      }
+      if (type === "update") {
+        state.updateCalls.push({ table, filters: ops.filters });
+        return { data: null, error: null };
+      }
       return { data: [], error: null };
+    }
+    if (table === "conversations") {
+      return { data: state.conversation, error: null };
+    }
+    if (table === "wa_connections") {
+      return { data: state.waConnection, error: null };
+    }
+    if (table === "whatsapp_config") {
+      return { data: { account_id: "acct-1" }, error: null };
+    }
+    if (table === "contact_notes") {
+      if (type === "insert") {
+        state.insertCalls.push({ table, payload: ops.payload });
+        return { data: null, error: null };
+      }
+      return { data: null, error: null };
     }
     if (table === "automation_logs") {
       if (type === "insert") return { data: { id: "log1" }, error: null };
@@ -69,7 +98,10 @@ vi.mock("./admin-client", () => {
       return { data: { system_prompt: "Você é o Ian.", variables: [] }, error: null };
     }
     if (table === "messages") {
-      if (type === "insert") return { data: { id: "msg1" }, error: null };
+      if (type === "insert") {
+        state.insertCalls.push({ table, payload: ops.payload });
+        return { data: { id: "msg1" }, error: null };
+      }
       return { data: [], error: null };
     }
     return { data: null, error: null };
@@ -119,10 +151,16 @@ vi.mock("./meta-send", () => ({
 }));
 
 const sendTextMock = vi.fn(async (..._args: unknown[]) => ({ messageId: "uaz-1" }));
+const sendTemplateMock = vi.fn(async (..._args: unknown[]) => ({ messageId: "tpl-1" }));
 vi.mock("@/lib/sdr/send", () => ({
   resolveAccountProvider: vi.fn(async () => "uazapi"),
   sendText: (...args: unknown[]) => sendTextMock(...args),
+  sendTemplate: (...args: unknown[]) => sendTemplateMock(...args),
   setAccountPresence: vi.fn(async () => {}),
+}));
+const notifyArthurMock = vi.fn(async (..._args: unknown[]) => {});
+vi.mock("@/lib/sdr/notify", () => ({
+  notifyArthur: (...args: unknown[]) => notifyArthurMock(...args),
 }));
 vi.mock("@/lib/pkg/pedro/client", () => ({
   pedroFromEnv: () => ({
@@ -148,7 +186,12 @@ beforeEach(() => {
   h.state.updateCalls = [];
   h.state.upsertCalls = [];
   h.state.deleteCalls = [];
+  h.state.insertCalls = [];
+  h.state.conversation = null;
+  h.state.waConnection = { id: "wa1" };
   sendTextMock.mockClear();
+  sendTemplateMock.mockClear();
+  notifyArthurMock.mockClear();
   process.env.BUBBLE_DELAY_MS = "0"; // no inter-bubble wait in tests
 });
 
@@ -377,6 +420,136 @@ describe("send_ai", () => {
     expect((sendTextMock.mock.calls[1] as unknown[])[3]).toBe("Segunda linha.");
     // Inbox keeps one row with the bubbles joined.
     expect(h.state.fromCalls.filter((t) => t === "messages")).toHaveLength(1);
+  });
+});
+
+describe("send_ai — Meta window-aware (régua Meta-only)", () => {
+  function fu1Automation() {
+    return [{
+      id: "a1", account_id: ACCOUNT, user_id: "u1",
+      trigger_type: "tag_added", trigger_config: {}, is_active: true,
+    }];
+  }
+  function metaLead() {
+    // Meta-origin contact on a Meta-only account (no active UazAPI connection).
+    h.state.owned = {
+      id: "c1", phone: "5511999", name: "João Silva", provider: "meta",
+    } as { id: string };
+    h.state.waConnection = null;
+    h.state.automations = fu1Automation();
+  }
+  const CTX = { conversation_id: "conv1", tag_id: "fu1" };
+
+  it("window closed + step template → sends the template with the first name, no free text", async () => {
+    metaLead();
+    h.state.conversation = { last_inbound_at: null }; // lead never replied
+    h.state.steps = [{
+      id: "s1", automation_id: "a1", step_type: "send_ai",
+      position: 0, parent_step_id: null,
+      step_config: {
+        guidance: "toque leve",
+        template: { name: "fu1_toque_1h", lang: "pt_BR", body: "Oi, {{1}}! Sou eu de novo." },
+      },
+    }];
+
+    await runAutomationsForTrigger({
+      accountId: ACCOUNT, triggerType: "tag_added", contactId: "c1", context: CTX,
+    });
+
+    expect(sendTemplateMock).toHaveBeenCalledTimes(1);
+    const call = sendTemplateMock.mock.calls[0] as unknown[];
+    expect(call[1]).toBe(ACCOUNT);
+    expect(call[2]).toMatchObject({
+      templateName: "fu1_toque_1h",
+      languageCode: "pt_BR",
+      bodyParams: ["João"],
+    });
+    expect(sendTextMock).not.toHaveBeenCalled();
+    // Inbox persists the RENDERED template body.
+    const msgs = h.state.insertCalls.filter((c) => c.table === "messages");
+    expect(msgs).toHaveLength(1);
+    expect(msgs[0].payload).toMatchObject({ content_text: "Oi, João! Sou eu de novo." });
+  });
+
+  it("window closed + NO step template → skips the touch and keeps the chain alive", async () => {
+    metaLead();
+    h.state.conversation = { last_inbound_at: null };
+    h.state.steps = [
+      {
+        id: "s1", automation_id: "a1", step_type: "send_ai",
+        position: 0, parent_step_id: null,
+        step_config: { guidance: "toque sem template" },
+      },
+      {
+        id: "s2", automation_id: "a1", step_type: "wait",
+        position: 1, parent_step_id: null,
+        step_config: { unit: "hours", amount: 2 },
+      },
+    ];
+
+    await runAutomationsForTrigger({
+      accountId: ACCOUNT, triggerType: "tag_added", contactId: "c1", context: CTX,
+    });
+
+    expect(sendTemplateMock).not.toHaveBeenCalled();
+    expect(sendTextMock).not.toHaveBeenCalled();
+    // The following wait step still enqueued — the régua did NOT die.
+    const pend = h.state.insertCalls.filter(
+      (c) => c.table === "automation_pending_executions",
+    );
+    expect(pend).toHaveLength(1);
+  });
+
+  it("window OPEN → free text in the agent voice via Meta (no template)", async () => {
+    metaLead();
+    h.state.conversation = { last_inbound_at: new Date().toISOString() };
+    h.state.steps = [{
+      id: "s1", automation_id: "a1", step_type: "send_ai",
+      position: 0, parent_step_id: null,
+      step_config: { guidance: "corrido — leve, sem cobrar." },
+    }];
+
+    await runAutomationsForTrigger({
+      accountId: ACCOUNT, triggerType: "tag_added", contactId: "c1", context: CTX,
+    });
+
+    expect(sendTextMock).toHaveBeenCalledTimes(1);
+    expect((sendTextMock.mock.calls[0] as unknown[])[2]).toMatchObject({
+      provider: "meta",
+      phone: "5511999",
+    });
+    expect(sendTemplateMock).not.toHaveBeenCalled();
+  });
+
+  it("send failure → contact note + Arthur notified + pending touches halted (no silent death)", async () => {
+    metaLead();
+    h.state.conversation = { last_inbound_at: null };
+    sendTemplateMock.mockRejectedValueOnce(
+      new Error("Meta API error: (#131047) Re-engagement message"),
+    );
+    h.state.steps = [{
+      id: "s1", automation_id: "a1", step_type: "send_ai",
+      position: 0, parent_step_id: null,
+      step_config: {
+        guidance: "toque",
+        template: { name: "fu1_toque_1h", lang: "pt_BR", body: "Oi, {{1}}!" },
+      },
+    }];
+
+    await runAutomationsForTrigger({
+      accountId: ACCOUNT, triggerType: "tag_added", contactId: "c1", context: CTX,
+    });
+
+    const notes = h.state.insertCalls.filter((c) => c.table === "contact_notes");
+    expect(notes).toHaveLength(1);
+    expect(String((notes[0].payload as { note_text: string }).note_text)).toMatch(/falhou/i);
+    expect(notifyArthurMock).toHaveBeenCalledTimes(1);
+    const halted = h.state.updateCalls.filter(
+      (u) => u.table === "automation_pending_executions",
+    );
+    expect(halted).toHaveLength(1);
+    expect(halted[0].filters).toContainEqual(["eq", "contact_id", "c1"]);
+    expect(halted[0].filters).toContainEqual(["eq", "status", "pending"]);
   });
 });
 

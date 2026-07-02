@@ -42,11 +42,13 @@ export async function findExistingContact(
 
   const suffix = normalized.length >= 8 ? normalized.slice(-8) : normalized;
 
+  // Pre-filter on the digits-only generated column: the raw `phone` may be
+  // stored formatted ("+55 11 98765-4321"), which a suffix LIKE never hits.
   const { data, error } = await db
     .from("contacts")
     .select("*")
     .eq("account_id", accountId)
-    .like("phone", `%${suffix}`);
+    .like("phone_normalized", `%${suffix}`);
 
   if (error || !data) return null;
 

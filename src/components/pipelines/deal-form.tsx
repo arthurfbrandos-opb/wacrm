@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { isUniqueViolation } from "@/lib/contacts/dedupe";
 import { useAuth } from "@/hooks/use-auth";
 import { CURRENCIES } from "@/lib/currency";
 import type {
@@ -243,7 +244,11 @@ export function DealFormBody({
         .from("deals")
         .insert({ ...payload, user_id: user.id, account_id: accountId, status: "open" });
       if (error) {
-        toast.error("Falha ao criar negócio");
+        toast.error(
+          isUniqueViolation(error)
+            ? "Esse contato já tem um negócio aberto nesse funil."
+            : "Falha ao criar negócio",
+        );
         setSaving(false);
         return;
       }

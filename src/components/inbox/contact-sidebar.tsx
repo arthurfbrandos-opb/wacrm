@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import type { Contact, ContactNote } from "@/types";
-import { Phone, Mail, Copy, Check, StickyNote, Plus, Radio } from "lucide-react";
+import { Phone, Mail, Copy, Check, StickyNote, Plus, Radio, Megaphone } from "lucide-react";
+import { deriveLeadOrigin } from "@/lib/contacts/origin";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -185,6 +186,7 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
 
   const displayName = contact.name || contact.phone;
   const initials = displayName.charAt(0).toUpperCase();
+  const leadOrigin = deriveLeadOrigin(contact.fap01_data);
 
   return (
     <div className="flex h-full min-h-0 w-70 flex-col border-l border-border bg-card">
@@ -286,6 +288,35 @@ export function ContactSidebar({ contact }: ContactSidebarProps) {
                     Por onde as respostas (suas e da Ian) saem para este
                     contato.
                   </p>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Origem do lead — funil + campanha de onde o cadastro veio
+              (derivado do fap01_data). Promovido pra cima da dobra; o
+              detalhe cru (UTMs/referrer) segue no editor abaixo. */}
+          {leadOrigin.kind !== "inbound" && (
+            <>
+              <div className="my-4 border-t border-border" />
+              <div>
+                <div className="flex items-center gap-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  <Megaphone className="h-3 w-3" />
+                  Origem do lead
+                </div>
+                <div className="mt-2 space-y-1 px-1">
+                  <p className="text-sm text-primary">{leadOrigin.label}</p>
+                  {leadOrigin.utm.source && (
+                    <p className="text-[11px] text-muted-foreground">
+                      Fonte: {leadOrigin.utm.source}
+                      {leadOrigin.utm.medium ? ` · ${leadOrigin.utm.medium}` : ""}
+                    </p>
+                  )}
+                  {leadOrigin.utm.campaign && (
+                    <p className="text-[11px] text-muted-foreground">
+                      Campanha: {leadOrigin.utm.campaign}
+                    </p>
+                  )}
                 </div>
               </div>
             </>

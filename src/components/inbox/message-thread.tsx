@@ -29,6 +29,7 @@ import {
   Bot,
 } from "lucide-react";
 import { format, isToday, isYesterday, differenceInHours } from "date-fns";
+import { deriveLeadOrigin } from "@/lib/contacts/origin";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -117,6 +118,12 @@ interface MessageThreadProps {
   contactPanelOpen?: boolean;
   onToggleContactPanel?: () => void;
   /**
+   * Mobile-only: abre o painel do contato como overlay de tela cheia
+   * (< lg o sidebar fixo nunca renderiza). Estado separado do desktop
+   * de propósito — ver InboxPage.
+   */
+  onToggleContactOverlay?: () => void;
+  /**
    * Desktop-only conversation-list collapse. Mirrors the contact-panel
    * toggle: the page owns the state, the thread reflects it and asks the
    * page to flip it. Optional so existing callers keep working.
@@ -148,6 +155,10 @@ function groupMessagesByDate(messages: Message[]) {
 
   return groups;
 }
+
+/** Últimas N mensagens carregadas por conversa (cap declarado — thread
+ *  gigante não derruba a tela; histórico além disso fica no banco). */
+const MESSAGES_PAGE = 500;
 
 const STATUS_OPTIONS: { label: string; value: ConversationStatus; color: string }[] = [
   { label: "Aberto", value: "open", color: "text-primary" },
@@ -182,6 +193,7 @@ export function MessageThread({
   onRefresh,
   contactPanelOpen,
   onToggleContactPanel,
+  onToggleContactOverlay,
   listCollapsed,
   onToggleList,
 }: MessageThreadProps) {
@@ -401,6 +413,9 @@ export function MessageThread({
   useEffect(() => {
     onMessagesLoadedRef.current = onMessagesLoaded;
   });
+  // Cache por conversa (vida = sessão da tela). Alimenta o SWR do fetch
+  // de mensagens: revisitar uma conversa renderiza na hora.
+  const messagesCacheRef = useRef(new Map<string, Message[]>());
 
   const conversationId = conversation?.id;
   const hasUnread = (conversation?.unread_count ?? 0) > 0;
@@ -415,21 +430,34 @@ export function MessageThread({
     const supabase = createClient();
     let cancelled = false;
 
-    (async () => {
+    // SWR: se a conversa já foi aberta nesta sessão, mostra o cache na
+    // hora (troca de conversa fica instantânea) e revalida em background.
+    const cached = messagesCacheRef.current.get(conversationId);
+    if (cached) {
+      onMessagesLoadedRef.current(cached);
+      setLoading(false);
+    } else {
       setLoading(true);
+    }
 
+    (async () => {
+      // Últimas MESSAGES_PAGE mensagens (desc + reverse). Cap declarado:
+      // histórico além disso não carrega — proteção contra thread gigante.
       const { data, error } = await supabase
         .from("messages")
         .select("*")
         .eq("conversation_id", conversationId)
-        .order("created_at", { ascending: true });
+        .order("created_at", { ascending: false })
+        .limit(MESSAGES_PAGE);
 
       if (cancelled) return;
 
       if (error) {
         console.error("Failed to fetch messages:", error);
       } else {
-        onMessagesLoadedRef.current(data ?? []);
+        const ordered = (data ?? []).reverse();
+        messagesCacheRef.current.set(conversationId, ordered);
+        onMessagesLoadedRef.current(ordered);
       }
 
       if (!cancelled) setLoading(false);
@@ -968,6 +996,7 @@ export function MessageThread({
   }
 
   const displayName = contact.name || contact.phone;
+  const leadOrigin = deriveLeadOrigin(contact.fap01_data);
   const messageGroups = groupMessagesByDate(messages);
   const currentStatus = STATUS_OPTIONS.find(
     (s) => s.value === conversation.status
@@ -990,7 +1019,10 @@ export function MessageThread({
     <div className={cn("flex min-w-0 flex-1 flex-col", DOODLE_BG_CLASSES)}>
       {/* Header — solid card surface sits on top of the doodle so the
           name/avatar/dropdowns stay legible. */}
-      <div className="flex items-center justify-between gap-2 border-b border-border bg-card px-3 py-3 sm:px-4">
+      {/* flex-wrap: quando o pano central aperta (lista + painel abertos),
+          o grupo da direita quebra pra linha de baixo em vez de pintar por
+          cima dos badges da esquerda. */}
+      <div className="flex flex-wrap items-center justify-between gap-2 gap-y-2 border-b border-border bg-card px-3 py-3 sm:px-4">
         <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           {/* Back-to-list button — mobile only. Hidden on lg+ where the
               conversation list is always visible next to the thread. */}
@@ -1072,14 +1104,21 @@ export function MessageThread({
               )}
             </Badge>
           )}
+          {/* Origem do lead (funil + campanha) — de onde o cadastro veio. */}
+          {leadOrigin.kind !== "inbound" && (
+            <Badge
+              variant="outline"
+              className="ml-1 hidden border-border text-[10px] text-primary sm:inline-flex sm:ml-2"
+              title={leadOrigin.referrer}
+            >
+              {leadOrigin.label}
+            </Badge>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Contact-panel toggle — desktop only. The contact sidebar
-              eats a chunk of horizontal width that crowds the thread on
-              smaller laptops; this lets agents reclaim it when they just
-              want to read and reply. Hidden on mobile, where the sidebar
-              never renders as a permanent panel anyway. Issue #258. */}
+          {/* Contact-panel toggle — desktop (#258): recolhe/expande o
+              painel lateral fixo. */}
           {onToggleContactPanel && (
             <button
               type="button"
@@ -1099,6 +1138,19 @@ export function MessageThread({
               ) : (
                 <PanelRightOpen className="h-4 w-4" />
               )}
+            </button>
+          )}
+          {/* Painel do contato no MOBILE — overlay de tela cheia (antes o
+              contato era inacessível no celular). */}
+          {onToggleContactOverlay && (
+            <button
+              type="button"
+              onClick={onToggleContactOverlay}
+              aria-label="Ver painel do contato"
+              title="Ver contato"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground lg:hidden"
+            >
+              <PanelRightOpen className="h-4 w-4" />
             </button>
           )}
 

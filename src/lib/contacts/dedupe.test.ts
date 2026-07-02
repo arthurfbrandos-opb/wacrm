@@ -66,6 +66,38 @@ describe("dedupeByPhone", () => {
   });
 });
 
+describe("findExistingContact — pre-filter column", () => {
+  // Column-aware stub: honours WHICH column .like() filters on, so it can
+  // catch a pre-filter aimed at the raw `phone` (formatted) instead of the
+  // digits-only `phone_normalized`.
+  function columnAwareDb(rows: Array<Record<string, unknown>>): SupabaseClient {
+    const builder = {
+      select: () => builder,
+      eq: () => builder,
+      like: (column: string, pattern: string) => {
+        const suffix = pattern.replace(/^%/, "");
+        return Promise.resolve({
+          data: rows.filter((r) => String(r[column] ?? "").endsWith(suffix)),
+          error: null,
+        });
+      },
+    };
+    return { from: () => builder } as unknown as SupabaseClient;
+  }
+
+  it("finds a contact stored with a FORMATTED phone (pre-filter must hit phone_normalized)", async () => {
+    const rows = [
+      { id: "c1", phone: "+55 11 98765-4321", phone_normalized: "5511987654321" },
+    ];
+    const found = await findExistingContact(
+      columnAwareDb(rows),
+      "acct",
+      "5511987654321",
+    );
+    expect(found?.id).toBe("c1");
+  });
+});
+
 describe("findExistingContact", () => {
   // Minimal SupabaseClient stub: resolves the .from().select().eq().like()
   // chain to a fixed candidate set.

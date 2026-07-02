@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createHash } from 'crypto'
 import { supabaseAdmin } from '@/lib/flows/admin-client'
 import { findExistingContact } from '@/lib/contacts/dedupe'
+import { upsertSdrDeal } from '@/lib/deals/sdr-deal'
 import {
   ensureConversationOn,
   scheduleFirstTouchIfAbsent,
@@ -187,31 +188,18 @@ export async function POST(request: Request) {
   // `true` for sub-30k-who-accepted and `false` for every other (good,
   // non-lowtier) lead — so it is informational (kept in fap01_data) and must
   // NOT gate deal creation. Gating on it dropped all high-faturamento leads.
-  let dealId: string | null = null
-  {
-    const { data: deal, error: dErr } = await admin
-      .from('deals')
-      .insert({
-        account_id: accountId,
-        user_id: ownerUserId,
-        pipeline_id: detUuid(`pl:${SDR_PIPELINE}`),
-        stage_id: detUuid(`st:${SDR_PIPELINE}:${SDR_ENTRY_STAGE}`),
-        contact_id: contactId,
-        title: `${lead.contact_name || phone} · MQL`,
-        value: 0,
-        currency: accountCurrency,
-        status: 'open',
-        fap01_snapshot: lead,
-      })
-      .select('id')
-      .single()
-    if (dErr) {
-      // Don't fail the whole lead over the deal — the contact is saved.
-      console.error('[fap01] deal insert failed:', dErr)
-    } else {
-      dealId = (deal as { id: string } | null)?.id ?? null
-    }
-  }
+  // Idempotent: a re-submitted form reuses the contact's open SDR deal
+  // (refreshing fap01_snapshot + note) instead of minting a duplicate.
+  const { dealId } = await upsertSdrDeal(admin, {
+    accountId,
+    userId: ownerUserId,
+    pipelineId: detUuid(`pl:${SDR_PIPELINE}`),
+    stageId: detUuid(`st:${SDR_PIPELINE}:${SDR_ENTRY_STAGE}`),
+    contactId,
+    title: `${lead.contact_name || phone} · MQL`,
+    currency: accountCurrency,
+    snapshot: lead,
+  })
 
   // Phase C2 — enqueue the outbound-first touch (Pedro reaches out). Only for
   // gated leads in the SDR pipeline (have a deal). Failure here doesn't fail
