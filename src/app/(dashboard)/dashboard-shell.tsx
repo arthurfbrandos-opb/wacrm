@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
+import { useWorkspaceModules } from "@/hooks/use-workspace-modules";
+import { isWorkspaceAccount } from "@/lib/workspace/catalog";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 
@@ -54,6 +56,16 @@ function DashboardShellInner({ children }: { children: React.ReactNode }) {
       router.push("/login");
     }
   }, [user, loading, router]);
+
+  // Conta-workspace (cliente · módulo-marcador `workspace` ligado) não vive no
+  // CRM: o login cai em /dashboard (middleware) e daqui segue pro /w dela.
+  // NS/tenant zero não tem o marcador → nada muda.
+  const { states: moduleStates, loading: modulesLoading } = useWorkspaceModules();
+  useEffect(() => {
+    if (!modulesLoading && moduleStates && isWorkspaceAccount(moduleStates)) {
+      router.replace("/w");
+    }
+  }, [modulesLoading, moduleStates, router]);
 
   if (loading) {
     return (
