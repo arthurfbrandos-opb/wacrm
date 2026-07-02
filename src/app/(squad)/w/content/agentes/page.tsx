@@ -57,7 +57,7 @@ export default function SquadContentAgentsPage() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {agents.map((a) => (
-            <AgentCard key={a.key} agent={a} />
+            <AgentCard key={a.key} agent={a} de="squad" />
           ))}
         </div>
       )}

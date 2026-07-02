@@ -232,4 +232,15 @@ html[data-theme="rose"] {
   html {
     @apply font-sans;
   }
+  /* Tailwind 4 zera o cursor de <button> — clicável tem que parecer clicável. */
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']) {
+    cursor: pointer;
+  }
+  /* Foco de teclado sempre visível (cor vem do outline-ring/50 acima). */
+  :focus-visible {
+    outline-width: 2px;
+    outline-style: solid;
+    outline-offset: 2px;
+  }
 }

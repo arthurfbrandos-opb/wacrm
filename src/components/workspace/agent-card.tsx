@@ -8,7 +8,14 @@ import { TerminalWindow } from "@/components/ui/terminal-window";
 import { AGENT_STATUS_LABEL, SPECIALTY_LABEL } from "@/lib/workspace/catalog";
 import type { WorkspaceAgentRow } from "@/lib/workspace/queries";
 
-export function AgentCard({ agent }: { agent: WorkspaceAgentRow }) {
+export function AgentCard({
+  agent,
+  de,
+}: {
+  agent: WorkspaceAgentRow;
+  /** Origem da navegação — a tela de uso devolve o "voltar" pro lugar certo. */
+  de?: "squad";
+}) {
   const active = agent.status === "active";
   return (
     <TerminalWindow title={`agentes/${agent.key}`} className="h-full" bodyClassName="flex">
@@ -37,7 +44,7 @@ export function AgentCard({ agent }: { agent: WorkspaceAgentRow }) {
         </div>
         {active ? (
           <Link
-            href={`/w/agentes/${agent.key}`}
+            href={`/w/agentes/${agent.key}${de ? `?de=${de}` : ""}`}
             className="mt-4 block w-full rounded-lg border border-primary/40 bg-primary/10 px-3 py-2 text-center font-mono text-sm font-medium text-primary transition-colors hover:bg-primary/20"
           >
             Usar agente ▸

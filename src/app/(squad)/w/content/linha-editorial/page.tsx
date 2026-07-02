@@ -325,6 +325,22 @@ export default function LinhaEditorialPage() {
                     ▸ pauta montada — as peças aparecem aqui e no calendário.
                   </p>
                 ) : null}
+                {pecasDaAtual.length > 0 ? (
+                  <div className="flex flex-wrap gap-3 border-t border-border/60 pt-3">
+                    <Link
+                      href="/w/content/kanban"
+                      className="font-mono text-xs text-primary hover:underline"
+                    >
+                      acompanhar no kanban ▸
+                    </Link>
+                    <Link
+                      href="/w/content/calendario"
+                      className="font-mono text-xs text-primary hover:underline"
+                    >
+                      ver no calendário ▸
+                    </Link>
+                  </div>
+                ) : null}
               </div>
             </TerminalWindow>
           ) : null}

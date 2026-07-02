@@ -56,6 +56,23 @@ export default function SquadContentDashboardPage() {
         <h1 className="mt-1 font-mono text-2xl font-semibold tracking-tight text-foreground">
           Gestão das suas redes
         </h1>
+        {/* Atalhos do ciclo — tudo a 1 clique do dashboard. */}
+        <div className="mt-3 flex flex-wrap gap-2">
+          {[
+            { href: "/w/content/chat", label: "falar com a squad" },
+            { href: "/w/content/linha-editorial", label: "linha editorial" },
+            { href: "/w/content/kanban", label: "kanban" },
+            { href: "/w/content/calendario", label: "calendário" },
+          ].map((a) => (
+            <Link
+              key={a.href}
+              href={a.href}
+              className="rounded-full border border-border bg-card px-3 py-1.5 font-mono text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
+            >
+              {a.label} ▸
+            </Link>
+          ))}
+        </div>
       </div>
 
       {error ? (
