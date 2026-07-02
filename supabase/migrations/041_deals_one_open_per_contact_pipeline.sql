@@ -1,4 +1,4 @@
--- 040: no máximo UM deal aberto por contato por funil (backstop anti-duplicado).
+-- 041: no máximo UM deal aberto por contato por funil (backstop anti-duplicado).
 -- A entrada FAP01 agora reaproveita o deal aberto no reenvio do formulário
 -- (upsertSdrDeal); este índice garante que inserts em corrida não passem um
 -- duplicado pelo check da aplicação. Dados existentes foram unificados à mão

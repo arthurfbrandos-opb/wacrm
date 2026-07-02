@@ -21,10 +21,10 @@
    git checkout main && git merge fix/intake-dup-e-regua-meta
    ```
 
-2. **Migration 040** no banco vivo (aditiva; pré-condição já validada: zero contato com 2+ deals abertos):
+2. **Migration 041** no banco vivo (aditiva; pré-condição já validada: zero contato com 2+ deals abertos):
    ```bash
    source ~/Projects/orchestrator/.env
-   psql "$SUPABASE_NS_DB_URL" -f supabase/migrations/040_deals_one_open_per_contact_pipeline.sql
+   psql "$SUPABASE_NS_DB_URL" -f supabase/migrations/041_deals_one_open_per_contact_pipeline.sql
    ```
 
 3. **Desligar o UazAPI** (decisão Arthur 02/07 — estrutura só com API oficial):
