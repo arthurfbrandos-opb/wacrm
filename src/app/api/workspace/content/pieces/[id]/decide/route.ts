@@ -1,0 +1,90 @@
+import { NextResponse } from "next/server";
+import { requireRole, toErrorResponse } from "@/lib/auth/account";
+import { supabaseAdmin } from "@/lib/automations/admin-client";
+
+// POST /api/workspace/content/pieces/:id/decide — o cliente decide sobre a peça
+// em "Pra aprovar": aprova (→ Aprovada) ou pede ajuste (→ Produzindo + job
+// ajustar_peca pro worker refazer com a observação dele). Cada decisão vira
+// linha no os_approvals (trilha) + os_events (prova viva).
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  let accountId: string;
+  let userId: string;
+  try {
+    ({ accountId, userId } = await requireRole("agent"));
+  } catch (err) {
+    return toErrorResponse(err);
+  }
+
+  const { id } = await params;
+  const body = (await request.json().catch(() => null)) as
+    | { action?: "approve" | "request_changes"; note?: string }
+    | null;
+  const action = body?.action;
+  const note = body?.note?.trim() || null;
+  if (action !== "approve" && action !== "request_changes") {
+    return NextResponse.json({ error: "action inválida" }, { status: 400 });
+  }
+  if (action === "request_changes" && !note) {
+    return NextResponse.json({ error: "descreva o ajuste que você quer" }, { status: 400 });
+  }
+
+  const db = supabaseAdmin();
+
+  const { data: piece, error: pieceErr } = await db
+    .from("content_pieces")
+    .select("id, title, status, meta")
+    .eq("id", id)
+    .eq("account_id", accountId)
+    .maybeSingle();
+  if (pieceErr) return NextResponse.json({ error: pieceErr.message }, { status: 500 });
+  if (!piece) return NextResponse.json({ error: "peça não encontrada" }, { status: 404 });
+  if (piece.status !== "aprovacao") {
+    return NextResponse.json(
+      { error: `peça não está em aprovação (status atual: ${piece.status})` },
+      { status: 409 },
+    );
+  }
+
+  const approved = action === "approve";
+  const newStatus = approved ? "aprovada" : "producao";
+
+  const { error: upErr } = await db
+    .from("content_pieces")
+    .update({ status: newStatus, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("account_id", accountId);
+  if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
+
+  // Ajuste → job pro worker refazer a peça com a nota do cliente.
+  if (!approved) {
+    const slug = (piece.meta as { slug?: string } | null)?.slug ?? null;
+    const { error: jobErr } = await db.from("content_jobs").insert({
+      account_id: accountId,
+      kind: "ajustar_peca",
+      payload: { piece_id: id, note, slug, title: piece.title },
+      created_by: userId,
+    });
+    if (jobErr) return NextResponse.json({ error: jobErr.message }, { status: 500 });
+  }
+
+  await db.from("os_approvals").insert({
+    account_id: accountId,
+    kind: "content_piece",
+    ref_id: id,
+    action: approved ? "approved" : "changes_requested",
+    note,
+    decided_by: userId,
+  });
+  await db.from("os_events").insert({
+    account_id: accountId,
+    agent: "squad-content",
+    kind: approved ? "content.piece_approved" : "content.piece_changes_requested",
+    summary: `${approved ? "Peça aprovada" : "Ajuste pedido"}: ${piece.title}`,
+    ref: { piece_id: id },
+  });
+
+  return NextResponse.json({ ok: true, status: newStatus });
+}

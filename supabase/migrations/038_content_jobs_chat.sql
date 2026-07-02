@@ -8,7 +8,7 @@
 create table if not exists public.content_jobs (
   id uuid primary key default gen_random_uuid(),
   account_id uuid not null references public.accounts(id) on delete cascade,
-  kind text not null check (kind in ('chat','gerar_peca','gerar_semana','ajustar_peca')),
+  kind text not null check (kind in ('chat','gerar_peca','gerar_semana','ajustar_peca','agendar_publicacao')),
   payload jsonb not null default '{}'::jsonb,
   status text not null default 'pending' check (status in ('pending','running','done','failed')),
   piece_id uuid references public.content_pieces(id) on delete set null,

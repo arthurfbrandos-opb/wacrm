@@ -29,6 +29,8 @@ node worker/content-worker.mjs
 | `POLL_MS` | intervalo do poll (default 5000) |
 | `STORAGE_BUCKET` | bucket das prévias (default `content-previews`) |
 | `ANTHROPIC_BASE_URL` / `ANTHROPIC_API_KEY` | **hudapi** — o claude CLI herda do ambiente |
+| `ENCRYPTION_KEY` | mesma do app (hex) — decripta a credencial do Metricool (fatia ⑤) |
+| `METRICOOL_MCP_TEMPLATE` | caminho do template JSON do MCP do Metricool com `{{METRICOOL_TOKEN}}` — o formato exato de auth do MCP oficial (`ai.metricool.com/mcp`) é confirmado no setup com o token real, não inventado aqui |
 
 ## Setup no VPS (uma vez)
 

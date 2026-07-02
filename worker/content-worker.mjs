@@ -21,7 +21,9 @@
 //   - claude com `--output-format json` → { result, total_cost_usd, ... }.
 
 import { spawn } from 'node:child_process';
-import { readFileSync, existsSync } from 'node:fs';
+import { createDecipheriv } from 'node:crypto';
+import { readFileSync, existsSync, writeFileSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 // ── Funções puras (testadas em content-worker.test.mjs) ─────────────────────
@@ -86,6 +88,80 @@ export function parseResultado(texto) {
 export function publicUrl(supabaseUrl, bucket, path) {
   const base = String(supabaseUrl).replace(/\/+$/, '');
   return `${base}/storage/v1/object/public/${bucket}/${path}`;
+}
+
+/**
+ * Descriptografa o formato do encryption.ts do wacrm: `<iv>:<ct>:<tag>` hex,
+ * AES-256-GCM, IV 12 bytes, tag 16 bytes, chave hex (ENCRYPTION_KEY).
+ */
+export function decryptGcm(encryptedText, keyHex) {
+  const parts = String(encryptedText ?? '').split(':');
+  if (parts.length !== 3) throw new Error('credencial em formato inesperado');
+  const [ivHex, ctHex, tagHex] = parts;
+  const iv = Buffer.from(ivHex, 'hex');
+  const tag = Buffer.from(tagHex, 'hex');
+  if (iv.length !== 12 || tag.length !== 16) throw new Error('credencial GCM inválida');
+  const decipher = createDecipheriv('aes-256-gcm', Buffer.from(keyHex, 'hex'), iv);
+  decipher.setAuthTag(tag);
+  let out = decipher.update(ctHex, 'hex', 'utf8');
+  out += decipher.final('utf8');
+  return out;
+}
+
+/** Prompt do job de AJUSTE — refazer a peça existente com a observação do cliente. */
+export function montarPromptAjuste(payload) {
+  const nota = String(payload?.note ?? '').trim();
+  const slug = String(payload?.slug ?? '').trim();
+  const titulo = String(payload?.title ?? '').trim();
+  return [
+    'Você é a SQUAD CONTENT operando ESTE repositório de conteúdo do cliente (Dr. Rodolfo · HMR).',
+    `O cliente pediu AJUSTE na peça já produzida "${titulo}" (pasta producao/${slug || '<ache pelo título>'}).`,
+    '',
+    `AJUSTE PEDIDO: ${nota}`,
+    '',
+    'REGRAS:',
+    '- Ajuste a copy e/ou a arte conforme o pedido (skills do repo · humanize · SEM travessão · máx 5 hashtags).',
+    '- Re-renderize a arte com os scripts das skills e sobrescreva os arquivos na MESMA pasta producao/<slug>/.',
+    '- NUNCA invente fatos, leis ou números. Na dúvida, pergunte no "reply".',
+    '',
+    'FORMATO DA SUA ÚLTIMA MENSAGEM — SOMENTE este JSON, sem texto em volta:',
+    '{"reply": "<o que mudou, curto>", "peca": {"slug": "<slug>", "titulo": "<título>", "tipo": "carrossel|estatico", "legenda": "<legenda completa atualizada>", "arquivo_preview": "producao/<slug>/<primeiro-png>"}}',
+  ].join('\n');
+}
+
+/** Prompt do PUBLISHER — agendar a peça aprovada via Metricool (tools MCP). */
+export function montarPromptPublisher(payload, peca) {
+  return [
+    'Você é o PUBLISHER da Squad Content. Sua única tarefa: AGENDAR a publicação abaixo',
+    'no Metricool do cliente usando as tools MCP do Metricool disponíveis nesta sessão.',
+    '',
+    `QUANDO (ISO · converter pro fuso do cliente se a tool exigir): ${payload?.when ?? ''}`,
+    `REDE: ${peca?.channel || 'instagram'}`,
+    `LEGENDA:\n${peca?.caption ?? ''}`,
+    `IMAGEM (URL pública): ${peca?.preview_url ?? '(sem imagem — use só a legenda ou aborte com ok=false)'}`,
+    '',
+    'REGRAS:',
+    '- Use SOMENTE as tools do Metricool. Não invente confirmação: só diga ok=true se a tool confirmou.',
+    '- Se algo impedir (sem conta conectada na rede, tool falhou), devolva ok=false com o motivo claro.',
+    '',
+    'FORMATO DA SUA ÚLTIMA MENSAGEM — SOMENTE este JSON, sem texto em volta:',
+    '{"ok": true|false, "detalhe": "<confirmação ou motivo da falha>"}',
+  ].join('\n');
+}
+
+/** Extrai o contrato do Publisher ({ok, detalhe}) da resposta do agente. */
+export function parsePublisher(texto) {
+  const s = String(texto ?? '');
+  const start = s.indexOf('{');
+  const end = s.lastIndexOf('}');
+  if (start === -1 || end <= start) return null;
+  try {
+    const obj = JSON.parse(s.slice(start, end + 1));
+    if (typeof obj?.ok !== 'boolean') return null;
+    return { ok: obj.ok, detalhe: typeof obj.detalhe === 'string' ? obj.detalhe : '' };
+  } catch {
+    return null;
+  }
 }
 
 // ── Config / REST helpers ────────────────────────────────────────────────────
@@ -154,7 +230,7 @@ async function finalizarJob(id, patch) {
 
 // ── Produção ────────────────────────────────────────────────────────────────
 
-function rodarClaude(prompt, repoDir) {
+function rodarClaude(prompt, repoDir, { mcpConfigPath } = {}) {
   return new Promise((resolve, reject) => {
     const args = [
       '-p', prompt,
@@ -163,6 +239,7 @@ function rodarClaude(prompt, repoDir) {
       // HARD: sem isso, hooks globais do usuário matam o headless (lição 21/06).
       '--setting-sources', 'project,local',
     ];
+    if (mcpConfigPath) args.push('--mcp-config', mcpConfigPath);
     if (ENV.GERADOR_MODEL) args.push('--model', ENV.GERADOR_MODEL);
     const child = spawn('claude', args, {
       cwd: repoDir,
@@ -281,10 +358,178 @@ async function processarChat(job) {
   console.log(`[worker] job ${job.id} done${pieceId ? ` · peça ${pieceId}` : ''}${costUsd !== null ? ` · $${costUsd}` : ''}`);
 }
 
+// ── Ajuste de peça (cliente pediu mudança na aprovação) ─────────────────────
+
+async function processarAjuste(job) {
+  const { repo } = cfg();
+  const pieceId = job.payload?.piece_id;
+  if (!pieceId) throw new Error('ajustar_peca sem piece_id no payload');
+
+  let resultado;
+  let costUsd = null;
+  let model = ENV.GERADOR_MODEL ?? null;
+
+  if (FAKE) {
+    resultado = {
+      reply: '[FAKE] Ajuste aplicado — peça de volta em "Pra aprovar".',
+      peca: { slug: job.payload?.slug ?? 'peca-fake', titulo: job.payload?.title ?? 'Peça', tipo: 'carrossel', legenda: 'Legenda ajustada (FAKE).', arquivo_preview: null },
+    };
+  } else {
+    const saida = await rodarClaude(montarPromptAjuste(job.payload), repo);
+    costUsd = saida.costUsd;
+    model = saida.model;
+    resultado = parseResultado(saida.result);
+    if (!resultado || !resultado.peca) {
+      throw new Error(`ajuste respondeu fora do contrato: ${String(saida.result).slice(0, 300)}`);
+    }
+  }
+
+  let previewUrl = null;
+  if (!FAKE && resultado.peca?.arquivo_preview) {
+    const abs = join(cfg().repo, resultado.peca.arquivo_preview);
+    if (existsSync(abs)) {
+      previewUrl = await uploadPreview(job.account_id, resultado.peca.slug, abs);
+    }
+  }
+
+  // Atualiza a MESMA peça e devolve pra aprovação.
+  await rest('PATCH', `content_pieces?id=eq.${pieceId}&account_id=eq.${job.account_id}`, {
+    status: 'aprovacao',
+    caption: resultado.peca?.legenda || null,
+    ...(previewUrl ? { preview_url: previewUrl } : {}),
+    updated_at: new Date().toISOString(),
+  });
+
+  await rest('POST', 'content_chat_messages', {
+    account_id: job.account_id,
+    author: 'squad',
+    body: resultado.reply,
+    job_id: job.id,
+    piece_id: pieceId,
+  });
+
+  if (costUsd !== null) {
+    await rest('POST', 'os_cost_ledger', {
+      account_id: job.account_id,
+      agent: 'squad-content',
+      model,
+      date: new Date().toISOString().slice(0, 10),
+      cost_usd: costUsd,
+    });
+  }
+
+  await finalizarJob(job.id, { status: 'done', piece_id: pieceId, cost_usd: costUsd, model });
+  console.log(`[worker] job ${job.id} (ajuste) done · peça ${pieceId}`);
+}
+
+// ── Publisher (agendamento via Metricool MCP) ────────────────────────────────
+
+async function conexaoMetricool(accountId) {
+  const rows = await rest(
+    'GET',
+    `integration_connections?account_id=eq.${accountId}&provider=eq.metricool&select=status,credentials_enc,config`,
+  );
+  const conn = rows?.[0];
+  if (!conn || conn.status !== 'connected' || !conn.credentials_enc) {
+    throw new Error('Metricool não conectado pra esta conta');
+  }
+  const keyHex = ENV.ENCRYPTION_KEY;
+  if (!keyHex) throw new Error('ENCRYPTION_KEY ausente no env do worker');
+  return { token: decryptGcm(conn.credentials_enc, keyHex), config: conn.config ?? {} };
+}
+
+/**
+ * Escreve o mcp-config do Metricool num arquivo temporário, com o token do
+ * tenant. Template vem de METRICOOL_MCP_TEMPLATE (JSON com "{{METRICOOL_TOKEN}}")
+ * — o formato exato de auth do MCP oficial é confirmado no setup do VPS com o
+ * token real (não inventamos header aqui).
+ */
+function escreverMcpConfig(token) {
+  const templatePath = ENV.METRICOOL_MCP_TEMPLATE;
+  if (!templatePath || !existsSync(templatePath)) {
+    throw new Error('METRICOOL_MCP_TEMPLATE ausente — configure o template do MCP no setup do worker');
+  }
+  const template = readFileSync(templatePath, 'utf8');
+  const filled = template.replaceAll('{{METRICOOL_TOKEN}}', token);
+  const dir = mkdtempSync(join(tmpdir(), 'metricool-mcp-'));
+  const p = join(dir, 'mcp-config.json');
+  writeFileSync(p, filled, { mode: 0o600 });
+  return p;
+}
+
+async function processarAgendamento(job) {
+  const pieceId = job.payload?.piece_id;
+  if (!pieceId) throw new Error('agendar_publicacao sem piece_id no payload');
+
+  const pieces = await rest(
+    'GET',
+    `content_pieces?id=eq.${pieceId}&account_id=eq.${job.account_id}&select=id,title,caption,preview_url,channel,scheduled_at`,
+  );
+  const peca = pieces?.[0];
+  if (!peca) throw new Error('peça do agendamento não encontrada');
+
+  let veredito;
+  let costUsd = null;
+  let model = ENV.GERADOR_MODEL ?? null;
+
+  if (FAKE) {
+    veredito = { ok: true, detalhe: '[FAKE] agendamento simulado.' };
+  } else {
+    const { token } = await conexaoMetricool(job.account_id);
+    const mcpConfigPath = escreverMcpConfig(token);
+    // Publisher roda no diretório do worker (não precisa do repo-cérebro).
+    const saida = await rodarClaude(montarPromptPublisher(job.payload, peca), process.cwd(), { mcpConfigPath });
+    costUsd = saida.costUsd;
+    model = saida.model;
+    veredito = parsePublisher(saida.result);
+    if (!veredito) throw new Error(`publisher respondeu fora do contrato: ${String(saida.result).slice(0, 300)}`);
+  }
+
+  if (veredito.ok) {
+    await rest('PATCH', `content_pieces?id=eq.${pieceId}&account_id=eq.${job.account_id}`, {
+      status: 'agendada',
+      updated_at: new Date().toISOString(),
+    });
+  }
+
+  await rest('POST', 'content_chat_messages', {
+    account_id: job.account_id,
+    author: 'squad',
+    body: veredito.ok
+      ? `Publicação agendada ✔ ${veredito.detalhe || ''}`.trim()
+      : `Não consegui agendar: ${veredito.detalhe || 'motivo não informado'}. A peça continua aprovada — tente de novo ou confira a conexão do Metricool.`,
+    job_id: job.id,
+    piece_id: pieceId,
+  });
+
+  if (costUsd !== null) {
+    await rest('POST', 'os_cost_ledger', {
+      account_id: job.account_id,
+      agent: 'squad-content-publisher',
+      model,
+      date: new Date().toISOString().slice(0, 10),
+      cost_usd: costUsd,
+    });
+  }
+
+  await finalizarJob(job.id, {
+    status: veredito.ok ? 'done' : 'failed',
+    piece_id: pieceId,
+    cost_usd: costUsd,
+    model,
+    ...(veredito.ok ? {} : { error: veredito.detalhe?.slice(0, 800) ?? 'falha no agendamento' }),
+  });
+  console.log(`[worker] job ${job.id} (publisher) ${veredito.ok ? 'done' : 'FALHOU'} · peça ${pieceId}`);
+}
+
 async function processar(job) {
   try {
     if (job.kind === 'chat') {
       await processarChat(job);
+    } else if (job.kind === 'ajustar_peca') {
+      await processarAjuste(job);
+    } else if (job.kind === 'agendar_publicacao') {
+      await processarAgendamento(job);
     } else {
       throw new Error(`kind não suportado ainda: ${job.kind}`);
     }

@@ -1,5 +1,14 @@
+import { randomBytes, createCipheriv } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
-import { montarPrompt, parseResultado, publicUrl } from './content-worker.mjs'
+import {
+  decryptGcm,
+  montarPrompt,
+  montarPromptAjuste,
+  montarPromptPublisher,
+  parsePublisher,
+  parseResultado,
+  publicUrl,
+} from './content-worker.mjs'
 
 describe('montarPrompt', () => {
   it('inclui a mensagem do cliente e o contrato JSON', () => {
@@ -53,5 +62,70 @@ describe('publicUrl', () => {
     expect(publicUrl('https://x.supabase.co/', 'content-previews', 'acc/slug-1.png')).toBe(
       'https://x.supabase.co/storage/v1/object/public/content-previews/acc/slug-1.png',
     )
+  })
+})
+
+describe('decryptGcm', () => {
+  // Espelha o encrypt() do src/lib/whatsapp/encryption.ts: iv12:ct:tag16 hex.
+  function encryptLikeApp(text, keyHex) {
+    const iv = randomBytes(12)
+    const cipher = createCipheriv('aes-256-gcm', Buffer.from(keyHex, 'hex'), iv)
+    let ct = cipher.update(text, 'utf8', 'hex')
+    ct += cipher.final('hex')
+    return `${iv.toString('hex')}:${ct}:${cipher.getAuthTag().toString('hex')}`
+  }
+  const KEY = '00'.repeat(32)
+
+  it('roundtrip com o formato do app', () => {
+    const enc = encryptLikeApp('token-metricool-secreto', KEY)
+    expect(decryptGcm(enc, KEY)).toBe('token-metricool-secreto')
+  })
+
+  it('explode em ciphertext adulterado (GCM autentica)', () => {
+    const enc = encryptLikeApp('abc', KEY)
+    const [iv, ct, tag] = enc.split(':')
+    const flipped = ct.slice(0, -1) + (ct.endsWith('0') ? '1' : '0')
+    expect(() => decryptGcm(`${iv}:${flipped}:${tag}`, KEY)).toThrow()
+  })
+
+  it('explode em formato inesperado', () => {
+    expect(() => decryptGcm('so-uma-parte', KEY)).toThrow()
+  })
+})
+
+describe('prompts de ajuste e publisher', () => {
+  it('ajuste carrega a nota e o slug', () => {
+    const p = montarPromptAjuste({ note: 'troca o gancho', slug: 'juros', title: 'Juros' })
+    expect(p).toContain('troca o gancho')
+    expect(p).toContain('producao/juros')
+  })
+  it('publisher carrega quando/legenda/imagem e proíbe confirmação inventada', () => {
+    const p = montarPromptPublisher(
+      { when: '2026-07-03T12:00:00Z' },
+      { caption: 'legenda x', preview_url: 'https://img/x.png', channel: 'instagram' },
+    )
+    expect(p).toContain('2026-07-03T12:00:00Z')
+    expect(p).toContain('legenda x')
+    expect(p).toContain('https://img/x.png')
+    expect(p).toContain('Não invente confirmação')
+  })
+})
+
+describe('parsePublisher', () => {
+  it('ok=true com detalhe', () => {
+    expect(parsePublisher('x {"ok":true,"detalhe":"agendado 03/07 09h"} y')).toEqual({
+      ok: true,
+      detalhe: 'agendado 03/07 09h',
+    })
+  })
+  it('ok=false com motivo', () => {
+    expect(parsePublisher('{"ok":false,"detalhe":"instagram não conectado"}')).toEqual({
+      ok: false,
+      detalhe: 'instagram não conectado',
+    })
+  })
+  it('null pra resposta sem contrato', () => {
+    expect(parsePublisher('agendei sim!')).toBeNull()
+    expect(parsePublisher('{"detalhe":"sem ok"}')).toBeNull()
   })
 })
