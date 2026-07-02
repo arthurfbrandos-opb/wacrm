@@ -305,7 +305,9 @@ export function montarPromptPublisher(payload, peca) {
     `QUANDO (ISO · converter pro fuso do cliente se a tool exigir): ${payload?.when ?? ''}`,
     `REDE: ${peca?.channel || 'instagram'}`,
     `LEGENDA:\n${peca?.caption ?? ''}`,
-    `IMAGEM (URL pública): ${peca?.preview_url ?? '(sem imagem — use só a legenda ou aborte com ok=false)'}`,
+    payload?.video_url
+      ? `MÍDIA (vídeo gravado pelo cliente · link): ${payload.video_url} — publique como Reel/vídeo; se a tool não aceitar mídia por link, devolva ok=false explicando.`
+      : `IMAGEM (URL pública): ${peca?.preview_url ?? '(sem imagem — use só a legenda ou aborte com ok=false)'}`,
     '',
     'REGRAS:',
     '- Use SOMENTE as tools do Metricool. Não invente confirmação: só diga ok=true se a tool confirmou.',

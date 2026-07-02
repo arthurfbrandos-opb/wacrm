@@ -23,8 +23,14 @@ export interface ContentPiece {
   published_at: string | null
   created_at: string
   updated_at: string
-  /** line_id/planned_date/tema (linha editorial) · roteiro (vídeo — o que ele grava). */
-  meta?: { line_id?: string; planned_date?: string; tema?: string; roteiro?: string } | null
+  /** line_id/planned_date/tema (linha editorial) · roteiro + video_url (vídeo). */
+  meta?: {
+    line_id?: string
+    planned_date?: string
+    tema?: string
+    roteiro?: string
+    video_url?: string
+  } | null
 }
 
 /** Ordem e rótulo das colunas do kanban (mapa aprovado 01/07). */

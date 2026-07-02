@@ -33,6 +33,8 @@ export default function ContentPieceDetailPage() {
   const [askingChanges, setAskingChanges] = useState(false);
   const [changeNote, setChangeNote] = useState("");
   const [when, setWhen] = useState("");
+  const [videoLink, setVideoLink] = useState("");
+  const [editingLink, setEditingLink] = useState(false);
 
   const refetch = useCallback(() => {
     const supabase = createClient();
@@ -60,13 +62,13 @@ export default function ContentPieceDetailPage() {
     setTimeout(() => setRoteiroCopied(false), 1800);
   };
 
-  const call = async (path: string, body: unknown, okMsg: string) => {
+  const call = async (path: string, body: unknown, okMsg: string, method = "POST") => {
     setBusy(true);
     setError(null);
     setFeedback(null);
     try {
       const res = await fetch(path, {
-        method: "POST",
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
@@ -88,8 +90,18 @@ export default function ContentPieceDetailPage() {
       `/api/workspace/content/pieces/${params.id}/decide`,
       { action, note: action === "request_changes" ? changeNote.trim() : undefined },
       action === "approve"
-        ? "Peça aprovada — pronta pra agendar."
+        ? piece?.kind === "video"
+          ? "Roteiro aprovado — agora é gravar o vídeo."
+          : "Peça aprovada — pronta pra agendar."
         : "Ajuste enviado pro squad — a peça volta pra Produzindo.",
+    );
+
+  const salvarVideo = () =>
+    call(
+      `/api/workspace/content/pieces/${params.id}`,
+      { video_url: videoLink.trim() },
+      "Link do vídeo salvo — agora dá pra agendar.",
+      "PATCH",
     );
 
   const schedule = () =>
@@ -262,32 +274,94 @@ export default function ContentPieceDetailPage() {
             </TerminalWindow>
           ) : null}
 
-          {piece.status === "aprovada" ? (
-            <TerminalWindow title="pecas/agendamento">
-              <div className="flex flex-wrap items-end gap-2 p-4">
-                <div className="flex flex-col gap-1">
-                  <label
-                    htmlFor="agendar-quando"
-                    className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground"
-                  >
-                    Publicar em
-                  </label>
+          {/* Vídeo aprovado: primeiro a GRAVAÇÃO (roteiro → celular → link), só então agenda. */}
+          {piece.status === "aprovada" && piece.kind === "video" && (!piece.meta?.video_url || editingLink) ? (
+            <TerminalWindow title="pecas/gravacao">
+              <div className="flex flex-col gap-3 p-4">
+                <p className="font-mono text-sm font-medium text-foreground">
+                  Roteiro aprovado — agora é gravar 🎬
+                </p>
+                <ol className="flex list-decimal flex-col gap-1.5 pl-5 text-sm text-muted-foreground">
+                  <li>Copie o roteiro acima (botão &ldquo;copiar&rdquo;) e grave o vídeo no celular.</li>
+                  <li>Suba o vídeo no seu Google Drive (ou onde preferir) e copie o link.</li>
+                  <li>Cole o link aqui — aí sim libera o agendamento da publicação.</li>
+                </ol>
+                <div className="flex flex-wrap items-end gap-2">
                   <input
-                    id="agendar-quando"
-                    type="datetime-local"
-                    value={when}
-                    onChange={(e) => setWhen(e.target.value)}
-                    className="rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm text-foreground focus:border-primary/50 focus:outline-none"
+                    type="url"
+                    value={videoLink}
+                    onChange={(e) => setVideoLink(e.target.value)}
+                    maxLength={500}
+                    placeholder="https://drive.google.com/…"
+                    className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm text-foreground placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none"
                   />
+                  <button
+                    type="button"
+                    disabled={busy || !/^https:\/\/\S+$/i.test(videoLink.trim())}
+                    onClick={() => {
+                      setEditingLink(false);
+                      void salvarVideo();
+                    }}
+                    className="rounded-md border border-primary bg-primary px-3 py-2 font-mono text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+                  >
+                    Salvar link do vídeo
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  disabled={busy || !when}
-                  onClick={schedule}
-                  className="rounded-md border border-primary bg-primary px-3 py-2 font-mono text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
-                >
-                  Agendar via Metricool
-                </button>
+              </div>
+            </TerminalWindow>
+          ) : null}
+
+          {piece.status === "aprovada" && (piece.kind !== "video" || (piece.meta?.video_url && !editingLink)) ? (
+            <TerminalWindow title="pecas/agendamento">
+              <div className="flex flex-col gap-3 p-4">
+                {piece.kind === "video" && piece.meta?.video_url ? (
+                  <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card/40 px-3 py-2">
+                    <span className="font-mono text-xs text-primary">✓ vídeo gravado</span>
+                    <a
+                      href={piece.meta.video_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground hover:text-foreground hover:underline"
+                    >
+                      {piece.meta.video_url}
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setVideoLink(piece.meta?.video_url ?? "");
+                        setEditingLink(true);
+                      }}
+                      className="font-mono text-[11px] text-muted-foreground hover:text-primary"
+                    >
+                      trocar link
+                    </button>
+                  </div>
+                ) : null}
+                <div className="flex flex-wrap items-end gap-2">
+                  <div className="flex flex-col gap-1">
+                    <label
+                      htmlFor="agendar-quando"
+                      className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground"
+                    >
+                      Publicar em
+                    </label>
+                    <input
+                      id="agendar-quando"
+                      type="datetime-local"
+                      value={when}
+                      onChange={(e) => setWhen(e.target.value)}
+                      className="rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm text-foreground focus:border-primary/50 focus:outline-none"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    disabled={busy || !when}
+                    onClick={schedule}
+                    className="rounded-md border border-primary bg-primary px-3 py-2 font-mono text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+                  >
+                    Agendar via Metricool
+                  </button>
+                </div>
               </div>
             </TerminalWindow>
           ) : null}
