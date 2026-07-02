@@ -102,6 +102,76 @@ export function parseResultado(texto) {
   }
 }
 
+/** Prompt do job GERAR_SEMANA — montar a linha editorial com os parâmetros do cliente. */
+export function montarPromptLinhaEditorial(payload) {
+  const inicio = String(payload?.start_date ?? '');
+  const fim = String(payload?.end_date ?? '');
+  const mix = payload?.mix ?? {};
+  const temas = String(payload?.themes ?? '').trim();
+  return [
+    'Você é a SQUAD CONTENT do cliente (Dr. Rodolfo · HMR) operando ESTE repositório de conteúdo.',
+    'Monte a LINHA EDITORIAL do período abaixo usando a skill linha-editorial do repo',
+    '(.claude/skills/linha-editorial). Fundação: referencia/fundacao-workspace/ PREVALECE sobre marca/*.md.',
+    '',
+    `PERÍODO: ${inicio} a ${fim} (máximo 1 conteúdo por dia)`,
+    `MIX PEDIDO: ${mix.carrossel ?? 0} carrossel(éis) · ${mix.estatico ?? 0} estático(s) · ${mix.video ?? 0} vídeo(s)`,
+    temas
+      ? `TEMAS QUE O CLIENTE QUER PUXAR: ${temas}`
+      : 'TEMAS: livres — puxe da fundação e da proporção da skill.',
+    '',
+    'REGRAS:',
+    '- Distribua as peças pelas datas do período (1 por dia no máximo · datas YYYY-MM-DD dentro do período).',
+    '- Respeite o mix pedido EXATAMENTE. Temas do cliente entram primeiro; complete com a proporção da skill.',
+    '- ATUALIZE linha-editorial/calendario.md com a pauta nova (é o que a produção lê depois).',
+    '- NUNCA invente fatos, leis ou números nos temas — use a base de conhecimento da fundação.',
+    '',
+    'FORMATO DA SUA ÚLTIMA MENSAGEM — SOMENTE este JSON, sem texto em volta:',
+    '{"reply": "<resumo curto da pauta pro chat>", "pecas": [{"titulo": "<título>", "tipo": "carrossel|estatico", "data": "YYYY-MM-DD", "tema": "<ângulo em 1 linha>"}]}',
+  ].join('\n');
+}
+
+/** Extrai/valida o contrato da linha editorial ({"reply","pecas":[...]}). */
+export function parseLinhaEditorial(texto) {
+  const s = String(texto ?? '');
+  const start = s.indexOf('{');
+  const end = s.lastIndexOf('}');
+  if (start === -1 || end <= start) return null;
+  try {
+    const obj = JSON.parse(s.slice(start, end + 1));
+    if (typeof obj?.reply !== 'string' || !obj.reply.trim()) return null;
+    if (!Array.isArray(obj.pecas)) return null;
+    const pecas = obj.pecas
+      .filter(
+        (p) =>
+          p && typeof p.titulo === 'string' && p.titulo.trim() &&
+          (p.tipo === 'carrossel' || p.tipo === 'estatico' || p.tipo === 'video') &&
+          typeof p.data === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(p.data),
+      )
+      .map((p) => ({
+        titulo: p.titulo.trim(),
+        tipo: p.tipo,
+        data: p.data,
+        tema: typeof p.tema === 'string' ? p.tema.trim() : null,
+      }));
+    if (!pecas.length) return null;
+    return { reply: obj.reply.trim(), pecas };
+  } catch {
+    return null;
+  }
+}
+
+/** Pura: linhas de content_pieces a partir da pauta gerada (status Pauta · data em meta). */
+export function pecasDaLinha(accountId, lineId, pecas) {
+  return (Array.isArray(pecas) ? pecas : []).map((p) => ({
+    account_id: accountId,
+    title: p.titulo,
+    kind: p.tipo,
+    status: 'pauta',
+    channel: 'instagram',
+    meta: { line_id: lineId, planned_date: p.data, ...(p.tema ? { tema: p.tema } : {}) },
+  }));
+}
+
 /** URL pública de um objeto no bucket público. */
 export function publicUrl(supabaseUrl, bucket, path) {
   const base = String(supabaseUrl).replace(/\/+$/, '');
@@ -680,6 +750,68 @@ async function processarAgendamento(job) {
   console.log(`[worker] job ${job.id} (publisher) ${veredito.ok ? 'done' : 'FALHOU'} · peça ${pieceId}`);
 }
 
+/** GERAR_SEMANA: monta a linha editorial (skill do repo) e cria as peças em Pauta. */
+async function processarLinhaEditorial(job) {
+  const lineId = job.payload?.line_id;
+  if (!lineId) throw new Error('gerar_semana sem line_id no payload');
+  const { repo } = cfg();
+
+  try {
+    let resultado;
+    let costUsd = null;
+    let model = ENV.GERADOR_MODEL ?? null;
+
+    if (FAKE) {
+      resultado = {
+        reply: '[FAKE] Linha editorial de teste montada.',
+        pecas: [{ titulo: '[FAKE] pauta', tipo: 'carrossel', data: job.payload?.start_date, tema: null }],
+      };
+    } else {
+      await sincronizarFundacao(job.account_id).catch((e) =>
+        console.error(`[worker] sync da fundação falhou (segue sem): ${e instanceof Error ? e.message : e}`),
+      );
+      const saida = await rodarClaude(montarPromptLinhaEditorial(job.payload), repo);
+      costUsd = saida.costUsd;
+      model = saida.model;
+      resultado = parseLinhaEditorial(saida.result);
+      if (!resultado) {
+        throw new Error(`agente respondeu fora do contrato da linha: ${String(saida.result).slice(0, 300)}`);
+      }
+    }
+
+    await rest('POST', 'content_pieces', pecasDaLinha(job.account_id, lineId, resultado.pecas));
+    await rest('PATCH', `content_editorial_lines?id=eq.${lineId}`, {
+      status: 'ativa',
+      updated_at: new Date().toISOString(),
+    });
+    await rest('POST', 'content_chat_messages', {
+      account_id: job.account_id,
+      author: 'squad',
+      body: resultado.reply,
+      job_id: job.id,
+    });
+    if (costUsd !== null) {
+      await rest('POST', 'os_cost_ledger', {
+        account_id: job.account_id,
+        agent: 'squad-content',
+        model,
+        date: new Date().toISOString().slice(0, 10),
+        cost_usd: costUsd,
+      });
+    }
+    await finalizarJob(job.id, { status: 'done', cost_usd: costUsd, model });
+    console.log(`[worker] job ${job.id} (linha editorial) done · ${resultado.pecas.length} peça(s) em pauta`);
+  } catch (e) {
+    // Marca a linha como falha antes de repassar — a tela mostra o estado real.
+    await rest('PATCH', `content_editorial_lines?id=eq.${lineId}`, {
+      status: 'falhou',
+      error: (e instanceof Error ? e.message : String(e)).slice(0, 500),
+      updated_at: new Date().toISOString(),
+    }).catch(() => {});
+    throw e;
+  }
+}
+
 async function processar(job) {
   try {
     if (job.kind === 'chat') {
@@ -690,6 +822,8 @@ async function processar(job) {
       await processarAjuste(job);
     } else if (job.kind === 'agendar_publicacao') {
       await processarAgendamento(job);
+    } else if (job.kind === 'gerar_semana') {
+      await processarLinhaEditorial(job);
     } else {
       throw new Error(`kind não suportado ainda: ${job.kind}`);
     }

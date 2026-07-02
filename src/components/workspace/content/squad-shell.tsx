@@ -17,6 +17,7 @@ import {
   CalendarDays,
   Gauge,
   Kanban,
+  ListChecks,
   LogOut,
   Menu,
   MessageSquare,
@@ -33,8 +34,10 @@ const SQUAD_NAV: {
 }[] = [
   // Ordem pedida pelo Arthur (02/07): chat logo abaixo do dashboard —
   // é quase a tela principal, a conversa de produção acontece ali.
+  // Linha editorial = passo 1 do ciclo (dela nascem as peças do kanban/calendário).
   { key: "dashboard", label: "Dashboard", href: "/w/content", icon: Gauge },
   { key: "chat", label: "Chat do squad", href: "/w/content/chat", icon: MessageSquare },
+  { key: "linha-editorial", label: "Linha editorial", href: "/w/content/linha-editorial", icon: ListChecks },
   { key: "kanban", label: "Kanban", href: "/w/content/kanban", icon: Kanban },
   { key: "calendario", label: "Calendário", href: "/w/content/calendario", icon: CalendarDays },
   { key: "agentes", label: "Agentes", href: "/w/content/agentes", icon: Bot },

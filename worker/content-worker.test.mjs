@@ -8,9 +8,12 @@ import {
   montarPrompt,
   montarPromptAjuste,
   montarPromptGeracao,
+  montarPromptLinhaEditorial,
   montarPromptPublisher,
+  parseLinhaEditorial,
   parsePublisher,
   parseResultado,
+  pecasDaLinha,
   publicUrl,
 } from './content-worker.mjs'
 
@@ -165,6 +168,52 @@ describe('fundação do workspace', () => {
       expect(p).toContain('fundacao-workspace')
       expect(p).toContain('PREVALECE')
     }
+  })
+})
+
+describe('linha editorial (gerar_semana)', () => {
+  const PAYLOAD = {
+    line_id: 'L1',
+    start_date: '2026-07-06',
+    end_date: '2026-07-12',
+    mix: { carrossel: 2, estatico: 2, video: 0 },
+    themes: 'bloqueio de conta · renegociação',
+  }
+
+  it('prompt carrega período, mix, temas e a regra 1/dia', () => {
+    const p = montarPromptLinhaEditorial(PAYLOAD)
+    expect(p).toContain('2026-07-06 a 2026-07-12')
+    expect(p).toContain('2 carrossel(éis) · 2 estático(s)')
+    expect(p).toContain('bloqueio de conta · renegociação')
+    expect(p).toContain('máximo 1 conteúdo por dia')
+    expect(p).toContain('linha-editorial/calendario.md')
+  })
+
+  it('parse aceita o contrato e derruba peça sem data válida', () => {
+    const r = parseLinhaEditorial(
+      'bla {"reply":"pauta pronta","pecas":[{"titulo":"Juros","tipo":"carrossel","data":"2026-07-07","tema":"x"},{"titulo":"ruim","tipo":"carrossel","data":"amanhã"}]} bla',
+    )
+    expect(r?.reply).toBe('pauta pronta')
+    expect(r?.pecas).toHaveLength(1)
+    expect(r?.pecas[0].data).toBe('2026-07-07')
+  })
+
+  it('parse devolve null sem pecas', () => {
+    expect(parseLinhaEditorial('{"reply":"oi","pecas":[]}')).toBeNull()
+    expect(parseLinhaEditorial('{"reply":"oi"}')).toBeNull()
+  })
+
+  it('pecasDaLinha vira linhas de content_pieces em Pauta com data planejada', () => {
+    const rows = pecasDaLinha('ACC', 'L1', [
+      { titulo: 'Juros', tipo: 'carrossel', data: '2026-07-07', tema: 'ângulo' },
+    ])
+    expect(rows[0]).toMatchObject({
+      account_id: 'ACC',
+      title: 'Juros',
+      kind: 'carrossel',
+      status: 'pauta',
+      meta: { line_id: 'L1', planned_date: '2026-07-07', tema: 'ângulo' },
+    })
   })
 })
 

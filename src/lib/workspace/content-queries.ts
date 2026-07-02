@@ -6,7 +6,7 @@ import type { ContentPiece } from './content'
 type DB = SupabaseClient
 
 const PIECE_COLUMNS =
-  'id, title, kind, status, caption, preview_url, channel, scheduled_at, published_at, created_at, updated_at'
+  'id, title, kind, status, caption, preview_url, channel, scheduled_at, published_at, created_at, updated_at, meta'
 
 /** Todas as peças da conta (kanban/calendário/dashboard leem daqui). */
 export async function loadPieces(db: DB): Promise<ContentPiece[]> {

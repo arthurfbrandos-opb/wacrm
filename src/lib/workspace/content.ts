@@ -23,6 +23,8 @@ export interface ContentPiece {
   published_at: string | null
   created_at: string
   updated_at: string
+  /** line_id/planned_date/tema quando a peça nasceu de uma linha editorial. */
+  meta?: { line_id?: string; planned_date?: string; tema?: string } | null
 }
 
 /** Ordem e rótulo das colunas do kanban (mapa aprovado 01/07). */
@@ -86,10 +88,12 @@ export function buildContentDashboard(pieces: ContentPiece[], now: Date): Conten
   }
 }
 
-/** Data-âncora de uma peça no calendário: agendamento > publicação > nada. */
+/** Data-âncora no calendário: agendamento > publicação > data planejada da linha editorial. */
 export function pieceCalendarDate(piece: ContentPiece): Date | null {
   const iso = piece.scheduled_at ?? piece.published_at
-  return iso ? new Date(iso) : null
+  if (iso) return new Date(iso)
+  const planned = piece.meta?.planned_date
+  return planned ? new Date(`${planned}T12:00:00`) : null
 }
 
 export interface CalendarDay {
