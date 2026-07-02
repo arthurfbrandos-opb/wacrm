@@ -518,6 +518,13 @@ export interface MoveDealStepConfig {
 export interface SendAiStepConfig {
   /** Diretriz/ângulo deste toque, injetada na voz do Agente. */
   guidance: string;
+  /**
+   * Template Meta aprovado deste toque, usado quando a janela de 24h está
+   * FECHADA (lead nunca respondeu). Sem template = toque pulado fora da
+   * janela. `body` é o texto exato aprovado ({{1}} = primeiro nome), usado
+   * só pra persistir no inbox o que de fato foi enviado.
+   */
+  template?: { name: string; lang?: string; body?: string };
 }
 
 export interface WaitStepConfig {

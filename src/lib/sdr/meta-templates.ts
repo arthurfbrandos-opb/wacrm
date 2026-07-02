@@ -18,6 +18,14 @@ export function renderNaoAgendou(firstName: string): string {
   )
 }
 
+/**
+ * Renderiza o corpo aprovado de um template Meta ({{1}}, {{2}}, …) com os
+ * parâmetros posicionais — pra persistir no inbox o texto que o lead viu.
+ */
+export function renderTemplateBody(body: string, params: string[]): string {
+  return body.replace(/\{\{(\d+)\}\}/g, (_m, n) => params[Number(n) - 1] ?? '')
+}
+
 export function renderAgendou(firstName: string): string {
   return (
     `Oi, ${firstName}! Aqui é o Ian, da Negócio Simples. Parabéns pela decisão de transformar o seu negócio com automação e IA.\n\n` +
