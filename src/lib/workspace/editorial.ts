@@ -1,7 +1,7 @@
 // src/lib/workspace/editorial.ts
 // Linha editorial — tipos + validação pura do formulário "Nova linha editorial".
 // Regra de produto (Arthur 02/07): máximo 1 conteúdo por dia do período;
-// vídeo existe no mix mas está "em breve" (editor de vídeo não roda ainda).
+// vídeo entra no mix (a squad entrega o ROTEIRO — ele grava e sobe no Drive).
 
 export interface EditorialLine {
   id: string
@@ -56,9 +56,6 @@ export function validateNewLine(input: NewLineInput): LineValidation {
   }
   if (days >= 1 && total > days) {
     errors.push(`Máximo de 1 conteúdo por dia: o período tem ${days} dia(s) e você pediu ${total}.`)
-  }
-  if (input.video > 0) {
-    errors.push('Vídeo ainda está em breve — por enquanto a linha leva carrosséis e estáticos.')
   }
   return { ok: errors.length === 0, errors, total, days }
 }

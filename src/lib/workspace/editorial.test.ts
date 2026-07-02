@@ -49,10 +49,10 @@ describe('validateNewLine', () => {
     expect(v.errors.join(' ')).toContain('pelo menos 1')
   })
 
-  it('vídeo ainda é em breve', () => {
+  it('vídeo entra no mix (a squad entrega o roteiro)', () => {
     const v = validateNewLine(input({ video: 1 }))
-    expect(v.ok).toBe(false)
-    expect(v.errors.join(' ')).toContain('em breve')
+    expect(v.ok).toBe(true)
+    expect(v.total).toBeGreaterThanOrEqual(1)
   })
 })
 

@@ -159,8 +159,14 @@ export function montarPromptLinhaEditorial(payload) {
     '- ATUALIZE linha-editorial/calendario.md com a pauta nova (é o que a produção lê depois).',
     '- NUNCA invente fatos, leis ou números nos temas — use a base de conhecimento da fundação.',
     '',
+    'O "reply" vai pro CHAT DO CLIENTE (advogado, não-técnico). Regras do reply:',
+    '- NUNCA cite arquivo, pasta, script ou sigla interna (KLT, 3K+1L, proporção da skill) — isso é bastidor.',
+    '- Fale como gente: datas por extenso (06/07 a 10/07) e o que ele ganha. Ex.: "Pauta montada: 5',
+    '  conteúdos de 06/07 a 10/07 (3 carrosséis e 2 estáticos). Tá tudo na aba Linha editorial e no',
+    '  calendário — me chama pra produzir a primeira."',
+    '',
     'FORMATO DA SUA ÚLTIMA MENSAGEM — SOMENTE este JSON, sem texto em volta:',
-    '{"reply": "<resumo curto da pauta pro chat>", "pecas": [{"titulo": "<título>", "tipo": "carrossel|estatico", "data": "YYYY-MM-DD", "tema": "<ângulo em 1 linha>"}]}',
+    '{"reply": "<resumo curto da pauta, linguagem de cliente>", "pecas": [{"titulo": "<título>", "tipo": "carrossel|estatico|video", "data": "YYYY-MM-DD", "tema": "<ângulo em 1 linha>"}]}',
   ].join('\n');
 }
 
