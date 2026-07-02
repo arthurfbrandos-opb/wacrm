@@ -31,8 +31,7 @@ const SQUAD_NAV: {
   { key: "dashboard", label: "Dashboard", href: "/w/content", icon: Gauge },
   { key: "kanban", label: "Kanban", href: "/w/content/kanban", icon: Kanban },
   { key: "calendario", label: "Calendário", href: "/w/content/calendario", icon: CalendarDays },
-  // Chat liga na fatia ④ (worker de produção) — visível-desligado até lá.
-  { key: "chat", label: "Chat do squad", icon: MessageSquare, soon: true },
+  { key: "chat", label: "Chat do squad", href: "/w/content/chat", icon: MessageSquare },
 ];
 
 function SquadSidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
