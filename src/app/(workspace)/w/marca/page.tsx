@@ -1,9 +1,10 @@
 "use client";
 
 // Marca — a fundação que alimenta a produção da Squad Content (tom de voz,
-// ICP, base de conhecimento, linha editorial). O cliente edita aqui; o worker
-// injeta a versão mais recente em cada produção. Leitura via RLS; escrita
-// via /api/workspace/brand (audita em os_audit).
+// ICP, base de conhecimento). O cliente edita aqui; o worker injeta a versão
+// mais recente em cada produção. Leitura via RLS; escrita via
+// /api/workspace/brand (audita em os_audit).
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { loadBrandSections } from "@/lib/workspace/queries";
@@ -144,6 +145,12 @@ export default function MarcaPage() {
           É daqui que a squad tira sua voz, seu cliente ideal e seus argumentos ao produzir
           conteúdo. O que você editar aqui vale já na próxima peça.
         </p>
+        <Link
+          href="/w/content"
+          className="mt-3 inline-block rounded-full border border-border bg-card px-3 py-1.5 font-mono text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
+        >
+          ir pra Squad Content ▸
+        </Link>
       </div>
 
       {error ? (

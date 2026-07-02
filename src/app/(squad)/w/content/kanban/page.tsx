@@ -63,7 +63,7 @@ function PieceCard({ piece, onDeleted }: { piece: ContentPiece; onDeleted: () =>
           onClick={excluir}
           aria-label={`Excluir peça ${piece.title}`}
           title="Excluir peça"
-          className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-md border border-border bg-card/90 text-muted-foreground opacity-0 transition-opacity hover:border-red-400/50 hover:text-red-400 focus-visible:opacity-100 group-hover:opacity-100"
+          className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-md border border-border bg-card/90 text-muted-foreground transition-opacity hover:border-red-400/50 hover:text-red-400 focus-visible:opacity-100 lg:opacity-0 lg:group-hover:opacity-100"
         >
           <Trash2 className="h-3.5 w-3.5" />
         </button>

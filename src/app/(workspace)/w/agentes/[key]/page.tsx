@@ -38,6 +38,12 @@ const TIPO_LABEL = { carrossel: "carrossel", estatico: "estático", video: "víd
 export default function UsarAgentePage() {
   const params = useParams<{ key: string }>();
   const [agent, setAgent] = useState<AgentRow | null | undefined>(undefined);
+  // Veio da aba Agentes da squad? O "voltar" devolve pra lá (via window pra
+  // não exigir Suspense do useSearchParams no prerender).
+  const [deSquad, setDeSquad] = useState(false);
+  useEffect(() => {
+    setDeSquad(new URLSearchParams(window.location.search).get("de") === "squad");
+  }, []);
   const [tema, setTema] = useState("");
   const [jobId, setJobId] = useState<string | null>(null);
   const [job, setJob] = useState<JobRow | null>(null);
@@ -116,8 +122,11 @@ export default function UsarAgentePage() {
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
       <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-primary">
-        <Link href="/w/agentes" className="hover:text-foreground">
-          agentes
+        <Link
+          href={deSquad ? "/w/content/agentes" : "/w/agentes"}
+          className="hover:text-foreground"
+        >
+          {deSquad ? "← squad · agentes" : "← agentes"}
         </Link>{" "}
         / usar
       </p>
