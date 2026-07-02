@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { isUniqueViolation } from "@/lib/contacts/dedupe";
 import type { Deal, Pipeline, PipelineStage } from "@/types";
 import {
   Select,
@@ -140,7 +141,11 @@ export function ContactDealEditor({ contactId, accountId }: ContactDealEditorPro
       .single();
     setBusy(false);
     if (error || !data) {
-      toast.error("Falha ao criar o negócio");
+      toast.error(
+        isUniqueViolation(error)
+          ? "Esse contato já tem um negócio aberto nesse funil."
+          : "Falha ao criar o negócio",
+      );
       return;
     }
     setDeal(data as Deal);
