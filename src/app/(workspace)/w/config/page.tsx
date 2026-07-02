@@ -42,7 +42,10 @@ export default function WorkspaceConfigPage() {
   const metricoolOn = metricool?.status === "connected";
   const gdrive = connections?.find((c) => c.provider === "google_drive");
   const gdriveOn = gdrive?.status === "connected";
+  const gdriveConteudos = connections?.find((c) => c.provider === "google_drive_conteudos");
+  const gdriveConteudosOn = gdriveConteudos?.status === "connected";
   const [folderUrl, setFolderUrl] = useState("");
+  const [contentFolderUrl, setContentFolderUrl] = useState("");
 
   const save = async (payload: Record<string, unknown>, okMsg: string) => {
     setBusy(true);
@@ -213,6 +216,91 @@ export default function WorkspaceConfigPage() {
               </button>
             </div>
           )}
+          </div>
+        </TerminalWindow>
+
+        {/* Google Drive — pasta de CONTEÚDOS prontos (Ano → Mês → linha editorial) */}
+        <TerminalWindow title="config/pasta_de_conteudos">
+          <div className="p-4">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span
+                className={
+                  gdriveConteudosOn
+                    ? "flex h-9 w-9 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary"
+                    : "flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-muted text-muted-foreground"
+                }
+              >
+                <FolderOpen className="h-4 w-4" />
+              </span>
+              <div>
+                <p className="font-mono text-sm font-medium text-foreground">
+                  Drive · pasta de conteúdos
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  onde seus conteúdos prontos ficam salvos, organizados por Ano → Mês →
+                  linha editorial (avulso vai pelo dia)
+                </p>
+              </div>
+            </div>
+            <span
+              className={
+                gdriveConteudosOn
+                  ? "rounded-full border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-primary"
+                  : "rounded-full border border-border px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-muted-foreground"
+              }
+            >
+              {connections === null ? "…" : gdriveConteudosOn ? "conectado" : "desconectado"}
+            </span>
+          </div>
+
+          {gdriveConteudosOn ? (
+            <div className="mt-4 flex flex-col gap-2">
+              <p className="truncate rounded-lg border border-border/60 bg-background px-3 py-2 font-mono text-xs text-muted-foreground">
+                {String((gdriveConteudos?.config as { folder_url?: string })?.folder_url ?? "")}
+              </p>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() =>
+                  save({ provider: "google_drive_conteudos", disconnect: true }, "Pasta desconectada.")
+                }
+                className="rounded-lg border border-border px-3 py-2 font-mono text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+              >
+                Desconectar
+              </button>
+            </div>
+          ) : (
+            <div className="mt-4 flex flex-col gap-2">
+              <input
+                type="url"
+                value={contentFolderUrl}
+                onChange={(e) => setContentFolderUrl(e.target.value)}
+                placeholder="Cole o link da pasta de conteúdos do Drive"
+                className="rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm text-foreground placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none"
+              />
+              <button
+                type="button"
+                disabled={busy || !contentFolderUrl.trim()}
+                onClick={() =>
+                  save(
+                    {
+                      provider: "google_drive_conteudos",
+                      config: { folder_url: contentFolderUrl.trim() },
+                    },
+                    "Pasta de conteúdos conectada.",
+                  )
+                }
+                className="rounded-lg border border-primary/40 bg-primary/10 px-3 py-2 font-mono text-sm font-medium text-primary transition-colors hover:bg-primary/20 disabled:opacity-50"
+              >
+                Conectar pasta
+              </button>
+            </div>
+          )}
+          <p className="mt-3 rounded-lg border border-dashed border-border px-3 py-2 font-mono text-[11px] text-muted-foreground">
+            ▸ salvamento automático nesta pasta: <span className="uppercase tracking-wider">em breve</span> — a
+            conta de serviço do Google entra na implantação.
+          </p>
           </div>
         </TerminalWindow>
       </div>
