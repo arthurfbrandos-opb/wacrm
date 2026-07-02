@@ -15,6 +15,7 @@ import {
   KANBAN_COLUMNS,
   KIND_LABEL,
   pieceDeletable,
+  piecePropostaPendente,
   type ContentPiece,
   type PieceStatus,
 } from "@/lib/workspace/content";
@@ -92,7 +93,8 @@ function PieceCard({ piece, onDeleted }: { piece: ContentPiece; onDeleted: () =>
 
 export default function SquadContentKanbanPage() {
   const { pieces, error, reload } = useContentPieces();
-  const grouped = pieces ? groupByStatus(pieces) : null;
+  // Proposta da linha editorial só entra aqui depois que o cliente aprova a ideia.
+  const grouped = pieces ? groupByStatus(pieces.filter((p) => !piecePropostaPendente(p))) : null;
 
   // "Gostinho": kanban fora do plano — mostra as etapas, não os cards.
   const { states, loading: modulesLoading } = useWorkspaceModules();

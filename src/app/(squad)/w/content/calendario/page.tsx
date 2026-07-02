@@ -7,13 +7,15 @@ import { useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { TerminalWindow } from "@/components/ui/terminal-window";
 import { useContentPieces } from "@/hooks/use-content-pieces";
-import { buildMonthGrid } from "@/lib/workspace/content";
+import { buildMonthGrid, piecePropostaPendente } from "@/lib/workspace/content";
 
 const MONTH_FMT = new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" });
 const WEEKDAYS = ["seg", "ter", "qua", "qui", "sex", "sáb", "dom"];
 
 export default function SquadContentCalendarPage() {
-  const { pieces, error } = useContentPieces();
+  const { pieces: todas, error } = useContentPieces();
+  // Proposta da linha só ancora no calendário depois de aprovada.
+  const pieces = todas ? todas.filter((p) => !piecePropostaPendente(p)) : null;
   const [anchor, setAnchor] = useState(() => {
     const now = new Date();
     return { year: now.getFullYear(), month: now.getMonth() };

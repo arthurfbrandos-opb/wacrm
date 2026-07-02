@@ -85,6 +85,7 @@ export default function ContentPieceDetailPage() {
     }
   };
 
+  const faseConteudo = piece?.meta?.fase === "conteudo" && piece?.kind !== "video";
   const decide = (action: "approve" | "request_changes") =>
     call(
       `/api/workspace/content/pieces/${params.id}/decide`,
@@ -92,7 +93,9 @@ export default function ContentPieceDetailPage() {
       action === "approve"
         ? piece?.kind === "video"
           ? "Roteiro aprovado — agora é gravar o vídeo."
-          : "Peça aprovada — pronta pra agendar."
+          : faseConteudo
+            ? "Conteúdo aprovado — a squad está fazendo a arte e te devolve pra aprovação final."
+            : "Peça aprovada — pronta pra agendar."
         : "Ajuste enviado pro squad — a peça volta pra Produzindo.",
     );
 
@@ -188,23 +191,41 @@ export default function ContentPieceDetailPage() {
               </div>
             </TerminalWindow>
           ) : (
-            <TerminalWindow title="pecas/preview">
-              <div className="p-4">
-                <p className="font-mono text-sm font-medium text-foreground">Prévia</p>
-                {piece.preview_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={piece.preview_url}
-                    alt={`Prévia — ${piece.title}`}
-                    className="mt-3 w-full max-w-md rounded-lg border border-border"
-                  />
-                ) : (
-                  <p className="mt-2 font-mono text-xs text-muted-foreground">
-                    ▸ A arte aparece aqui quando a produção terminar.
-                  </p>
-                )}
-              </div>
-            </TerminalWindow>
+            <>
+              {piece.meta?.copy ? (
+                // Produção em dois portões: o CONTEÚDO chega primeiro pra aprovação;
+                // a arte só é feita depois do OK.
+                <TerminalWindow title="pecas/conteudo">
+                  <div className="p-4">
+                    <p className="font-mono text-sm font-medium text-foreground">
+                      Conteúdo da peça
+                    </p>
+                    <pre className="mt-3 max-h-[28rem] overflow-y-auto whitespace-pre-wrap rounded-lg border border-border bg-card/40 p-3 font-mono text-xs leading-relaxed text-foreground">
+                      {piece.meta.copy}
+                    </pre>
+                  </div>
+                </TerminalWindow>
+              ) : null}
+              {piece.meta?.fase === "conteudo" && !piece.preview_url ? null : (
+                <TerminalWindow title="pecas/preview">
+                  <div className="p-4">
+                    <p className="font-mono text-sm font-medium text-foreground">Prévia</p>
+                    {piece.preview_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={piece.preview_url}
+                        alt={`Prévia — ${piece.title}`}
+                        className="mt-3 w-full max-w-md rounded-lg border border-border"
+                      />
+                    ) : (
+                      <p className="mt-2 font-mono text-xs text-muted-foreground">
+                        ▸ A arte aparece aqui quando a produção terminar.
+                      </p>
+                    )}
+                  </div>
+                </TerminalWindow>
+              )}
+            </>
           )}
 
           <TerminalWindow title="pecas/legenda">
@@ -232,6 +253,12 @@ export default function ContentPieceDetailPage() {
           {piece.status === "aprovacao" ? (
             <TerminalWindow title="pecas/decisao">
               <div className="flex flex-col gap-3 p-4">
+                {faseConteudo ? (
+                  <p className="font-mono text-xs text-muted-foreground">
+                    ▸ este é o <span className="text-foreground">conteúdo</span> da peça — aprovou,
+                    a squad faz a arte e te devolve pra aprovação final.
+                  </p>
+                ) : null}
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
@@ -239,7 +266,7 @@ export default function ContentPieceDetailPage() {
                     onClick={() => decide("approve")}
                     className="rounded-md border border-primary bg-primary px-3 py-2 font-mono text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
                   >
-                    ✓ Aprovar
+                    {faseConteudo ? "✓ Aprovar conteúdo" : "✓ Aprovar"}
                   </button>
                   <button
                     type="button"

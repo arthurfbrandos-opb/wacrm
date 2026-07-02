@@ -35,7 +35,7 @@ export async function POST(
 
   const { data: piece, error: pieceErr } = await db
     .from("content_pieces")
-    .select("id, title, status, meta")
+    .select("id, title, status, kind, meta")
     .eq("id", id)
     .eq("account_id", accountId)
     .maybeSingle();
@@ -49,7 +49,13 @@ export async function POST(
   }
 
   const approved = action === "approve";
-  const newStatus = approved ? "aprovada" : "producao";
+  const meta = piece.meta as { slug?: string; fase?: string } | null;
+  const faseConteudo = meta?.fase === "conteudo";
+  // Dois portões (Arthur 02/07): aprovar o CONTEÚDO de carrossel/estático não
+  // fecha a peça — dispara a ARTE e ela volta pra aprovação final. Vídeo fecha
+  // no conteúdo (a "arte" é a gravação dele). Fase arte/legado = fecha.
+  const artePendente = approved && faseConteudo && piece.kind !== "video";
+  const newStatus = approved ? (artePendente ? "producao" : "aprovada") : "producao";
 
   const { error: upErr } = await db
     .from("content_pieces")
@@ -58,13 +64,24 @@ export async function POST(
     .eq("account_id", accountId);
   if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
 
-  // Ajuste → job pro worker refazer a peça com a nota do cliente.
-  if (!approved) {
-    const slug = (piece.meta as { slug?: string } | null)?.slug ?? null;
+  if (artePendente) {
     const { error: jobErr } = await db.from("content_jobs").insert({
       account_id: accountId,
-      kind: "ajustar_peca",
-      payload: { piece_id: id, note, slug, title: piece.title },
+      kind: "gerar_arte",
+      payload: { piece_id: id, slug: meta?.slug ?? null, titulo: piece.title, tipo: piece.kind },
+      created_by: userId,
+    });
+    if (jobErr) return NextResponse.json({ error: jobErr.message }, { status: 500 });
+  }
+
+  // Ajuste → refaz o CONTEÚDO (fase conteúdo) ou a peça toda (fase arte/legado).
+  if (!approved) {
+    const { error: jobErr } = await db.from("content_jobs").insert({
+      account_id: accountId,
+      kind: faseConteudo ? "produzir_pauta" : "ajustar_peca",
+      payload: faseConteudo
+        ? { piece_id: id, note, titulo: piece.title, tipo: piece.kind }
+        : { piece_id: id, note, slug: meta?.slug ?? null, title: piece.title },
       created_by: userId,
     });
     if (jobErr) return NextResponse.json({ error: jobErr.message }, { status: 500 });

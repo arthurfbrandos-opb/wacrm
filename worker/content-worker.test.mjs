@@ -8,14 +8,56 @@ import {
   montarPrompt,
   montarPromptAjuste,
   montarPromptGeracao,
+  montarPromptGerarArte,
   montarPromptLinhaEditorial,
+  montarPromptProduzirPauta,
   montarPromptPublisher,
+  parseConteudoPauta,
   parseLinhaEditorial,
   parsePublisher,
   parseResultado,
   pecasDaLinha,
   publicUrl,
 } from './content-worker.mjs'
+
+describe('produção em dois portões (pauta → conteúdo → arte)', () => {
+  it('pecasDaLinha nasce como PROPOSTA (fora do kanban até aprovar)', () => {
+    const rows = pecasDaLinha('acc', 'line1', [
+      { titulo: 'X', tipo: 'carrossel', data: '2026-07-06', tema: 'ângulo' },
+    ])
+    expect(rows[0].meta.pauta).toBe('proposta')
+    expect(rows[0].status).toBe('pauta')
+  })
+
+  it('montarPromptProduzirPauta proíbe arte e cobra corpo sem legenda', () => {
+    const p = montarPromptProduzirPauta({ titulo: 'Juros', tipo: 'carrossel', tema: 'ângulo' })
+    expect(p).toContain('NÃO renderize arte')
+    expect(p).toContain('SEM a legenda dentro')
+  })
+
+  it('montarPromptGerarArte não deixa reescrever a copy aprovada', () => {
+    const p = montarPromptGerarArte({ titulo: 'Juros', slug: 'juros', tipo: 'carrossel' })
+    expect(p).toContain('NÃO reescreva a copy')
+    expect(p).toContain('producao/juros/')
+  })
+
+  it('parseConteudoPauta valida contrato e limpa legenda de dentro do corpo', () => {
+    const r = parseConteudoPauta(
+      JSON.stringify({
+        reply: 'Conteúdo pronto.',
+        peca: {
+          slug: 'juros',
+          legenda: 'legenda oficial',
+          corpo: '## Slide 1\ntexto\n\n## Legenda\nduplicada aqui',
+        },
+      }),
+    )
+    expect(r.peca.slug).toBe('juros')
+    expect(r.peca.corpo).toContain('Slide 1')
+    expect(r.peca.corpo).not.toContain('duplicada')
+    expect(parseConteudoPauta('{"reply":"ok","peca":{"slug":"x"}}')).toBeNull() // sem corpo
+  })
+})
 
 describe('montarPrompt', () => {
   it('leva o histórico da conversa (sessão contínua) antes da mensagem nova', () => {

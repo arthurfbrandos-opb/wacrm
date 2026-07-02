@@ -6,6 +6,7 @@ import {
   KANBAN_COLUMNS,
   pieceCalendarDate,
   pieceDeletable,
+  piecePropostaPendente,
   type ContentPiece,
 } from './content'
 
@@ -22,6 +23,7 @@ function piece(over: Partial<ContentPiece>): ContentPiece {
     published_at: over.published_at ?? null,
     created_at: over.created_at ?? '2026-07-01T12:00:00Z',
     updated_at: over.updated_at ?? '2026-07-01T12:00:00Z',
+    meta: over.meta ?? null,
   }
 }
 
@@ -70,6 +72,15 @@ describe('pieceCalendarDate', () => {
       pieceCalendarDate(piece({ scheduled_at: '2026-07-20T10:00:00Z', published_at: '2026-07-01T10:00:00Z' }))!.getDate(),
     ).toBe(20)
     expect(pieceCalendarDate(piece({}))).toBeNull()
+  })
+})
+
+describe('piecePropostaPendente', () => {
+  it('proposta pendente = pauta + meta.pauta proposta; aprovada/produzida não', () => {
+    expect(piecePropostaPendente(piece({ status: 'pauta', meta: { pauta: 'proposta' } }))).toBe(true)
+    expect(piecePropostaPendente(piece({ status: 'pauta', meta: { pauta: 'aprovada' } }))).toBe(false)
+    expect(piecePropostaPendente(piece({ status: 'pauta', meta: {} }))).toBe(false) // legado
+    expect(piecePropostaPendente(piece({ status: 'producao', meta: { pauta: 'proposta' } }))).toBe(false)
   })
 })
 
