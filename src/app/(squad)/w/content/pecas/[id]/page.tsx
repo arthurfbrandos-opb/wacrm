@@ -52,6 +52,14 @@ export default function ContentPieceDetailPage() {
     setTimeout(() => setCopied(false), 1800);
   };
 
+  const [roteiroCopied, setRoteiroCopied] = useState(false);
+  const copyRoteiro = () => {
+    if (!piece?.meta?.roteiro) return;
+    void navigator.clipboard?.writeText(piece.meta.roteiro);
+    setRoteiroCopied(true);
+    setTimeout(() => setRoteiroCopied(false), 1800);
+  };
+
   const call = async (path: string, body: unknown, okMsg: string) => {
     setBusy(true);
     setError(null);
@@ -138,23 +146,54 @@ export default function ContentPieceDetailPage() {
             </div>
           </div>
 
-          <TerminalWindow title="pecas/preview">
-            <div className="p-4">
-              <p className="font-mono text-sm font-medium text-foreground">Prévia</p>
-              {piece.preview_url ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={piece.preview_url}
-                  alt={`Prévia — ${piece.title}`}
-                  className="mt-3 w-full max-w-md rounded-lg border border-border"
-                />
-              ) : (
-                <p className="mt-2 font-mono text-xs text-muted-foreground">
-                  ▸ A arte aparece aqui quando a produção terminar.
-                </p>
-              )}
-            </div>
-          </TerminalWindow>
+          {piece.kind === "video" ? (
+            // Vídeo: a entrega é o ROTEIRO (ele grava no celular) — não tem arte.
+            <TerminalWindow title="pecas/roteiro">
+              <div className="p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-mono text-sm font-medium text-foreground">
+                    Roteiro pra gravar
+                  </p>
+                  {piece.meta?.roteiro ? (
+                    <button
+                      type="button"
+                      onClick={copyRoteiro}
+                      className="rounded-lg border border-border px-2.5 py-1 font-mono text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    >
+                      {roteiroCopied ? "✓ copiado" : "copiar"}
+                    </button>
+                  ) : null}
+                </div>
+                {piece.meta?.roteiro ? (
+                  <pre className="mt-3 max-h-[28rem] overflow-y-auto whitespace-pre-wrap rounded-lg border border-border bg-card/40 p-3 font-mono text-xs leading-relaxed text-foreground">
+                    {piece.meta.roteiro}
+                  </pre>
+                ) : (
+                  <p className="mt-2 font-mono text-xs text-muted-foreground">
+                    ▸ O roteiro aparece aqui quando a produção terminar.
+                  </p>
+                )}
+              </div>
+            </TerminalWindow>
+          ) : (
+            <TerminalWindow title="pecas/preview">
+              <div className="p-4">
+                <p className="font-mono text-sm font-medium text-foreground">Prévia</p>
+                {piece.preview_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={piece.preview_url}
+                    alt={`Prévia — ${piece.title}`}
+                    className="mt-3 w-full max-w-md rounded-lg border border-border"
+                  />
+                ) : (
+                  <p className="mt-2 font-mono text-xs text-muted-foreground">
+                    ▸ A arte aparece aqui quando a produção terminar.
+                  </p>
+                )}
+              </div>
+            </TerminalWindow>
+          )}
 
           <TerminalWindow title="pecas/legenda">
             <div className="p-4">

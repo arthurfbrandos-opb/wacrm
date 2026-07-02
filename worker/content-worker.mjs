@@ -63,9 +63,12 @@ export function montarPrompt(payload, historico = []) {
     '  ação por vez, como o command manda) e devolva "peca": null.',
     '- Pedido de produção: produza UMA peça ponta a ponta pelas skills do repo (copy: construtor-copy ·',
     '  arte: editor-carrossel/render_carrossel.py ou editor-estatico/render_estatico.py · producao/<slug>/).',
+    '- Vídeo (ele dá o tema, a gente monta o roteiro): skill roteiro-video → producao/<slug>/roteiro.md.',
+    '  NÃO tem arte/edição: devolva o roteiro COMPLETO no campo "roteiro" da peça (é o que ele grava)',
+    '  e no reply diga que o roteiro está em "Pra aprovar" pronto pra ele gravar.',
     '',
     'FORMATO DA SUA ÚLTIMA MENSAGEM — SOMENTE este JSON, sem texto em volta:',
-    '{"reply": "<resposta curta pro chat>", "peca": {"slug": "<pasta em producao/>", "titulo": "<título>", "tipo": "carrossel|estatico", "legenda": "<legenda completa>", "arquivo_preview": "producao/<slug>/<primeiro-png>"} }',
+    '{"reply": "<resposta curta pro chat>", "peca": {"slug": "<pasta em producao/>", "titulo": "<título>", "tipo": "carrossel|estatico|video", "legenda": "<legenda completa>", "arquivo_preview": "producao/<slug>/<primeiro-png> (null pra vídeo)", "roteiro": "<só vídeo: roteiro completo em markdown, senão null>"} }',
     'Quando não houver peça: {"reply": "...", "peca": null}',
   ].join('\n');
 }
@@ -81,11 +84,11 @@ export function parseResultado(texto) {
     if (typeof obj?.reply !== 'string' || !obj.reply.trim()) return null;
     let peca = null;
     if (obj.peca && typeof obj.peca === 'object') {
-      const { slug, titulo, tipo, legenda, arquivo_preview } = obj.peca;
+      const { slug, titulo, tipo, legenda, arquivo_preview, roteiro } = obj.peca;
       if (
         typeof slug === 'string' && slug.trim() &&
         typeof titulo === 'string' && titulo.trim() &&
-        (tipo === 'carrossel' || tipo === 'estatico')
+        (tipo === 'carrossel' || tipo === 'estatico' || tipo === 'video')
       ) {
         peca = {
           slug: slug.trim(),
@@ -93,6 +96,8 @@ export function parseResultado(texto) {
           tipo,
           legenda: typeof legenda === 'string' ? legenda : '',
           arquivo_preview: typeof arquivo_preview === 'string' ? arquivo_preview : null,
+          // Vídeo não tem arte: o roteiro É a entrega (vai pro detalhe da peça).
+          roteiro: typeof roteiro === 'string' && roteiro.trim() ? roteiro.trim() : null,
         };
       }
     }
@@ -536,7 +541,11 @@ async function produzirEPersistir(job, prompt, tituloFake) {
       caption: resultado.peca.legenda || null,
       preview_url: previewUrl,
       channel: 'instagram',
-      meta: { slug: resultado.peca.slug, job_id: job.id },
+      meta: {
+        slug: resultado.peca.slug,
+        job_id: job.id,
+        ...(resultado.peca.roteiro ? { roteiro: resultado.peca.roteiro } : {}),
+      },
     });
     pieceId = pieceRows?.[0]?.id ?? null;
   }
