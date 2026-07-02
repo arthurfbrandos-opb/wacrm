@@ -120,9 +120,28 @@ export default function SquadContentChatPage() {
         {messages === null ? (
           <p className="font-mono text-sm text-muted-foreground">carregando…</p>
         ) : messages.length === 0 ? (
-          <p className="font-mono text-sm text-muted-foreground">
-            ▸ Nenhuma conversa ainda. Exemplo: <span className="text-foreground">&ldquo;gera um carrossel sobre juros abusivos em financiamento de carro&rdquo;</span>
-          </p>
+          <div className="flex flex-col gap-3">
+            <p className="font-mono text-sm text-muted-foreground">
+              ▸ Nenhuma conversa ainda. É uma conversa contínua — o squad lembra do
+              contexto. Alguns começos:
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {[
+                "monta a pauta da semana",
+                "gera um carrossel sobre juros abusivos em financiamento",
+                "gera um estático sobre bloqueio de conta",
+              ].map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setDraft(s)}
+                  className="rounded-full border border-border bg-card px-3 py-1.5 font-mono text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
         ) : (
           messages.map((m) => (
             <div

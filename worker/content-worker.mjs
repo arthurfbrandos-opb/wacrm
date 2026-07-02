@@ -28,14 +28,23 @@ import { join } from 'node:path';
 
 // ── Funções puras (testadas em content-worker.test.mjs) ─────────────────────
 
-/** Monta o prompt do job de chat pro Claude operar o repo-cérebro. */
-export function montarPrompt(payload) {
+/**
+ * Monta o prompt do job de chat pro Claude operar o repo-cérebro.
+ * `historico` = mensagens recentes da conversa (mais antiga → mais nova),
+ * SEM a mensagem nova — o chat é uma sessão contínua, não pedidos soltos.
+ */
+export function montarPrompt(payload, historico = []) {
   const pedido = String(payload?.message ?? '').trim();
+  const conversa = (Array.isArray(historico) ? historico : [])
+    .map((m) => `[${m?.author === 'squad' ? 'squad' : 'cliente'}] ${String(m?.body ?? '').trim()}`)
+    .join('\n');
   return [
     'Você é a SQUAD CONTENT operando ESTE repositório de conteúdo do cliente (Dr. Rodolfo · HMR).',
-    'O cliente mandou a mensagem abaixo pelo chat da ferramenta. Atenda ao pedido.',
+    'O cliente conversa com você pelo chat da ferramenta — é uma CONVERSA CONTÍNUA (o flow de',
+    'produção de conteúdo: pauta → peça → ajuste). Considere o contexto e atenda a mensagem nova.',
     '',
-    `MENSAGEM DO CLIENTE: ${pedido}`,
+    ...(conversa ? ['CONVERSA RECENTE (mais antiga → mais nova):', conversa, ''] : []),
+    `MENSAGEM NOVA DO CLIENTE: ${pedido}`,
     '',
     'REGRAS:',
     '- Se for pedido de PEÇA (carrossel/estático): produza ponta a ponta usando as skills do repo:',
@@ -472,8 +481,20 @@ async function produzirEPersistir(job, prompt, tituloFake) {
   console.log(`[worker] job ${job.id} done${pieceId ? ` · peça ${pieceId}` : ''}${costUsd !== null ? ` · $${costUsd}` : ''}`);
 }
 
+/** Histórico recente do chat (sem a mensagem do job atual), mais antiga → mais nova. */
+async function historicoChat(accountId, jobId) {
+  const rows = await rest(
+    'GET',
+    `content_chat_messages?account_id=eq.${accountId}&select=author,body,job_id&order=created_at.desc&limit=12`,
+  );
+  return (Array.isArray(rows) ? rows : []).filter((m) => m.job_id !== jobId).reverse();
+}
+
 async function processarChat(job) {
-  await produzirEPersistir(job, montarPrompt(job.payload), job.payload?.message);
+  const historico = FAKE
+    ? []
+    : await historicoChat(job.account_id, job.id).catch(() => []);
+  await produzirEPersistir(job, montarPrompt(job.payload, historico), job.payload?.message);
 }
 
 async function processarGeracao(job) {

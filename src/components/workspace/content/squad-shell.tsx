@@ -31,10 +31,12 @@ const SQUAD_NAV: {
   icon: typeof Gauge;
   soon?: boolean;
 }[] = [
+  // Ordem pedida pelo Arthur (02/07): chat logo abaixo do dashboard —
+  // é quase a tela principal, a conversa de produção acontece ali.
   { key: "dashboard", label: "Dashboard", href: "/w/content", icon: Gauge },
+  { key: "chat", label: "Chat do squad", href: "/w/content/chat", icon: MessageSquare },
   { key: "kanban", label: "Kanban", href: "/w/content/kanban", icon: Kanban },
   { key: "calendario", label: "Calendário", href: "/w/content/calendario", icon: CalendarDays },
-  { key: "chat", label: "Chat do squad", href: "/w/content/chat", icon: MessageSquare },
   { key: "agentes", label: "Agentes", href: "/w/content/agentes", icon: Bot },
 ];
 

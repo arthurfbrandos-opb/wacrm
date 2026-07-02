@@ -15,6 +15,22 @@ import {
 } from './content-worker.mjs'
 
 describe('montarPrompt', () => {
+  it('leva o histórico da conversa (sessão contínua) antes da mensagem nova', () => {
+    const p = montarPrompt({ message: 'agora faz a versão estático' }, [
+      { author: 'cliente', body: 'gera um carrossel sobre juros' },
+      { author: 'squad', body: 'Feito! Tá no kanban.' },
+    ])
+    expect(p).toContain('CONVERSA RECENTE')
+    expect(p).toContain('[cliente] gera um carrossel sobre juros')
+    expect(p).toContain('[squad] Feito! Tá no kanban.')
+    expect(p.indexOf('[squad]')).toBeLessThan(p.indexOf('MENSAGEM NOVA DO CLIENTE'))
+  })
+
+  it('sem histórico não imprime bloco de conversa', () => {
+    const p = montarPrompt({ message: 'oi' })
+    expect(p).not.toContain('CONVERSA RECENTE')
+  })
+
   it('inclui a mensagem do cliente e o contrato JSON', () => {
     const p = montarPrompt({ message: 'gera um carrossel sobre juros abusivos' })
     expect(p).toContain('gera um carrossel sobre juros abusivos')
@@ -22,7 +38,7 @@ describe('montarPrompt', () => {
     expect(p).toContain('NUNCA invente')
   })
   it('não explode com payload vazio', () => {
-    expect(montarPrompt({})).toContain('MENSAGEM DO CLIENTE:')
+    expect(montarPrompt({})).toContain('MENSAGEM NOVA DO CLIENTE:')
   })
 })
 

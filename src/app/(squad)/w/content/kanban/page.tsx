@@ -1,17 +1,59 @@
 "use client";
 
-// Kanban da Squad Content — read-first (fatia ③). Aprovar/pedir ajuste entram
-// na fatia ⑤ (os_approvals); arrastar card não existe: quem move é o processo.
+// Kanban da Squad Content — mesmo molde do funil do CRM (pipeline-board):
+// colunas com borda colorida no topo, chip de contagem, snap no mobile e
+// cards ricos (prévia + tipo + data) clicáveis pro detalhe. Arrastar card
+// não existe: quem move a peça é o processo (produção/aprovação/publicação).
 import Link from "next/link";
-import { TerminalWindow } from "@/components/ui/terminal-window";
 import { useContentPieces } from "@/hooks/use-content-pieces";
 import {
   groupByStatus,
   KANBAN_COLUMNS,
   KIND_LABEL,
+  type ContentPiece,
+  type PieceStatus,
 } from "@/lib/workspace/content";
 
 const DATE_FMT = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit" });
+
+// Cor da etapa (paleta do Command Center: dim/warn/purple/green/blue/primary).
+const STATUS_COLOR: Record<PieceStatus, string> = {
+  pauta: "#6E766E",
+  producao: "#F59E0B",
+  aprovacao: "#A78BD8",
+  aprovada: "#22C55E",
+  agendada: "#60A5FA",
+  publicada: "#4ADE80",
+};
+
+function PieceCard({ piece }: { piece: ContentPiece }) {
+  const dateIso = piece.scheduled_at ?? piece.published_at;
+  return (
+    <Link
+      href={`/w/content/pecas/${piece.id}`}
+      className="block rounded-lg border border-border bg-card p-3 transition-colors hover:border-primary/40 hover:bg-muted"
+    >
+      {piece.preview_url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={piece.preview_url}
+          alt=""
+          className="mb-2 aspect-[4/5] w-full rounded-md border border-border object-cover"
+        />
+      ) : null}
+      <p className="line-clamp-2 text-sm font-medium text-foreground">{piece.title}</p>
+      <div className="mt-2 flex items-center justify-between gap-1">
+        <span className="rounded-full border border-border px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-muted-foreground">
+          {KIND_LABEL[piece.kind]}
+        </span>
+        <span className="font-mono text-[10px] text-muted-foreground">
+          {piece.channel ?? ""}
+          {dateIso ? ` · ${DATE_FMT.format(new Date(dateIso))}` : ""}
+        </span>
+      </div>
+    </Link>
+  );
+}
 
 export default function SquadContentKanbanPage() {
   const { pieces, error } = useContentPieces();
@@ -26,6 +68,9 @@ export default function SquadContentKanbanPage() {
         <h1 className="mt-1 font-mono text-2xl font-semibold tracking-tight text-foreground">
           Esteira de produção
         </h1>
+        <p className="mt-1 max-w-2xl font-mono text-sm text-muted-foreground">
+          As peças andam sozinhas conforme a squad produz e você aprova.
+        </p>
       </div>
 
       {error ? (
@@ -33,56 +78,38 @@ export default function SquadContentKanbanPage() {
       ) : grouped === null ? (
         <p className="font-mono text-sm text-muted-foreground">carregando…</p>
       ) : (
-        <TerminalWindow title="squad/kanban">
-          <div className="grid gap-3 overflow-x-auto p-4 lg:grid-cols-6">
-            {KANBAN_COLUMNS.map((col) => {
-              const items = grouped.get(col.status) ?? [];
-              return (
+        <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-4 lg:snap-none">
+          {KANBAN_COLUMNS.map((col) => {
+            const items = grouped.get(col.status) ?? [];
+            return (
+              <div
+                key={col.status}
+                className="flex w-[85vw] min-w-[240px] max-w-[320px] shrink-0 snap-start flex-col rounded-xl border border-border bg-card/60 p-4 lg:w-auto lg:max-w-none lg:flex-1 lg:basis-[220px] lg:shrink lg:snap-none"
+              >
+                {/* Borda colorida de 3px no topo — mesma assinatura do funil do CRM */}
                 <div
-                  key={col.status}
-                  className="flex min-w-52 flex-col rounded-xl border border-border bg-card/40 p-3"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
-                      {col.label}
-                    </p>
-                    <span className="font-mono text-xs text-muted-foreground">{items.length}</span>
-                  </div>
-                  <div className="mt-2 flex flex-1 flex-col gap-2">
-                    {items.length === 0 ? (
-                      <p className="px-1 py-2 text-center font-mono text-[11px] text-muted-foreground/60">—</p>
-                    ) : (
-                      items.map((p) => {
-                        const dateIso = p.scheduled_at ?? p.published_at;
-                        return (
-                          <Link
-                            key={p.id}
-                            href={`/w/content/pecas/${p.id}`}
-                            className="rounded-lg border border-border bg-card p-3 transition-colors hover:border-primary/40 hover:bg-muted"
-                          >
-                            <p className="line-clamp-2 font-mono text-xs font-medium text-foreground">
-                              {p.title}
-                            </p>
-                            <div className="mt-2 flex items-center justify-between gap-1">
-                              <span className="rounded-full border border-border px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-muted-foreground">
-                                {KIND_LABEL[p.kind]}
-                              </span>
-                              {dateIso ? (
-                                <span className="font-mono text-[10px] text-muted-foreground">
-                                  {DATE_FMT.format(new Date(dateIso))}
-                                </span>
-                              ) : null}
-                            </div>
-                          </Link>
-                        );
-                      })
-                    )}
-                  </div>
+                  className="-mx-4 -mt-4 h-[3px] rounded-t-xl"
+                  style={{ backgroundColor: STATUS_COLOR[col.status] }}
+                />
+                <div className="flex items-center justify-between gap-2 pt-3">
+                  <h3 className="truncate text-sm font-semibold text-foreground">{col.label}</h3>
+                  <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                    {items.length}
+                  </span>
                 </div>
-              );
-            })}
-          </div>
-        </TerminalWindow>
+                <div className="mt-3 flex flex-1 flex-col gap-2">
+                  {items.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-border/60 px-2 py-6 text-center font-mono text-[11px] text-muted-foreground/60">
+                      sem peças aqui
+                    </div>
+                  ) : (
+                    items.map((p) => <PieceCard key={p.id} piece={p} />)
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );
