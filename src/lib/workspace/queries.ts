@@ -54,3 +54,13 @@ export async function loadBrandSections(db: DB) {
   if (error) throw error
   return (data ?? []) as import('./brand').BrandSection[]
 }
+
+/** Linhas editoriais da conta (mais nova primeiro) — a aba Linha editorial. */
+export async function loadEditorialLines(db: DB) {
+  const { data, error } = await db
+    .from('content_editorial_lines')
+    .select('id, start_date, end_date, mix, themes, status, error, created_at')
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return (data ?? []) as import('./editorial').EditorialLine[]
+}
