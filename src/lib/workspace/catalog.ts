@@ -57,18 +57,21 @@ export interface WorkspaceMenuItem {
 }
 
 /**
- * Pura: o menu do workspace (mapa aprovado 01/07).
+ * Pura: o menu do workspace (mapa aprovado 01/07 · Marca adicionada 02/07).
  * Itens sempre-on: Visão geral · Agentes · Squads · Configurações.
- * Gated por módulo: Comercial/CRM · Automation Studio.
+ * Gated por módulo: Comercial/CRM · Automation Studio · Marca (segue squad_content —
+ * é a fundação que alimenta a produção de conteúdo).
  */
 export function buildWorkspaceMenu(states: ModuleStates): WorkspaceMenuItem[] {
   const crm = moduleAvailability(states, 'crm')
   const studio = moduleAvailability(states, 'automation_studio')
+  const marca = moduleAvailability(states, 'squad_content')
   return [
     { key: 'overview', label: 'Visão geral', href: '/w', state: 'on' },
     { key: 'crm', label: 'Comercial / CRM', state: crm, ...(crm === 'on' ? { href: '/dashboard' } : {}) },
     { key: 'agentes', label: 'Agentes', href: '/w/agentes', state: 'on' },
     { key: 'squads', label: 'Squads', href: '/w/squads', state: 'on' },
+    { key: 'marca', label: 'Marca', state: marca, ...(marca === 'on' ? { href: '/w/marca' } : {}) },
     { key: 'automation_studio', label: 'Automation Studio', state: studio, ...(studio === 'on' ? { href: '/w/automation-studio' } : {}) },
     { key: 'config', label: 'Configurações', href: '/w/config', state: 'on' },
   ]

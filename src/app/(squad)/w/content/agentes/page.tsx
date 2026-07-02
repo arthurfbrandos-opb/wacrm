@@ -1,27 +1,24 @@
 "use client";
 
-// Tela Agentes — só especialistas individuais (kind='agent'; squads têm tela própria).
-// Cards vêm do os_agent_registry da conta (RLS), na identidade Command Center.
+// Agentes da Squad Content — os mesmos especialistas da tela Agentes do
+// workspace, filtrados pela squad (pedido Arthur 02/07: dentro do ambiente
+// da squad também dá pra usar os agentes dela direto).
 import { useEffect, useState } from "react";
 import { Bot } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import {
-  loadWorkspaceAgents,
-  type WorkspaceAgentRow,
-} from "@/lib/workspace/queries";
+import { loadWorkspaceAgents, type WorkspaceAgentRow } from "@/lib/workspace/queries";
 import { AgentCard } from "@/components/workspace/agent-card";
 
-export default function WorkspaceAgentsPage() {
+export default function SquadContentAgentsPage() {
   const [agents, setAgents] = useState<WorkspaceAgentRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
-    // Client criado no effect (não no render) — prerender do build roda sem env.
     const supabase = createClient();
     loadWorkspaceAgents(supabase)
       .then((rows) => {
-        if (alive) setAgents(rows);
+        if (alive) setAgents(rows.filter((a) => a.squad_key === "squad-content"));
       })
       .catch((e: unknown) => {
         if (alive) setError(e instanceof Error ? e.message : String(e));
@@ -35,13 +32,14 @@ export default function WorkspaceAgentsPage() {
     <div className="flex flex-col gap-4">
       <div>
         <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-primary">
-          Agentes
+          Squad Content
         </p>
         <h1 className="mt-1 font-mono text-2xl font-semibold tracking-tight text-foreground">
-          Seus especialistas
+          Agentes da squad
         </h1>
         <p className="mt-1 max-w-2xl font-mono text-sm text-muted-foreground">
-          Cada agente abre uma tela de uso conforme a especialidade dele.
+          Prefere pedir direto a um especialista em vez do chat? Cada agente abre a
+          tela de uso dele.
         </p>
       </div>
 
@@ -52,9 +50,8 @@ export default function WorkspaceAgentsPage() {
       ) : agents.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center">
           <Bot className="mx-auto h-6 w-6 text-muted-foreground" />
-          <p className="mt-2 font-mono text-sm text-foreground">Nenhum agente instalado ainda</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Os agentes do seu plano aparecem aqui assim que forem ativados.
+          <p className="mt-2 font-mono text-sm text-foreground">
+            Nenhum agente nesta squad ainda
           </p>
         </div>
       ) : (

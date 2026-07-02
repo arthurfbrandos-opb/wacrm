@@ -70,6 +70,18 @@ describe('buildWorkspaceMenu', () => {
     expect(byKey.automation_studio.state).toBe('coming_soon')
   })
 
+  it('Marca segue squad_content: on navega, sem o módulo fica off', () => {
+    const comSquad = buildWorkspaceMenu(buildModuleStates(CATALOG, RODOLFO_ROWS))
+    const marca = comSquad.find((m) => m.key === 'marca')!
+    expect(marca.state).toBe('on')
+    expect(marca.href).toBe('/w/marca')
+
+    const semSquad = buildWorkspaceMenu(buildModuleStates(CATALOG, []))
+    const marcaOff = semSquad.find((m) => m.key === 'marca')!
+    expect(marcaOff.state).toBe('off')
+    expect(marcaOff.href).toBeUndefined()
+  })
+
   it('CRM ligado navega pro CRM real', () => {
     const menu = buildWorkspaceMenu(
       buildModuleStates(CATALOG, [...RODOLFO_ROWS.filter((r) => r.module_key !== 'crm'), { module_key: 'crm', enabled: true }]),

@@ -4,6 +4,7 @@ import {
   decryptGcm,
   driveListUrl,
   extractDriveFolderId,
+  fundacaoParaArquivos,
   montarPrompt,
   montarPromptAjuste,
   montarPromptGeracao,
@@ -107,6 +108,40 @@ describe('montarPromptGeracao', () => {
   it('tipo desconhecido cai pra carrossel', () => {
     const p = montarPromptGeracao({ tema: 'x', tipo: 'reels' })
     expect(p).toContain('render_carrossel.py')
+  })
+})
+
+describe('fundação do workspace', () => {
+  it('vira arquivos referencia/fundacao-workspace/<key>.md com título como heading', () => {
+    const arquivos = fundacaoParaArquivos([
+      { section_key: 'tom-de-voz', title: 'Tom de voz', content: 'Direto, sem juridiquês.' },
+      { section_key: 'icp', title: 'Cliente ideal', content: 'Devedor de financiamento.' },
+    ])
+    expect(arquivos).toHaveLength(2)
+    expect(arquivos[0].rel).toBe('referencia/fundacao-workspace/tom-de-voz.md')
+    expect(arquivos[0].body).toContain('# Tom de voz')
+    expect(arquivos[0].body).toContain('Direto, sem juridiquês.')
+  })
+
+  it('seção vazia fica de fora e key vira nome de arquivo seguro', () => {
+    const arquivos = fundacaoParaArquivos([
+      { section_key: 'vazia', title: 'Vazia', content: '   ' },
+      { section_key: 'a/b c', title: 'X', content: 'ok' },
+      null,
+    ])
+    expect(arquivos).toHaveLength(1)
+    expect(arquivos[0].rel).toBe('referencia/fundacao-workspace/a_b_c.md')
+  })
+
+  it('os 3 prompts de produção apontam a fundação editada como prevalecente', () => {
+    for (const p of [
+      montarPrompt({ message: 'x' }),
+      montarPromptGeracao({ tema: 'x', tipo: 'estatico' }),
+      montarPromptAjuste({ note: 'x', slug: 's', title: 't' }),
+    ]) {
+      expect(p).toContain('fundacao-workspace')
+      expect(p).toContain('PREVALECE')
+    }
   })
 })
 

@@ -44,6 +44,8 @@ export function montarPrompt(payload) {
     '  salvando em producao/<slug>/. Use uma imagem de referencia/ como foto/fundo se precisar.',
     '- Se NÃO for pedido de peça (dúvida, ajuste de rota, conversa): apenas responda no campo "reply" e "peca": null.',
     '- Fundo/foto: se existir referencia/fundos-cliente/ com imagens, PREFIRA essas (são do cliente).',
+    '- Fundação: se existir referencia/fundacao-workspace/, é a versão MAIS RECENTE editada pelo',
+    '  cliente na ferramenta (tom de voz/ICP/base/linha editorial) e PREVALECE sobre marca/*.md.',
     '- NUNCA invente fatos, leis, números ou resultados. Na dúvida, pergunte no "reply".',
     '- Responda em PT-BR, tom direto e claro (o leitor é o cliente).',
     '',
@@ -123,6 +125,8 @@ export function montarPromptGeracao(payload) {
     '- Copy pela skill construtor-copy (voz da fundação em marca/ · humanize · SEM travessão · máx 5 hashtags).',
     `- Arte pelo script da skill ${tipo === 'carrossel' ? 'editor-carrossel/render_carrossel.py' : 'editor-estatico/render_estatico.py'}, salvando em producao/<slug>/.`,
     '- Fundo/foto: se existir referencia/fundos-cliente/ com imagens, PREFIRA essas (são do cliente).',
+    '- Fundação: se existir referencia/fundacao-workspace/, é a versão MAIS RECENTE editada pelo',
+    '  cliente na ferramenta (tom de voz/ICP/base/linha editorial) e PREVALECE sobre marca/*.md.',
     '- NUNCA invente fatos, leis, números ou resultados.',
     '',
     'FORMATO DA SUA ÚLTIMA MENSAGEM — SOMENTE este JSON, sem texto em volta:',
@@ -144,6 +148,8 @@ export function montarPromptAjuste(payload) {
     'REGRAS:',
     '- Ajuste a copy e/ou a arte conforme o pedido (skills do repo · humanize · SEM travessão · máx 5 hashtags).',
     '- Re-renderize a arte com os scripts das skills e sobrescreva os arquivos na MESMA pasta producao/<slug>/.',
+    '- Fundação: se existir referencia/fundacao-workspace/, é a versão MAIS RECENTE editada pelo',
+    '  cliente na ferramenta e PREVALECE sobre marca/*.md.',
     '- NUNCA invente fatos, leis ou números. Na dúvida, pergunte no "reply".',
     '',
     'FORMATO DA SUA ÚLTIMA MENSAGEM — SOMENTE este JSON, sem texto em volta:',
@@ -169,6 +175,20 @@ export function montarPromptPublisher(payload, peca) {
     'FORMATO DA SUA ÚLTIMA MENSAGEM — SOMENTE este JSON, sem texto em volta:',
     '{"ok": true|false, "detalhe": "<confirmação ou motivo da falha>"}',
   ].join('\n');
+}
+
+/**
+ * Pura: converte as seções da fundação (content_brand_profile) nos arquivos
+ * que o agente lê no repo (referencia/fundacao-workspace/<key>.md).
+ * Seções vazias ficam de fora — não sobrescrever marca/ com nada.
+ */
+export function fundacaoParaArquivos(sections) {
+  return (Array.isArray(sections) ? sections : [])
+    .filter((s) => s?.section_key && typeof s.content === 'string' && s.content.trim() !== '')
+    .map((s) => ({
+      rel: `referencia/fundacao-workspace/${String(s.section_key).replace(/[^\w.\-]+/g, '_')}.md`,
+      body: `# ${s.title || s.section_key}\n\n${s.content}\n`,
+    }));
 }
 
 /** Extrai o id da pasta de um link do Google Drive (folders/<id> ou ?id=). */
@@ -355,6 +375,20 @@ async function sincronizarFundos(accountId) {
   if (baixadas) console.log(`[worker] fundos do cliente: ${baixadas} imagem(ns) nova(s) sincronizada(s)`);
 }
 
+/** Baixa a fundação editada na ferramenta e grava em referencia/fundacao-workspace/. */
+async function sincronizarFundacao(accountId) {
+  const rows = await rest(
+    'GET',
+    `content_brand_profile?account_id=eq.${accountId}&select=section_key,title,content&order=sort_order`,
+  );
+  const arquivos = fundacaoParaArquivos(rows);
+  if (!arquivos.length) return;
+  const { repo } = cfg();
+  mkdirSync(join(repo, 'referencia', 'fundacao-workspace'), { recursive: true });
+  for (const a of arquivos) writeFileSync(join(repo, a.rel), a.body);
+  console.log(`[worker] fundação do workspace: ${arquivos.length} seção(ões) sincronizada(s)`);
+}
+
 /** Produz (chat OU geração direta) e persiste: peça + mensagem + ledger + job. */
 async function produzirEPersistir(job, prompt, tituloFake) {
   const { repo } = cfg();
@@ -362,6 +396,9 @@ async function produzirEPersistir(job, prompt, tituloFake) {
   if (!FAKE) {
     await sincronizarFundos(job.account_id).catch((e) =>
       console.error(`[worker] sync de fundos falhou (segue sem): ${e instanceof Error ? e.message : e}`),
+    );
+    await sincronizarFundacao(job.account_id).catch((e) =>
+      console.error(`[worker] sync da fundação falhou (segue sem): ${e instanceof Error ? e.message : e}`),
     );
   }
 
@@ -453,6 +490,9 @@ async function processarAjuste(job) {
   if (!FAKE) {
     await sincronizarFundos(job.account_id).catch((e) =>
       console.error(`[worker] sync de fundos falhou (segue sem): ${e instanceof Error ? e.message : e}`),
+    );
+    await sincronizarFundacao(job.account_id).catch((e) =>
+      console.error(`[worker] sync da fundação falhou (segue sem): ${e instanceof Error ? e.message : e}`),
     );
   }
 

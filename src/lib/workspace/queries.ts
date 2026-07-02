@@ -40,3 +40,13 @@ export async function loadWorkspaceAgents(db: DB): Promise<WorkspaceAgentRow[]> 
   if (error) throw error
   return (data ?? []) as WorkspaceAgentRow[]
 }
+
+/** Seções da fundação da marca (RLS escopa pela conta) — a tela Marca. */
+export async function loadBrandSections(db: DB) {
+  const { data, error } = await db
+    .from('content_brand_profile')
+    .select('section_key, title, content, sort_order, updated_at')
+    .order('sort_order')
+  if (error) throw error
+  return (data ?? []) as import('./brand').BrandSection[]
+}

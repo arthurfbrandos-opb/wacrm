@@ -6,6 +6,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { TerminalWindow } from "@/components/ui/terminal-window";
 import { createClient } from "@/lib/supabase/client";
 import { loadPiece } from "@/lib/workspace/content-queries";
 import {
@@ -91,8 +92,8 @@ export default function ContentPieceDetailPage() {
     );
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6">
-      <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+      <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-primary">
         <Link href="/w/content/kanban" className="hover:text-foreground">
           kanban
         </Link>{" "}
@@ -103,7 +104,7 @@ export default function ContentPieceDetailPage() {
       {feedback ? <p className="text-sm text-primary">{feedback}</p> : null}
 
       {piece === undefined ? (
-        <p className="text-sm text-muted-foreground">carregando…</p>
+        <p className="font-mono text-sm text-muted-foreground">carregando…</p>
       ) : piece === null ? (
         <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center">
           <p className="font-mono text-sm text-foreground">Peça não encontrada</p>
@@ -111,7 +112,7 @@ export default function ContentPieceDetailPage() {
       ) : (
         <>
           <div>
-            <h1 className="font-mono text-2xl font-semibold text-foreground">{piece.title}</h1>
+            <h1 className="font-mono text-2xl font-semibold tracking-tight text-foreground">{piece.title}</h1>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <span className="rounded-full border border-border px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-muted-foreground">
                 {KIND_LABEL[piece.kind]}
@@ -137,111 +138,119 @@ export default function ContentPieceDetailPage() {
             </div>
           </div>
 
-          <div className="rounded-xl border border-border bg-card p-4">
-            <p className="font-mono text-sm font-medium text-foreground">Prévia</p>
-            {piece.preview_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={piece.preview_url}
-                alt={`Prévia — ${piece.title}`}
-                className="mt-3 w-full max-w-md rounded-lg border border-border"
-              />
-            ) : (
-              <p className="mt-2 text-xs text-muted-foreground">
-                A arte aparece aqui quando a produção terminar.
-              </p>
-            )}
-          </div>
-
-          <div className="rounded-xl border border-border bg-card p-4">
-            <div className="flex items-center justify-between gap-2">
-              <p className="font-mono text-sm font-medium text-foreground">Legenda</p>
-              {piece.caption ? (
-                <button
-                  type="button"
-                  onClick={copyCaption}
-                  className="rounded-lg border border-border px-2.5 py-1 font-mono text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                >
-                  {copied ? "✓ copiada" : "copiar"}
-                </button>
-              ) : null}
+          <TerminalWindow title="pecas/preview">
+            <div className="p-4">
+              <p className="font-mono text-sm font-medium text-foreground">Prévia</p>
+              {piece.preview_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={piece.preview_url}
+                  alt={`Prévia — ${piece.title}`}
+                  className="mt-3 w-full max-w-md rounded-lg border border-border"
+                />
+              ) : (
+                <p className="mt-2 font-mono text-xs text-muted-foreground">
+                  ▸ A arte aparece aqui quando a produção terminar.
+                </p>
+              )}
             </div>
-            {piece.caption ? (
-              <p className="mt-3 whitespace-pre-wrap text-sm text-foreground">{piece.caption}</p>
-            ) : (
-              <p className="mt-2 text-xs text-muted-foreground">Sem legenda ainda.</p>
-            )}
-          </div>
+          </TerminalWindow>
 
-          {piece.status === "aprovacao" ? (
-            <div className="flex flex-col gap-3">
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => decide("approve")}
-                  className="rounded-lg border border-primary/40 bg-primary/10 px-4 py-2 font-mono text-sm font-medium text-primary transition-colors hover:bg-primary/20 disabled:opacity-50"
-                >
-                  ✓ Aprovar
-                </button>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => setAskingChanges((v) => !v)}
-                  className="rounded-lg border border-border px-4 py-2 font-mono text-sm text-foreground transition-colors hover:bg-muted disabled:opacity-50"
-                >
-                  ✎ Pedir ajuste
-                </button>
-              </div>
-              {askingChanges ? (
-                <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3">
-                  <textarea
-                    value={changeNote}
-                    onChange={(e) => setChangeNote(e.target.value)}
-                    rows={3}
-                    maxLength={1000}
-                    placeholder="O que ajustar? Ex.: troca o gancho do slide 1, tá genérico demais…"
-                    className="resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none"
-                  />
+          <TerminalWindow title="pecas/legenda">
+            <div className="p-4">
+              <div className="flex items-center justify-between gap-2">
+                <p className="font-mono text-sm font-medium text-foreground">Legenda</p>
+                {piece.caption ? (
                   <button
                     type="button"
-                    disabled={busy || !changeNote.trim()}
-                    onClick={() => decide("request_changes")}
-                    className="self-end rounded-lg border border-primary/40 bg-primary/10 px-4 py-2 font-mono text-sm text-primary transition-colors hover:bg-primary/20 disabled:opacity-50"
+                    onClick={copyCaption}
+                    className="rounded-lg border border-border px-2.5 py-1 font-mono text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                   >
-                    Enviar ajuste pro squad
+                    {copied ? "✓ copiada" : "copiar"}
+                  </button>
+                ) : null}
+              </div>
+              {piece.caption ? (
+                <p className="mt-3 whitespace-pre-wrap text-sm text-foreground">{piece.caption}</p>
+              ) : (
+                <p className="mt-2 font-mono text-xs text-muted-foreground">▸ Sem legenda ainda.</p>
+              )}
+            </div>
+          </TerminalWindow>
+
+          {piece.status === "aprovacao" ? (
+            <TerminalWindow title="pecas/decisao">
+              <div className="flex flex-col gap-3 p-4">
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => decide("approve")}
+                    className="rounded-md border border-primary bg-primary px-3 py-2 font-mono text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+                  >
+                    ✓ Aprovar
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => setAskingChanges((v) => !v)}
+                    className="rounded-md border border-border bg-muted px-3 py-2 font-mono text-sm text-foreground transition-colors hover:bg-muted/70 disabled:opacity-50"
+                  >
+                    ✎ Pedir ajuste
                   </button>
                 </div>
-              ) : null}
-            </div>
+                {askingChanges ? (
+                  <div className="flex flex-col gap-2 rounded-lg border border-border bg-card/40 p-3">
+                    <textarea
+                      value={changeNote}
+                      onChange={(e) => setChangeNote(e.target.value)}
+                      rows={3}
+                      maxLength={1000}
+                      placeholder="O que ajustar? Ex.: troca o gancho do slide 1, tá genérico demais…"
+                      className="resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      disabled={busy || !changeNote.trim()}
+                      onClick={() => decide("request_changes")}
+                      className="self-end rounded-md border border-primary bg-primary px-3 py-2 font-mono text-sm text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+                    >
+                      Enviar ajuste pro squad
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            </TerminalWindow>
           ) : null}
 
           {piece.status === "aprovada" ? (
-            <div className="flex flex-wrap items-end gap-2 rounded-xl border border-border bg-card p-3">
-              <div className="flex flex-col gap-1">
-                <label
-                  htmlFor="agendar-quando"
-                  className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground"
+            <TerminalWindow title="pecas/agendamento">
+              <div className="flex flex-wrap items-end gap-2 p-4">
+                <div className="flex flex-col gap-1">
+                  <label
+                    htmlFor="agendar-quando"
+                    className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground"
+                  >
+                    Publicar em
+                  </label>
+                  <input
+                    id="agendar-quando"
+                    type="datetime-local"
+                    value={when}
+                    onChange={(e) => setWhen(e.target.value)}
+                    className="rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm text-foreground focus:border-primary/50 focus:outline-none"
+                  />
+                </div>
+                <button
+                  type="button"
+                  disabled={busy || !when}
+                  onClick={schedule}
+                  className="rounded-md border border-primary bg-primary px-3 py-2 font-mono text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
                 >
-                  Publicar em
-                </label>
-                <input
-                  id="agendar-quando"
-                  type="datetime-local"
-                  value={when}
-                  onChange={(e) => setWhen(e.target.value)}
-                  className="rounded-lg border border-border bg-background px-3 py-2 font-mono text-sm text-foreground focus:border-primary/50 focus:outline-none"
-                />
+                  Agendar via Metricool
+                </button>
               </div>
-              <button
-                type="button"
-                disabled={busy || !when}
-                onClick={schedule}
-                className="rounded-lg border border-primary/40 bg-primary/10 px-4 py-2 font-mono text-sm font-medium text-primary transition-colors hover:bg-primary/20 disabled:opacity-50"
-              >
-                Agendar via Metricool
-              </button>
-            </div>
+            </TerminalWindow>
           ) : null}
         </>
       )}

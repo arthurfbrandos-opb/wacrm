@@ -71,6 +71,17 @@ No host do VPS (V1 = systemd no host; container fica como evolução):
    (conferir no painel do Metricool!).
 6. **Drive:** conectar pasta por link → job novo usa fundo do cliente.
 
+## 5b · Fatia ⑦ (delta 02/07 — identidade + Marca editável)
+
+1. Migration extra: `psql "$SUPABASE_NS_DB_URL" -f supabase/migrations/040_content_brand_profile.sql`
+2. Seed da fundação (POR CONTA · conteúdo real de `~/Projects/conteudo-rodolfo` — gerar o SQL
+   na hora com dollar-quote a partir dos arquivos; NÃO versionar o conteúdo do cliente):
+   - `tom-de-voz` ← `marca/tom-de-voz.md` · `icp` ← `marca/icp.md`
+   - `base-conhecimento` ← `marca/base-conhecimento.md` · `linha-editorial` ← `linha-editorial/calendario.md`
+3. Rebuild do app (rsync + docker) e **restart do worker** (`systemctl restart wacrm-content-worker`)
+   — worker novo injeta `referencia/fundacao-workspace/` a cada produção.
+4. Smoke: editar uma seção em `/w/marca` → salvar → próxima peça produzida deve seguir a edição.
+
 ## 6 · Rollback
 
 - App: `git revert` do merge + rsync+build de novo (rotas novas são isoladas — risco baixo).

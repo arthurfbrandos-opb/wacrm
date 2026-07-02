@@ -13,6 +13,7 @@ import { useWorkspaceModules } from "@/hooks/use-workspace-modules";
 import { moduleAvailability } from "@/lib/workspace/catalog";
 import {
   ArrowLeft,
+  Bot,
   CalendarDays,
   Gauge,
   Kanban,
@@ -34,6 +35,7 @@ const SQUAD_NAV: {
   { key: "kanban", label: "Kanban", href: "/w/content/kanban", icon: Kanban },
   { key: "calendario", label: "Calendário", href: "/w/content/calendario", icon: CalendarDays },
   { key: "chat", label: "Chat do squad", href: "/w/content/chat", icon: MessageSquare },
+  { key: "agentes", label: "Agentes", href: "/w/content/agentes", icon: Bot },
 ];
 
 function SquadSidebar({ open, onClose }: { open: boolean; onClose: () => void }) {

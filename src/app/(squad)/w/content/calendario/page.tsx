@@ -5,6 +5,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { TerminalWindow } from "@/components/ui/terminal-window";
 import { useContentPieces } from "@/hooks/use-content-pieces";
 import { buildMonthGrid } from "@/lib/workspace/content";
 
@@ -33,13 +34,13 @@ export default function SquadContentCalendarPage() {
     d.getDate() === today.getDate();
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-6">
+    <div className="mx-auto flex w-full max-w-5xl flex-col gap-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+          <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-primary">
             Squad Content · Calendário
           </p>
-          <h1 className="mt-1 font-mono text-2xl font-semibold capitalize text-foreground">
+          <h1 className="mt-1 font-mono text-2xl font-semibold capitalize tracking-tight text-foreground">
             {MONTH_FMT.format(new Date(anchor.year, anchor.month, 1))}
           </h1>
         </div>
@@ -66,11 +67,12 @@ export default function SquadContentCalendarPage() {
       {error ? (
         <p className="text-sm text-destructive">Falha ao carregar: {error}</p>
       ) : grid === null ? (
-        <p className="text-sm text-muted-foreground">carregando…</p>
+        <p className="font-mono text-sm text-muted-foreground">carregando…</p>
       ) : (
-        <div className="overflow-x-auto">
-          <div className="min-w-160 rounded-xl border border-border bg-card p-2">
-            <div className="grid grid-cols-7 gap-1">
+        <TerminalWindow title="squad/calendario">
+          <div className="overflow-x-auto">
+            <div className="min-w-160 p-2">
+              <div className="grid grid-cols-7 gap-1">
               {WEEKDAYS.map((d) => (
                 <p
                   key={d}
@@ -111,9 +113,10 @@ export default function SquadContentCalendarPage() {
                   </div>
                 </div>
               ))}
+              </div>
             </div>
           </div>
-        </div>
+        </TerminalWindow>
       )}
     </div>
   );

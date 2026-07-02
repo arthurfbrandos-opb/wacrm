@@ -5,6 +5,7 @@
 // NUNCA volta pro navegador (nem cifrado). Google Drive: fatia ⑥ (em breve).
 import { useCallback, useEffect, useState } from "react";
 import { FolderOpen, Send } from "lucide-react";
+import { TerminalWindow } from "@/components/ui/terminal-window";
 
 interface Connection {
   provider: string;
@@ -66,13 +67,13 @@ export default function WorkspaceConfigPage() {
   };
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-6">
+    <div className="flex flex-col gap-4">
       <div>
-        <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+        <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-primary">
           Configurações
         </p>
-        <h1 className="mt-1 font-mono text-2xl font-semibold text-foreground">Integrações</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <h1 className="mt-1 font-mono text-2xl font-semibold tracking-tight text-foreground">Integrações</h1>
+        <p className="mt-1 max-w-2xl font-mono text-sm text-muted-foreground">
           Suas contas conectadas ficam aqui. Credenciais são guardadas criptografadas e
           nunca aparecem no navegador.
         </p>
@@ -83,7 +84,8 @@ export default function WorkspaceConfigPage() {
 
       <div className="grid gap-4 sm:grid-cols-2">
         {/* Metricool — real */}
-        <div className="rounded-xl border border-border bg-card p-4">
+        <TerminalWindow title="config/integracoes">
+          <div className="p-4">
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-2">
               <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
@@ -136,10 +138,12 @@ export default function WorkspaceConfigPage() {
               </button>
             </div>
           )}
-        </div>
+          </div>
+        </TerminalWindow>
 
         {/* Google Drive — pasta de imagens de fundo (compartilhada por link) */}
-        <div className="rounded-xl border border-border bg-card p-4">
+        <TerminalWindow title="config/imagens_de_fundo">
+          <div className="p-4">
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-2">
               <span
@@ -209,7 +213,8 @@ export default function WorkspaceConfigPage() {
               </button>
             </div>
           )}
-        </div>
+          </div>
+        </TerminalWindow>
       </div>
     </div>
   );

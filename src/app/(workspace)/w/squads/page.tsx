@@ -4,6 +4,7 @@
 // ambiente próprio dela (sub-navegação · fatia ③). Squad em breve fica visível.
 import Link from "next/link";
 import { Zap } from "lucide-react";
+import { TerminalWindow } from "@/components/ui/terminal-window";
 import { useWorkspaceModules } from "@/hooks/use-workspace-modules";
 import { buildSquads } from "@/lib/workspace/catalog";
 
@@ -12,15 +13,15 @@ export default function WorkspaceSquadsPage() {
   const squads = states ? buildSquads(states) : [];
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-6">
+    <div className="flex flex-col gap-4">
       <div>
-        <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+        <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-primary">
           Squads
         </p>
-        <h1 className="mt-1 font-mono text-2xl font-semibold text-foreground">
+        <h1 className="mt-1 font-mono text-2xl font-semibold tracking-tight text-foreground">
           Seus times de agentes
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="mt-1 max-w-2xl font-mono text-sm text-muted-foreground">
           Cada squad cuida de um processo inteiro e tem a própria ferramenta de gestão.
         </p>
       </div>
@@ -28,11 +29,12 @@ export default function WorkspaceSquadsPage() {
       {error ? (
         <p className="text-sm text-destructive">Falha ao carregar: {error}</p>
       ) : loading ? (
-        <p className="text-sm text-muted-foreground">carregando…</p>
+        <p className="font-mono text-sm text-muted-foreground">carregando…</p>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2">
-          {squads.map((s) => (
-            <div key={s.key} className="flex flex-col rounded-xl border border-border bg-card p-4">
+        <TerminalWindow title="workspace/squads">
+          <div className="grid gap-4 p-4 sm:grid-cols-2">
+            {squads.map((s) => (
+              <div key={s.key} className="flex flex-col rounded-lg border border-border bg-card/40 p-3">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <span className="flex h-9 w-9 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
@@ -69,7 +71,8 @@ export default function WorkspaceSquadsPage() {
               )}
             </div>
           ))}
-        </div>
+          </div>
+        </TerminalWindow>
       )}
     </div>
   );

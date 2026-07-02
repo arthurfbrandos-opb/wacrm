@@ -6,6 +6,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Send } from "lucide-react";
+import { TerminalWindow } from "@/components/ui/terminal-window";
 import { createClient } from "@/lib/supabase/client";
 
 interface ChatMessage {
@@ -100,23 +101,27 @@ export default function SquadContentChatPage() {
   };
 
   return (
-    <div className="mx-auto flex h-full max-w-3xl flex-col gap-4">
+    <div className="mx-auto flex h-full w-full max-w-3xl flex-col gap-4">
       <div>
-        <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+        <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-primary">
           Squad Content · Chat
         </p>
-        <h1 className="mt-1 font-mono text-2xl font-semibold text-foreground">Fale com o squad</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <h1 className="mt-1 font-mono text-2xl font-semibold tracking-tight text-foreground">Fale com o squad</h1>
+        <p className="mt-1 max-w-2xl font-mono text-sm text-muted-foreground">
           Peça uma peça nova, um ajuste ou tire dúvida — a produção cai no kanban pra sua aprovação.
         </p>
       </div>
 
-      <div className="flex min-h-64 flex-1 flex-col gap-3 overflow-y-auto rounded-xl border border-border bg-card p-4">
+      <TerminalWindow
+        title="squad/chat"
+        className="min-h-64 flex-1"
+        bodyClassName="flex min-h-0 flex-col gap-3 overflow-y-auto p-4"
+      >
         {messages === null ? (
-          <p className="text-sm text-muted-foreground">carregando…</p>
+          <p className="font-mono text-sm text-muted-foreground">carregando…</p>
         ) : messages.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            Nenhuma conversa ainda. Exemplo: <span className="text-foreground">&ldquo;gera um carrossel sobre juros abusivos em financiamento de carro&rdquo;</span>
+          <p className="font-mono text-sm text-muted-foreground">
+            ▸ Nenhuma conversa ainda. Exemplo: <span className="text-foreground">&ldquo;gera um carrossel sobre juros abusivos em financiamento de carro&rdquo;</span>
           </p>
         ) : (
           messages.map((m) => (
@@ -124,8 +129,8 @@ export default function SquadContentChatPage() {
               key={m.id}
               className={
                 m.author === "cliente"
-                  ? "ml-auto max-w-[85%] rounded-xl rounded-br-sm border border-primary/30 bg-primary/10 px-3 py-2"
-                  : "mr-auto max-w-[85%] rounded-xl rounded-bl-sm border border-border bg-background px-3 py-2"
+                  ? "ml-auto max-w-[85%] rounded-xl rounded-br-sm border border-primary/40 bg-primary/10 px-3 py-2"
+                  : "mr-auto max-w-[85%] rounded-xl rounded-bl-sm border border-border bg-card/40 px-3 py-2"
               }
             >
               <p className="whitespace-pre-wrap text-sm text-foreground">{m.body}</p>
@@ -146,13 +151,13 @@ export default function SquadContentChatPage() {
           ))
         )}
         {working ? (
-          <div className="mr-auto flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-2">
+          <div className="mr-auto flex items-center gap-2 rounded-xl border border-border bg-card/40 px-3 py-2">
             <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />
             <span className="font-mono text-xs text-muted-foreground">squad produzindo…</span>
           </div>
         ) : null}
         <div ref={bottomRef} />
-      </div>
+      </TerminalWindow>
 
       {error ? <p className="text-xs text-destructive">Falha: {error}</p> : null}
 

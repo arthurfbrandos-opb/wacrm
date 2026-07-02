@@ -15,6 +15,7 @@ import {
   type WorkspaceMenuItem,
 } from "@/lib/workspace/catalog";
 import {
+  BookOpen,
   Bot,
   Gauge,
   GitBranch,
@@ -35,6 +36,7 @@ const MENU_ICON: Record<string, typeof Gauge> = {
   crm: GitBranch,
   agentes: Bot,
   squads: Zap,
+  marca: BookOpen,
   automation_studio: Workflow,
   config: Settings,
 };

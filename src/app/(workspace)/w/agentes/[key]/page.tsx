@@ -8,6 +8,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Bot } from "lucide-react";
+import { TerminalWindow } from "@/components/ui/terminal-window";
 import { createClient } from "@/lib/supabase/client";
 import { SPECIALTY_LABEL } from "@/lib/workspace/catalog";
 
@@ -109,8 +110,8 @@ export default function UsarAgentePage() {
   const emProducao = job && (job.status === "pending" || job.status === "running");
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-6">
-      <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
+    <div className="mx-auto flex w-full max-w-2xl flex-col gap-4">
+      <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-primary">
         <Link href="/w/agentes" className="hover:text-foreground">
           agentes
         </Link>{" "}
@@ -120,7 +121,7 @@ export default function UsarAgentePage() {
       {error ? <p className="text-sm text-destructive">Falha: {error}</p> : null}
 
       {agent === undefined ? (
-        <p className="text-sm text-muted-foreground">carregando…</p>
+        <p className="font-mono text-sm text-muted-foreground">carregando…</p>
       ) : agent === null ? (
         <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center">
           <p className="font-mono text-sm text-foreground">Agente não encontrado</p>
@@ -132,8 +133,8 @@ export default function UsarAgentePage() {
               <Bot className="h-5 w-5" />
             </span>
             <div>
-              <h1 className="font-mono text-2xl font-semibold text-foreground">{agent.name}</h1>
-              <p className="text-sm text-muted-foreground">
+              <h1 className="font-mono text-2xl font-semibold tracking-tight text-foreground">{agent.name}</h1>
+              <p className="font-mono text-sm text-muted-foreground">
                 {SPECIALTY_LABEL[agent.specialty ?? ""] ?? "Especialista"}
               </p>
             </div>
@@ -145,7 +146,8 @@ export default function UsarAgentePage() {
               <p className="mt-1 text-xs text-muted-foreground">Ele aparece aqui assim que for ligado no seu plano.</p>
             </div>
           ) : agent.specialty === "gerador" ? (
-            <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4">
+            <TerminalWindow title="agentes/gerador">
+              <div className="flex flex-col gap-3 p-4">
               <label
                 htmlFor="tema"
                 className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground"
@@ -171,7 +173,7 @@ export default function UsarAgentePage() {
               </button>
 
               {job ? (
-                <div className="rounded-lg border border-border/60 bg-background p-3">
+                <div className="rounded-lg border border-border bg-card/40 p-3">
                   {emProducao ? (
                     <div className="flex items-center gap-2">
                       <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />
@@ -198,9 +200,11 @@ export default function UsarAgentePage() {
                   )}
                 </div>
               ) : null}
-            </div>
+              </div>
+            </TerminalWindow>
           ) : agent.specialty === "publisher" ? (
-            <div className="rounded-xl border border-border bg-card p-6">
+            <TerminalWindow title="agentes/publisher">
+              <div className="p-4">
               <p className="font-mono text-sm text-foreground">O Publisher trabalha na peça</p>
               <p className="mt-2 text-sm text-muted-foreground">
                 Quando você <strong className="text-foreground">aprova</strong> uma peça, aparece o botão{" "}
@@ -213,7 +217,8 @@ export default function UsarAgentePage() {
               >
                 Abrir o kanban ▸
               </Link>
-            </div>
+              </div>
+            </TerminalWindow>
           ) : (
             <div className="rounded-xl border border-dashed border-border bg-card p-6 text-center">
               <p className="font-mono text-sm text-foreground">Tela de uso em construção</p>
