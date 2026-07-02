@@ -26,10 +26,14 @@ interface JobRow {
   error: string | null;
 }
 
-// Tipo default da peça derivado do agente (o Gerador de Estático gera estático).
-function tipoDoAgente(key: string): "carrossel" | "estatico" {
+// Tipo default da peça derivado do agente (o Gerador de Estático gera estático;
+// o Roteirista de Vídeo gera roteiro de vídeo).
+function tipoDoAgente(key: string): "carrossel" | "estatico" | "video" {
+  if (key.includes("roteirista") || key.includes("video")) return "video";
   return key.includes("estatico") ? "estatico" : "carrossel";
 }
+
+const TIPO_LABEL = { carrossel: "carrossel", estatico: "estático", video: "vídeo" } as const;
 
 export default function UsarAgentePage() {
   const params = useParams<{ key: string }>();
@@ -145,14 +149,16 @@ export default function UsarAgentePage() {
               <p className="font-mono text-sm text-foreground">Este agente ainda não está ativo</p>
               <p className="mt-1 text-xs text-muted-foreground">Ele aparece aqui assim que for ligado no seu plano.</p>
             </div>
-          ) : agent.specialty === "gerador" ? (
-            <TerminalWindow title="agentes/gerador">
+          ) : agent.specialty === "gerador" || agent.specialty === "roteirista" ? (
+            <TerminalWindow title={`agentes/${agent.specialty}`}>
               <div className="flex flex-col gap-3 p-4">
               <label
                 htmlFor="tema"
                 className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground"
               >
-                Tema da peça ({tipoDoAgente(agent.key) === "carrossel" ? "carrossel" : "estático"})
+                {tipoDoAgente(agent.key) === "video"
+                  ? "Tema do vídeo (você recebe o roteiro pronto pra gravar)"
+                  : `Tema da peça (${TIPO_LABEL[tipoDoAgente(agent.key)]})`}
               </label>
               <textarea
                 id="tema"
@@ -160,7 +166,11 @@ export default function UsarAgentePage() {
                 onChange={(e) => setTema(e.target.value)}
                 rows={3}
                 maxLength={500}
-                placeholder="Ex.: banco cobrou tarifa de cadastro no financiamento — o que o cliente pode fazer"
+                placeholder={
+                  tipoDoAgente(agent.key) === "video"
+                    ? "Ex.: você sabia que uma ação de execução pode ser anulada do zero?"
+                    : "Ex.: banco cobrou tarifa de cadastro no financiamento — o que o cliente pode fazer"
+                }
                 className="resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none"
               />
               <button
@@ -169,7 +179,11 @@ export default function UsarAgentePage() {
                 onClick={gerar}
                 className="rounded-lg border border-primary/40 bg-primary/10 px-4 py-2 font-mono text-sm font-medium text-primary transition-colors hover:bg-primary/20 disabled:opacity-50"
               >
-                {emProducao ? "Produzindo…" : "Gerar peça"}
+                {emProducao
+                  ? "Produzindo…"
+                  : tipoDoAgente(agent.key) === "video"
+                    ? "Montar roteiro"
+                    : "Gerar peça"}
               </button>
 
               {job ? (
@@ -183,7 +197,9 @@ export default function UsarAgentePage() {
                     </div>
                   ) : job.status === "done" ? (
                     <div className="flex items-center justify-between gap-2">
-                      <p className="font-mono text-xs text-primary">✓ Peça pronta — está em &ldquo;Pra aprovar&rdquo;.</p>
+                      <p className="font-mono text-xs text-primary">
+                        ✓ {tipoDoAgente(agent.key) === "video" ? "Roteiro pronto" : "Peça pronta"} — está em &ldquo;Pra aprovar&rdquo;.
+                      </p>
                       {job.piece_id ? (
                         <Link
                           href={`/w/content/pecas/${job.piece_id}`}
