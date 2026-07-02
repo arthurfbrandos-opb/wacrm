@@ -14,11 +14,12 @@
 
 -- ── Módulos da conta Rodolfo ──────────────────────────────────────────────
 -- workspace = marcador de conta-cliente (login cai no /w) · squad_content ON
--- mas com kanban FORA do plano (gostinho — decisão Arthur 02/07: aprovação via
--- chat + peça) · crm presente mas OFF (visível-desligado/upsell — regra D8).
+-- com kanban INCLUSO (Arthur 02/07: só o CRM fica de gostinho) · crm presente
+-- mas OFF (visível-desligado/upsell — regra D8). O config {"kanban": false}
+-- existe como recurso pra planos futuros sem esteira visual.
 insert into public.cc_account_modules (account_id, module_key, enabled, config) values
   (:rodolfo_account_id, 'workspace', true, '{}'::jsonb),
-  (:rodolfo_account_id, 'squad_content', true, '{"kanban": false}'::jsonb),
+  (:rodolfo_account_id, 'squad_content', true, '{}'::jsonb),
   (:rodolfo_account_id, 'crm', false, '{}'::jsonb),
   (:rodolfo_account_id, 'squad_paid_traffic', true, '{}'::jsonb),   -- catálogo coming_soon domina → "em breve"
   (:rodolfo_account_id, 'automation_studio', false, '{}'::jsonb)
