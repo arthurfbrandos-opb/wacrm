@@ -49,7 +49,7 @@ export default function WorkspaceSquadsPage() {
                       : "rounded-full border border-border px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-muted-foreground"
                   }
                 >
-                  {s.state === "on" ? "ativa" : s.state === "coming_soon" ? "em breve" : "no seu plano"}
+                  {s.state === "on" ? "ativa" : s.state === "coming_soon" ? "em breve" : "não inclusa"}
                 </span>
               </div>
               <p className="mt-3 flex-1 text-xs text-muted-foreground">{s.description}</p>
@@ -66,7 +66,7 @@ export default function WorkspaceSquadsPage() {
                   disabled
                   className="mt-4 w-full cursor-not-allowed rounded-lg border border-border px-3 py-2 font-mono text-sm text-muted-foreground opacity-60"
                 >
-                  {s.state === "coming_soon" ? "Em breve" : "Disponível no seu plano"}
+                  {s.state === "coming_soon" ? "Em breve" : "Não inclusa — fale com a Negócio Simples"}
                 </button>
               )}
             </div>

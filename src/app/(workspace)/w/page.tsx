@@ -171,7 +171,7 @@ export default function WorkspaceOverviewPage() {
                           : "rounded-full border border-border px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground"
                       }
                     >
-                      {m.state === "on" ? "ativo" : m.state === "coming_soon" ? "em breve" : "no seu plano"}
+                      {m.state === "on" ? "ativo" : m.state === "coming_soon" ? "em breve" : "não incluso"}
                     </span>
                   </li>
                 ))}
