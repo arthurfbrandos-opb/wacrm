@@ -10,7 +10,7 @@ import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import { useWorkspaceModules } from "@/hooks/use-workspace-modules";
-import { moduleAvailability } from "@/lib/workspace/catalog";
+import { moduleAvailability, squadKanbanEnabled } from "@/lib/workspace/catalog";
 import {
   ArrowLeft,
   Bot,
@@ -40,7 +40,15 @@ const SQUAD_NAV: {
   { key: "agentes", label: "Agentes", href: "/w/content/agentes", icon: Bot },
 ];
 
-function SquadSidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
+function SquadSidebar({
+  open,
+  onClose,
+  kanbanOn,
+}: {
+  open: boolean;
+  onClose: () => void;
+  kanbanOn: boolean;
+}) {
   const pathname = usePathname();
   const { signOut } = useAuth();
 
@@ -98,19 +106,21 @@ function SquadSidebar({ open, onClose }: { open: boolean; onClose: () => void })
           </Link>
           <ul className="flex flex-col gap-1">
             {SQUAD_NAV.map((item) => {
-              if (item.soon || !item.href) {
+              // "Gostinho" (D8): kanban fora do plano fica visível-bloqueado.
+              const locked = item.key === "kanban" && !kanbanOn;
+              if (item.soon || locked || !item.href) {
                 return (
                   <li key={item.key}>
                     <div
                       aria-disabled="true"
-                      title="Em breve"
+                      title={locked ? "Disponível no seu plano" : "Em breve"}
                       className="flex cursor-not-allowed items-center gap-2 rounded-lg px-3 py-2.5 font-mono text-sm font-medium text-muted-foreground opacity-60 lg:py-2"
                     >
                       <span className="w-2 shrink-0" />
                       <item.icon className="h-4 w-4" />
                       <span className="flex-1">{item.label.toLowerCase()}</span>
                       <span className="rounded-full border border-border px-1.5 py-0.5 text-[9px] uppercase tracking-wider">
-                        em breve
+                        {locked ? "no seu plano" : "em breve"}
                       </span>
                     </div>
                   </li>
@@ -208,7 +218,11 @@ function SquadShellInner({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      <SquadSidebar open={sidebarOpen} onClose={closeSidebar} />
+      <SquadSidebar
+        open={sidebarOpen}
+        onClose={closeSidebar}
+        kanbanOn={moduleStates === null || squadKanbanEnabled(moduleStates)}
+      />
       <div className="flex flex-1 flex-col overflow-hidden">
         <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-4 lg:hidden">
           <button

@@ -31,11 +31,18 @@ describe('montarPrompt', () => {
     expect(p).not.toContain('CONVERSA RECENTE')
   })
 
+  it('segue o orquestrador /conteudo traduzido pra ferramenta', () => {
+    const p = montarPrompt({ message: 'monta a pauta da semana' })
+    expect(p).toContain('.claude/commands/conteudo.md')
+    expect(p).toContain('Pra aprovar') // gate visual vira aprovação na ferramenta
+    expect(p).toContain('não oriente publicação manual')
+  })
+
   it('inclui a mensagem do cliente e o contrato JSON', () => {
     const p = montarPrompt({ message: 'gera um carrossel sobre juros abusivos' })
     expect(p).toContain('gera um carrossel sobre juros abusivos')
     expect(p).toContain('"peca"')
-    expect(p).toContain('NUNCA invente')
+    expect(p).toContain('NUNCA inventar')
   })
   it('não explode com payload vazio', () => {
     expect(montarPrompt({})).toContain('MENSAGEM NOVA DO CLIENTE:')

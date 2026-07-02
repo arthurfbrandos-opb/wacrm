@@ -5,6 +5,7 @@ import {
   buildWorkspaceMenu,
   isWorkspaceAccount,
   moduleAvailability,
+  squadKanbanEnabled,
 } from './catalog'
 
 const CATALOG = [
@@ -89,6 +90,24 @@ describe('buildWorkspaceMenu', () => {
     const crm = menu.find((m) => m.key === 'crm')!
     expect(crm.state).toBe('on')
     expect(crm.href).toBe('/dashboard')
+  })
+})
+
+describe('squadKanbanEnabled', () => {
+  it('default = liberado (sem config)', () => {
+    expect(squadKanbanEnabled(buildModuleStates(CATALOG, RODOLFO_ROWS))).toBe(true)
+  })
+  it('config {"kanban": false} vira gostinho (bloqueado)', () => {
+    const states = buildModuleStates(CATALOG, [
+      { module_key: 'squad_content', enabled: true, config: { kanban: false } },
+    ])
+    expect(squadKanbanEnabled(states)).toBe(false)
+  })
+  it('outros configs não afetam', () => {
+    const states = buildModuleStates(CATALOG, [
+      { module_key: 'squad_content', enabled: true, config: { outra: 1 } },
+    ])
+    expect(squadKanbanEnabled(states)).toBe(true)
   })
 })
 

@@ -13,15 +13,17 @@
 \set ns_account_id '\'7eb23b90-ce66-40bc-8e23-1d2ac6458300\''
 
 -- ── Módulos da conta Rodolfo ──────────────────────────────────────────────
--- workspace = marcador de conta-cliente (login cai no /w) · squad_content ON ·
--- crm presente mas OFF (visível-desligado/upsell — regra D8).
-insert into public.cc_account_modules (account_id, module_key, enabled) values
-  (:rodolfo_account_id, 'workspace', true),
-  (:rodolfo_account_id, 'squad_content', true),
-  (:rodolfo_account_id, 'crm', false),
-  (:rodolfo_account_id, 'squad_paid_traffic', true),   -- catálogo coming_soon domina → "em breve"
-  (:rodolfo_account_id, 'automation_studio', false)
-on conflict (account_id, module_key) do update set enabled = excluded.enabled;
+-- workspace = marcador de conta-cliente (login cai no /w) · squad_content ON
+-- mas com kanban FORA do plano (gostinho — decisão Arthur 02/07: aprovação via
+-- chat + peça) · crm presente mas OFF (visível-desligado/upsell — regra D8).
+insert into public.cc_account_modules (account_id, module_key, enabled, config) values
+  (:rodolfo_account_id, 'workspace', true, '{}'::jsonb),
+  (:rodolfo_account_id, 'squad_content', true, '{"kanban": false}'::jsonb),
+  (:rodolfo_account_id, 'crm', false, '{}'::jsonb),
+  (:rodolfo_account_id, 'squad_paid_traffic', true, '{}'::jsonb),   -- catálogo coming_soon domina → "em breve"
+  (:rodolfo_account_id, 'automation_studio', false, '{}'::jsonb)
+on conflict (account_id, module_key) do update
+  set enabled = excluded.enabled, config = excluded.config;
 
 -- ── Agentes e squads do Rodolfo (os_agent_registry) ───────────────────────
 insert into public.os_agent_registry (account_id, key, name, status, kind, specialty, module_key, squad_key, owner) values
