@@ -66,11 +66,39 @@ export function montarPrompt(payload, historico = []) {
     '- Vídeo (ele dá o tema, a gente monta o roteiro): skill roteiro-video → producao/<slug>/roteiro.md.',
     '  NÃO tem arte/edição: devolva o roteiro COMPLETO no campo "roteiro" da peça (é o que ele grava)',
     '  e no reply diga que o roteiro está em "Pra aprovar" pronto pra ele gravar.',
+    '  No campo "roteiro" NÃO inclua a legenda (ela vai SÓ no campo "legenda" — senão aparece dobrada).',
     '',
     'FORMATO DA SUA ÚLTIMA MENSAGEM — SOMENTE este JSON, sem texto em volta:',
     '{"reply": "<resposta curta pro chat>", "peca": {"slug": "<pasta em producao/>", "titulo": "<título>", "tipo": "carrossel|estatico|video", "legenda": "<legenda completa>", "arquivo_preview": "producao/<slug>/<primeiro-png> (null pra vídeo)", "roteiro": "<só vídeo: roteiro completo em markdown, senão null>"} }',
     'Quando não houver peça: {"reply": "...", "peca": null}',
   ].join('\n');
+}
+
+/**
+ * Pura: remove a seção "## Legenda" do roteiro (a legenda vive no campo próprio
+ * da peça — dentro do roteiro ela aparece dobrada na tela). Corta do heading
+ * "Legenda" até o próximo heading de mesmo nível (ou fim).
+ */
+export function limparRoteiro(roteiro) {
+  const s = String(roteiro ?? '');
+  const linhas = s.split('\n');
+  const out = [];
+  let cortando = false;
+  let nivelCorte = 0;
+  for (const linha of linhas) {
+    const h = linha.match(/^(#{1,4})\s+(.+)$/);
+    if (h) {
+      const nivel = h[1].length;
+      if (/^legenda\b/i.test(h[2].trim())) {
+        cortando = true;
+        nivelCorte = nivel;
+        continue;
+      }
+      if (cortando && nivel <= nivelCorte) cortando = false;
+    }
+    if (!cortando) out.push(linha);
+  }
+  return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
 /** Extrai o JSON do contrato da resposta do agente (tolera cerca/texto em volta). */
@@ -97,7 +125,8 @@ export function parseResultado(texto) {
           legenda: typeof legenda === 'string' ? legenda : '',
           arquivo_preview: typeof arquivo_preview === 'string' ? arquivo_preview : null,
           // Vídeo não tem arte: o roteiro É a entrega (vai pro detalhe da peça).
-          roteiro: typeof roteiro === 'string' && roteiro.trim() ? roteiro.trim() : null,
+          // limparRoteiro: legenda NUNCA dentro do roteiro (ela tem campo próprio).
+          roteiro: typeof roteiro === 'string' && roteiro.trim() ? limparRoteiro(roteiro) || null : null,
         };
       }
     }
@@ -204,7 +233,27 @@ export function decryptGcm(encryptedText, keyHex) {
 /** Prompt do job de GERAÇÃO direta (tela "Usar agente" — sem chat). */
 export function montarPromptGeracao(payload) {
   const tema = String(payload?.tema ?? '').trim();
-  const tipo = payload?.tipo === 'estatico' ? 'estatico' : 'carrossel';
+  const tipo =
+    payload?.tipo === 'estatico' ? 'estatico' : payload?.tipo === 'video' ? 'video' : 'carrossel';
+  if (tipo === 'video') {
+    return [
+      'Você é a SQUAD CONTENT operando ESTE repositório de conteúdo do cliente (Dr. Rodolfo · HMR).',
+      'Produza o ROTEIRO de UM vídeo (Reels · talking head — ELE grava no celular) sobre o tema abaixo.',
+      '',
+      `TEMA: ${tema}`,
+      '',
+      'REGRAS:',
+      '- Roteiro pela skill roteiro-video → producao/<slug>/roteiro.md (humanize · voz da fundação).',
+      '- Fundação: se existir referencia/fundacao-workspace/, é a versão MAIS RECENTE editada pelo',
+      '  cliente na ferramenta e PREVALECE sobre marca/*.md.',
+      '- NUNCA invente fatos, leis, números ou resultados.',
+      '- No campo "roteiro" vai SÓ o roteiro (cenas + dicas de gravação). A legenda vai SÓ no campo',
+      '  "legenda" — NÃO repita a legenda dentro do roteiro.',
+      '',
+      'FORMATO DA SUA ÚLTIMA MENSAGEM — SOMENTE este JSON, sem texto em volta:',
+      '{"reply": "<resumo curto do que produziu>", "peca": {"slug": "<pasta em producao/>", "titulo": "<título>", "tipo": "video", "legenda": "<legenda completa>", "arquivo_preview": null, "roteiro": "<roteiro completo em markdown, SEM a legenda>"}}',
+    ].join('\n');
+  }
   return [
     'Você é a SQUAD CONTENT operando ESTE repositório de conteúdo do cliente (Dr. Rodolfo · HMR).',
     `Produza UMA peça do tipo ${tipo.toUpperCase()} sobre o tema abaixo, ponta a ponta.`,

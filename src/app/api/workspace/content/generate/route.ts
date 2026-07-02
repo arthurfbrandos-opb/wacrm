@@ -20,7 +20,7 @@ export async function POST(request: Request) {
   const tipo = body?.tipo;
   if (!tema) return NextResponse.json({ error: "descreva o tema da peça" }, { status: 400 });
   if (tema.length > 500) return NextResponse.json({ error: "tema grande demais (máx 500)" }, { status: 400 });
-  if (tipo !== "carrossel" && tipo !== "estatico") {
+  if (tipo !== "carrossel" && tipo !== "estatico" && tipo !== "video") {
     return NextResponse.json({ error: "tipo inválido" }, { status: 400 });
   }
 

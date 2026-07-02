@@ -130,6 +130,7 @@ export function buildSquads(states: ModuleStates): SquadCard[] {
 /** Rótulo humano por especialidade de agente (template da tela de uso). */
 export const SPECIALTY_LABEL: Record<string, string> = {
   gerador: 'Gerador',
+  roteirista: 'Roteirista',
   publisher: 'Publicador',
   chat: 'Especialista',
   analise: 'Analista',

@@ -78,6 +78,26 @@ describe('parseResultado', () => {
     expect(r.peca.roteiro).toContain('Cena 1')
   })
 
+  it('remove a seção Legenda de dentro do roteiro (campo próprio)', () => {
+    const r = parseResultado(
+      JSON.stringify({
+        reply: 'ok',
+        peca: {
+          slug: 'x',
+          titulo: 'X',
+          tipo: 'video',
+          legenda: 'legenda oficial',
+          arquivo_preview: null,
+          roteiro:
+            '# Vídeo: X\n\n## Cena 1\nfala\n\n## Legenda\ntexto repetido #tag\n\n## Dicas de gravação\nluz de frente',
+        },
+      }),
+    )
+    expect(r.peca.roteiro).toContain('Cena 1')
+    expect(r.peca.roteiro).toContain('Dicas de gravação')
+    expect(r.peca.roteiro).not.toContain('texto repetido')
+  })
+
   it('roteiro ausente vira null (carrossel não carrega roteiro)', () => {
     const r = parseResultado(
       '{"reply":"ok","peca":{"slug":"x","titulo":"X","tipo":"carrossel","legenda":"l"}}',
