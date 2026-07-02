@@ -31,6 +31,7 @@ insert into public.os_agent_registry (account_id, key, name, status, kind, speci
   (:rodolfo_account_id, 'gerador-carrossel', 'Gerador de Carrossel', 'active',      'agent', 'gerador',   'squad_content', 'squad-content', 'NS'),
   (:rodolfo_account_id, 'gerador-estatico',  'Gerador de Estático',  'active',      'agent', 'gerador',   'squad_content', 'squad-content', 'NS'),
   (:rodolfo_account_id, 'publisher',         'Publisher',            'active',      'agent', 'publisher', 'squad_content', 'squad-content', 'NS'),
+  (:rodolfo_account_id, 'roteirista-video',  'Roteirista de Vídeo',  'active',      'agent', 'roteirista', 'squad_content', 'squad-content', 'NS'),
   (:rodolfo_account_id, 'editor-video',      'Editor de Vídeo',      'coming_soon', 'agent', 'gerador',   'squad_content', 'squad-content', 'NS'),
   (:rodolfo_account_id, 'gestor-trafego',    'Gestor de Tráfego',    'coming_soon', 'agent', 'chat',      'squad_paid_traffic', 'squad-paid-traffic', 'NS'),
   (:rodolfo_account_id, 'squad-content',      'Squad Content',        'active',      'squad', null,        'squad_content', null, 'NS'),

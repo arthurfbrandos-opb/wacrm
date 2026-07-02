@@ -69,6 +69,22 @@ describe('parseResultado', () => {
     expect(r.peca).toBeNull()
   })
 
+  it('parseia peça de vídeo com roteiro (sem preview)', () => {
+    const r = parseResultado(
+      '{"reply":"Roteiro pronto pra gravar.","peca":{"slug":"golpe-do-pix","titulo":"Golpe do PIX","tipo":"video","legenda":"Legenda…","arquivo_preview":null,"roteiro":"# Vídeo: Golpe do PIX\\n\\n## Cena 1…"}}',
+    )
+    expect(r.peca.tipo).toBe('video')
+    expect(r.peca.arquivo_preview).toBeNull()
+    expect(r.peca.roteiro).toContain('Cena 1')
+  })
+
+  it('roteiro ausente vira null (carrossel não carrega roteiro)', () => {
+    const r = parseResultado(
+      '{"reply":"ok","peca":{"slug":"x","titulo":"X","tipo":"carrossel","legenda":"l"}}',
+    )
+    expect(r.peca.roteiro).toBeNull()
+  })
+
   it('rejeita tipo de peça fora do contrato', () => {
     const r = parseResultado(
       '{"reply":"ok","peca":{"slug":"x","titulo":"X","tipo":"reels","legenda":""}}',
