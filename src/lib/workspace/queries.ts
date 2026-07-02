@@ -11,13 +11,17 @@ type DB = SupabaseClient
 export async function loadModuleStates(db: DB): Promise<ModuleStates> {
   const [catalog, account] = await Promise.all([
     db.from('cc_modules').select('key, status'),
-    db.from('cc_account_modules').select('module_key, enabled'),
+    db.from('cc_account_modules').select('module_key, enabled, config'),
   ])
   if (catalog.error) throw catalog.error
   if (account.error) throw account.error
   return buildModuleStates(
     (catalog.data ?? []) as { key: string; status: 'ga' | 'coming_soon' }[],
-    (account.data ?? []) as { module_key: string; enabled: boolean }[],
+    (account.data ?? []) as {
+      module_key: string
+      enabled: boolean
+      config: Record<string, unknown> | null
+    }[],
   )
 }
 

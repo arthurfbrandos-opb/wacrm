@@ -17,22 +17,41 @@ export interface ModuleCatalogRow {
 export interface AccountModuleRow {
   module_key: string
   enabled: boolean
+  /** Ajustes finos do módulo pra conta (ex.: {"kanban": false} no squad_content). */
+  config?: Record<string, unknown> | null
 }
 
 /** Estado consolidado por módulo: catálogo global × habilitação da conta. */
-export type ModuleStates = Record<string, { enabled: boolean; status: ModuleCatalogStatus }>
+export type ModuleStates = Record<
+  string,
+  { enabled: boolean; status: ModuleCatalogStatus; config?: Record<string, unknown> | null }
+>
 
 /** Pura: consolida catálogo global + linhas da conta num mapa por module_key. */
 export function buildModuleStates(
   catalog: ModuleCatalogRow[],
   accountRows: AccountModuleRow[],
 ): ModuleStates {
-  const byKey = new Map(accountRows.map((r) => [r.module_key, r.enabled]))
+  const byKey = new Map(accountRows.map((r) => [r.module_key, r]))
   const states: ModuleStates = {}
   for (const mod of catalog) {
-    states[mod.key] = { enabled: byKey.get(mod.key) ?? false, status: mod.status }
+    const row = byKey.get(mod.key)
+    states[mod.key] = {
+      enabled: row?.enabled ?? false,
+      status: mod.status,
+      config: row?.config ?? null,
+    }
   }
   return states
+}
+
+/**
+ * Pura: o Kanban da squad está no plano da conta? Default = sim; vira "gostinho"
+ * (visível-bloqueado) quando o config do squad_content traz {"kanban": false} —
+ * decisão Arthur 02/07: no plano do Rodolfo a aprovação é via chat + peça.
+ */
+export function squadKanbanEnabled(states: ModuleStates): boolean {
+  return states['squad_content']?.config?.['kanban'] !== false
 }
 
 /** Pura: coming_soon do catálogo domina; senão on/off pela habilitação da conta. */

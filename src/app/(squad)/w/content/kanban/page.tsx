@@ -6,6 +6,8 @@
 // não existe: quem move a peça é o processo (produção/aprovação/publicação).
 import Link from "next/link";
 import { useContentPieces } from "@/hooks/use-content-pieces";
+import { useWorkspaceModules } from "@/hooks/use-workspace-modules";
+import { squadKanbanEnabled } from "@/lib/workspace/catalog";
 import {
   groupByStatus,
   KANBAN_COLUMNS,
@@ -58,6 +60,52 @@ function PieceCard({ piece }: { piece: ContentPiece }) {
 export default function SquadContentKanbanPage() {
   const { pieces, error } = useContentPieces();
   const grouped = pieces ? groupByStatus(pieces) : null;
+
+  // "Gostinho": kanban fora do plano — mostra as etapas, não os cards.
+  const { states, loading: modulesLoading } = useWorkspaceModules();
+  const locked = !modulesLoading && states !== null && !squadKanbanEnabled(states);
+
+  if (locked) {
+    return (
+      <div className="flex flex-col gap-4">
+        <div>
+          <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-primary">
+            Squad Content · Kanban
+          </p>
+          <h1 className="mt-1 font-mono text-2xl font-semibold tracking-tight text-foreground">
+            Esteira de produção
+          </h1>
+        </div>
+        <div className="flex gap-3 overflow-x-auto pb-4 opacity-50" aria-hidden>
+          {KANBAN_COLUMNS.map((col) => (
+            <div
+              key={col.status}
+              className="flex min-w-[180px] flex-1 flex-col rounded-xl border border-border bg-card/60 p-4"
+            >
+              <div className="-mx-4 -mt-4 h-[3px] rounded-t-xl" style={{ backgroundColor: STATUS_COLOR[col.status] }} />
+              <h3 className="pt-3 text-sm font-semibold text-foreground">{col.label}</h3>
+              <div className="mt-3 rounded-lg border border-dashed border-border/60 px-2 py-8" />
+            </div>
+          ))}
+        </div>
+        <div className="rounded-xl border border-dashed border-border bg-card p-6 text-center">
+          <p className="font-mono text-sm font-medium text-foreground">
+            O Kanban completo não está no seu plano
+          </p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Suas peças continuam andando normalmente — você acompanha e aprova pela
+            Visão geral e pelo chat. Quer a esteira visual completa? Fale com a Negócio Simples.
+          </p>
+          <Link
+            href="/w/content/chat"
+            className="mt-4 inline-block rounded-lg border border-primary/40 bg-primary/10 px-4 py-2 font-mono text-sm text-primary transition-colors hover:bg-primary/20"
+          >
+            ir pro chat do squad ▸
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4">
