@@ -2,7 +2,7 @@
 
 // Sidebar do Workspace Cliente. Mesmo idioma visual da sidebar do (dashboard),
 // mas o menu nasce de plano+módulos (C9): item ON navega, OFF fica visível-desligado
-// ("no seu plano" — superfície de upsell), coming_soon marca "em breve". Nada escondido.
+// ("não incluso" — superfície de upsell), coming_soon marca "em breve". Nada escondido.
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
@@ -67,14 +67,14 @@ function MenuRow({ item, pathname }: { item: WorkspaceMenuItem; pathname: string
   return (
     <div
       aria-disabled="true"
-      title={item.state === "coming_soon" ? "Em breve" : "Disponível no seu plano"}
+      title={item.state === "coming_soon" ? "Em breve" : "Não incluso no seu plano"}
       className="flex cursor-not-allowed items-center gap-2 rounded-lg px-3 py-2.5 font-mono text-sm font-medium text-muted-foreground opacity-60 lg:py-2"
     >
       <span className="w-2 shrink-0" />
       <Icon className="h-4 w-4" />
       <span className="flex-1">{item.label.toLowerCase()}</span>
       <span className="rounded-full border border-border px-1.5 py-0.5 text-[9px] uppercase tracking-wider">
-        {item.state === "coming_soon" ? "em breve" : "no seu plano"}
+        {item.state === "coming_soon" ? "em breve" : "não incluso"}
       </span>
     </div>
   );

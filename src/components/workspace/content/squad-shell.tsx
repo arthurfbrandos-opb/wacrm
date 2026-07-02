@@ -113,14 +113,14 @@ function SquadSidebar({
                   <li key={item.key}>
                     <div
                       aria-disabled="true"
-                      title={locked ? "Disponível no seu plano" : "Em breve"}
+                      title={locked ? "Não incluso no seu plano" : "Em breve"}
                       className="flex cursor-not-allowed items-center gap-2 rounded-lg px-3 py-2.5 font-mono text-sm font-medium text-muted-foreground opacity-60 lg:py-2"
                     >
                       <span className="w-2 shrink-0" />
                       <item.icon className="h-4 w-4" />
                       <span className="flex-1">{item.label.toLowerCase()}</span>
                       <span className="rounded-full border border-border px-1.5 py-0.5 text-[9px] uppercase tracking-wider">
-                        {locked ? "no seu plano" : "em breve"}
+                        {locked ? "não incluso" : "em breve"}
                       </span>
                     </div>
                   </li>
