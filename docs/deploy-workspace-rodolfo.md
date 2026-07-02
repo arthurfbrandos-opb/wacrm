@@ -56,7 +56,12 @@ No host do VPS (V1 = systemd no host; container fica como evolução):
    - ⚠️ **ROTACIONAR a chave HUDAPI antes** (caiu em chat 21/06 — skill `llm-provider-rotate`).
    - Metricool: criar o template do MCP com o formato real de auth do `ai.metricool.com/mcp`
      (confirmar na doc oficial na hora — placeholder `{{METRICOOL_TOKEN}}`).
-   - GOOGLE_API_KEY: criar no GCP (restrita à Drive API).
+   - GOOGLE_API_KEY: criar no GCP (restrita à Drive API) — LEITURA da pasta de fotos.
+   - Service account do Google (pendente · pedido Arthur 02/07): criar no GCP + Rodolfo
+     compartilha a pasta de CONTEÚDOS com o e-mail dela (Editor) → liga o salvamento
+     automático dos conteúdos prontos em `Ano/Mês/<linha-editorial>` (avulso: `Ano/Mês/<dia>`).
+     O link da pasta já entra na UI (Configurações → Drive · pasta de conteúdos ·
+     provider `google_drive_conteudos`); a escrita não funciona com API key.
 4. **Serviço:** systemd unit rodando `node /opt/wacrm/worker/content-worker.mjs` com
    `EnvironmentFile=/opt/wacrm-worker.env` + `Restart=always`.
 

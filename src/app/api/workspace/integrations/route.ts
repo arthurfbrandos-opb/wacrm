@@ -7,7 +7,9 @@ import { encrypt } from "@/lib/whatsapp/encryption";
 // mesmo util das wa_connections) e NUNCA volta pro navegador — nem cifrada:
 // o GET devolve só provider/status/config.
 
-const PROVIDERS = new Set(["metricool", "google_drive"]);
+// google_drive = pasta de FOTOS (fundos das artes) · google_drive_conteudos =
+// pasta onde os conteúdos prontos ficam salvos (Ano → Mês → linha editorial).
+const PROVIDERS = new Set(["metricool", "google_drive", "google_drive_conteudos"]);
 
 export async function GET() {
   let accountId: string;
@@ -55,10 +57,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, status: "disconnected" });
   }
 
-  // google_drive é config-only (pasta compartilhada por link — sem credencial);
+  // Pastas do Drive são config-only (compartilhadas por link — sem credencial);
   // os demais providers exigem token.
   const token = body?.token?.trim();
-  const configOnly = provider === "google_drive";
+  const configOnly = provider === "google_drive" || provider === "google_drive_conteudos";
   if (!configOnly && !token) {
     return NextResponse.json({ error: "token obrigatório" }, { status: 400 });
   }
