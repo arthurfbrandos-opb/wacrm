@@ -135,9 +135,9 @@ export default function WorkspaceOverviewPage() {
                 ))
               )}
               <p className="pt-1 font-mono text-[11px] text-muted-foreground">
-                Peça nova? Fala com a squad no{" "}
-                <Link href="/w/content/chat" className="text-primary hover:underline">
-                  chat
+                Peça nova? Monta na{" "}
+                <Link href="/w/content/linha-editorial" className="text-primary hover:underline">
+                  linha editorial
                 </Link>
                 .
               </p>

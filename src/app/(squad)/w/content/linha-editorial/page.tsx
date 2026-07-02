@@ -15,6 +15,7 @@ import {
   type NewLineInput,
 } from "@/lib/workspace/editorial";
 import {
+  FUNIL_LABEL,
   KIND_LABEL,
   piecePropostaPendente,
   STATUS_LABEL,
@@ -303,11 +304,24 @@ function PautaAprovarTudo({
 
 // Um item da pauta na gestão visual da linha: clica → expande com o ângulo
 // completo e as ações do estado (aprovar ideia · produzir · revisar · agendar).
-function PautaItem({ piece, onChanged }: { piece: ContentPiece; onChanged: () => void }) {
+function PautaItem({
+  piece,
+  onChanged,
+  allTick,
+}: {
+  piece: ContentPiece;
+  onChanged: () => void;
+  /** "abrir/fechar todas" da linha — n>0 aplica o estado pedido. */
+  allTick: { open: boolean; n: number };
+}) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const proposta = piecePropostaPendente(piece);
+
+  useEffect(() => {
+    if (allTick.n > 0) setOpen(allTick.open);
+  }, [allTick]);
 
   async function decidir(action: "aprovar" | "produzir") {
     setBusy(true);
@@ -351,6 +365,7 @@ function PautaItem({ piece, onChanged }: { piece: ContentPiece; onChanged: () =>
               ? DATE_FMT.format(new Date(`${piece.meta.planned_date}T12:00:00`))
               : ""}{" "}
             · {KIND_LABEL[piece.kind]}
+            {piece.meta?.funil ? ` · ${FUNIL_LABEL[piece.meta.funil]}` : ""}
           </span>
         </span>
         {piece.status === "producao" ? (
@@ -406,7 +421,7 @@ function PautaItem({ piece, onChanged }: { piece: ContentPiece; onChanged: () =>
                 ▶ Produzir agora
               </button>
               <Link
-                href={`/w/content/pecas/${piece.id}`}
+                href={`/w/content/pecas/${piece.id}?de=linha`}
                 className="font-mono text-xs text-primary hover:underline"
               >
                 abrir peça ▸
@@ -420,14 +435,14 @@ function PautaItem({ piece, onChanged }: { piece: ContentPiece; onChanged: () =>
             </p>
           ) : piece.status === "aprovacao" ? (
             <Link
-              href={`/w/content/pecas/${piece.id}`}
+              href={`/w/content/pecas/${piece.id}?de=linha`}
               className="self-start rounded-md border border-primary bg-primary px-3 py-1.5 font-mono text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90"
             >
               {piece.meta?.fase === "conteudo" ? "revisar o conteúdo ▸" : "revisar e aprovar ▸"}
             </Link>
           ) : (
             <Link
-              href={`/w/content/pecas/${piece.id}`}
+              href={`/w/content/pecas/${piece.id}?de=linha`}
               className="font-mono text-xs text-primary hover:underline"
             >
               abrir peça ▸
@@ -443,6 +458,9 @@ export default function LinhaEditorialPage() {
   const [lines, setLines] = useState<EditorialLine[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  // Linha recolhível (resumo) + abrir/fechar todas as ideias de uma vez.
+  const [lineOpen, setLineOpen] = useState(true);
+  const [allTick, setAllTick] = useState<{ open: boolean; n: number }>({ open: false, n: 0 });
   const { pieces, reload: reloadPieces } = useContentPieces();
 
   const reload = useCallback(() => {
@@ -528,77 +546,119 @@ export default function LinhaEditorialPage() {
       ) : (
         <>
           {atual ? (
-            <TerminalWindow title="linha/atual">
+            <TerminalWindow
+              title="linha/atual"
+              action={
+                <button
+                  type="button"
+                  onClick={() => setLineOpen((v) => !v)}
+                  className="rounded-md border border-border bg-muted px-2.5 py-1 font-mono text-[11px] text-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+                >
+                  {lineOpen ? "recolher ▴" : "expandir ▾"}
+                </button>
+              }
+            >
               <div className="flex flex-col gap-3 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="font-mono text-sm font-semibold text-foreground">
                     {fmtPeriodo(atual)} · {mixLabel(atual.mix)}
                   </p>
-                  <span
-                    className={`rounded-full border px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider ${LINE_STATUS[atual.status].cls}`}
-                  >
-                    {LINE_STATUS[atual.status].label}
-                  </span>
-                </div>
-                {atual.themes ? (
-                  <p className="font-mono text-xs text-muted-foreground">temas: {atual.themes}</p>
-                ) : null}
-                {atual.status === "gerando" ? <GerandoSteps createdAt={atual.created_at} /> : null}
-                {atual.status === "falhou" ? (
-                  <p className="font-mono text-xs text-red-400">
-                    A montagem falhou — tenta de novo em alguns minutos (a equipe já foi avisada).
-                  </p>
-                ) : null}
-                {pecasDaAtual.length > 0 ? (
-                  <>
-                    {pecasDaAtual.some((p) => piecePropostaPendente(p)) ? (
-                      <PautaAprovarTudo
-                        lineId={atual.id}
-                        count={pecasDaAtual.filter((p) => piecePropostaPendente(p)).length}
-                        onChanged={() => {
-                          reload();
-                          reloadPieces();
-                        }}
-                      />
+                  <div className="flex items-center gap-2">
+                    {!lineOpen && pecasDaAtual.length > 0 ? (
+                      <span className="font-mono text-[10px] text-muted-foreground">
+                        {pecasDaAtual.length} conteúdo(s)
+                        {pecasDaAtual.some((p) => piecePropostaPendente(p))
+                          ? ` · ${pecasDaAtual.filter((p) => piecePropostaPendente(p)).length} esperando aprovação`
+                          : ""}
+                      </span>
                     ) : null}
-                    <ul className="flex flex-col gap-2">
-                      {pecasDaAtual
-                        .slice()
-                        .sort((a, b) =>
-                          String(a.meta?.planned_date ?? "").localeCompare(String(b.meta?.planned_date ?? "")),
-                        )
-                        .map((p) => (
-                          <PautaItem
-                            key={p.id}
-                            piece={p}
+                    <span
+                      className={`rounded-full border px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider ${LINE_STATUS[atual.status].cls}`}
+                    >
+                      {LINE_STATUS[atual.status].label}
+                    </span>
+                  </div>
+                </div>
+                {lineOpen ? (
+                  <>
+                    {atual.themes ? (
+                      <p className="font-mono text-xs text-muted-foreground">temas: {atual.themes}</p>
+                    ) : null}
+                    {atual.status === "gerando" ? <GerandoSteps createdAt={atual.created_at} /> : null}
+                    {atual.status === "falhou" ? (
+                      <p className="font-mono text-xs text-red-400">
+                        A montagem falhou — tenta de novo em alguns minutos (a equipe já foi avisada).
+                      </p>
+                    ) : null}
+                    {pecasDaAtual.length > 0 ? (
+                      <>
+                        {pecasDaAtual.some((p) => piecePropostaPendente(p)) ? (
+                          <PautaAprovarTudo
+                            lineId={atual.id}
+                            count={pecasDaAtual.filter((p) => piecePropostaPendente(p)).length}
                             onChanged={() => {
                               reload();
                               reloadPieces();
                             }}
                           />
-                        ))}
-                    </ul>
+                        ) : null}
+                        <div className="flex justify-end gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setAllTick((t) => ({ open: true, n: t.n + 1 }))}
+                            className="font-mono text-[11px] text-muted-foreground hover:text-primary"
+                          >
+                            abrir todas ▾
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setAllTick((t) => ({ open: false, n: t.n + 1 }))}
+                            className="font-mono text-[11px] text-muted-foreground hover:text-primary"
+                          >
+                            fechar todas ▴
+                          </button>
+                        </div>
+                        <ul className="flex flex-col gap-2">
+                          {pecasDaAtual
+                            .slice()
+                            .sort((a, b) =>
+                              String(a.meta?.planned_date ?? "").localeCompare(String(b.meta?.planned_date ?? "")),
+                            )
+                            .map((p) => (
+                              <PautaItem
+                                key={p.id}
+                                piece={p}
+                                allTick={allTick}
+                                onChanged={() => {
+                                  reload();
+                                  reloadPieces();
+                                }}
+                              />
+                            ))}
+                        </ul>
+                      </>
+                    ) : atual.status === "ativa" ? (
+                      <p className="font-mono text-xs text-muted-foreground">
+                        ▸ pauta montada — as peças aparecem aqui e no calendário.
+                      </p>
+                    ) : null}
+                    {pecasDaAtual.length > 0 ? (
+                      <div className="flex flex-wrap gap-3 border-t border-border/60 pt-3">
+                        <Link
+                          href="/w/content/kanban"
+                          className="font-mono text-xs text-primary hover:underline"
+                        >
+                          acompanhar no kanban ▸
+                        </Link>
+                        <Link
+                          href="/w/content/calendario"
+                          className="font-mono text-xs text-primary hover:underline"
+                        >
+                          ver no calendário ▸
+                        </Link>
+                      </div>
+                    ) : null}
                   </>
-                ) : atual.status === "ativa" ? (
-                  <p className="font-mono text-xs text-muted-foreground">
-                    ▸ pauta montada — as peças aparecem aqui e no calendário.
-                  </p>
-                ) : null}
-                {pecasDaAtual.length > 0 ? (
-                  <div className="flex flex-wrap gap-3 border-t border-border/60 pt-3">
-                    <Link
-                      href="/w/content/kanban"
-                      className="font-mono text-xs text-primary hover:underline"
-                    >
-                      acompanhar no kanban ▸
-                    </Link>
-                    <Link
-                      href="/w/content/calendario"
-                      className="font-mono text-xs text-primary hover:underline"
-                    >
-                      ver no calendário ▸
-                    </Link>
-                  </div>
                 ) : null}
               </div>
             </TerminalWindow>

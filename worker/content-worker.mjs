@@ -156,6 +156,7 @@ export function montarPromptLinhaEditorial(payload) {
     'REGRAS:',
     '- Distribua as peças pelas datas do período (1 por dia no máximo · datas YYYY-MM-DD dentro do período).',
     '- Respeite o mix pedido EXATAMENTE. Temas do cliente entram primeiro; complete com a proporção da skill.',
+    '- Classifique cada peça no funil: "topo" (alcance/atenção) · "meio" (conexão/consideração) · "fundo" (conversão).',
     '- ATUALIZE linha-editorial/calendario.md com a pauta nova (é o que a produção lê depois).',
     '- NUNCA invente fatos, leis ou números nos temas — use a base de conhecimento da fundação.',
     '',
@@ -166,7 +167,7 @@ export function montarPromptLinhaEditorial(payload) {
     '  calendário — me chama pra produzir a primeira."',
     '',
     'FORMATO DA SUA ÚLTIMA MENSAGEM — SOMENTE este JSON, sem texto em volta:',
-    '{"reply": "<resumo curto da pauta, linguagem de cliente>", "pecas": [{"titulo": "<título>", "tipo": "carrossel|estatico|video", "data": "YYYY-MM-DD", "tema": "<ângulo em 1 linha>"}]}',
+    '{"reply": "<resumo curto da pauta, linguagem de cliente>", "pecas": [{"titulo": "<título>", "tipo": "carrossel|estatico|video", "data": "YYYY-MM-DD", "tema": "<ângulo em 1 linha>", "funil": "topo|meio|fundo"}]}',
   ].join('\n');
 }
 
@@ -192,6 +193,7 @@ export function parseLinhaEditorial(texto) {
         tipo: p.tipo,
         data: p.data,
         tema: typeof p.tema === 'string' ? p.tema.trim() : null,
+        funil: p.funil === 'topo' || p.funil === 'meio' || p.funil === 'fundo' ? p.funil : null,
       }));
     if (!pecas.length) return null;
     return { reply: obj.reply.trim(), pecas };
@@ -215,6 +217,7 @@ export function pecasDaLinha(accountId, lineId, pecas) {
       planned_date: p.data,
       pauta: 'proposta',
       ...(p.tema ? { tema: p.tema } : {}),
+      ...(p.funil ? { funil: p.funil } : {}),
     },
   }));
 }
@@ -231,6 +234,7 @@ export function montarPromptProduzirPauta(payload) {
     '',
     `PEÇA: "${titulo}" · tipo ${tipo.toUpperCase()}`,
     tema ? `ÂNGULO DA PAUTA: ${tema}` : 'ÂNGULO: puxe da pauta em linha-editorial/calendario.md.',
+    payload?.funil ? `ANDAR DO FUNIL: ${payload.funil} — calibre gancho e CTA pra esse andar.` : '',
     nota ? `AJUSTE PEDIDO PELO CLIENTE (refaça o conteúdo considerando isto): ${nota}` : '',
     '',
     'REGRAS:',
@@ -996,6 +1000,7 @@ async function processarProduzirPauta(job) {
           titulo: peca.title,
           tipo: peca.kind,
           tema: peca.meta?.tema ?? '',
+          funil: peca.meta?.funil ?? '',
           note: job.payload?.note ?? '',
         }),
         repo,
