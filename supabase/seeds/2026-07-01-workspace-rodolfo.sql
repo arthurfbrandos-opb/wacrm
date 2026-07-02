@@ -40,6 +40,20 @@ insert into public.cc_account_modules (account_id, module_key, enabled) values
   (:ns_account_id, 'squad_content', true)
 on conflict (account_id, module_key) do update set enabled = excluded.enabled;
 
+-- ── Peças iniciais da Squad Content (validar UX do kanban/calendário) ──────
+-- As duas primeiras são REAIS (produzidas 25/06 no dry-run da fundação dele);
+-- as demais são pauta/esteira derivadas da linha editorial real — marcar como
+-- exemplo é desnecessário porque pauta é isso mesmo: tema planejado, sem arte.
+insert into public.content_pieces (account_id, title, kind, status, caption, channel) values
+  (:rodolfo_account_id, 'Assinei o contrato — sou obrigado a pagar?', 'carrossel', 'aprovacao',
+   null, 'instagram'),
+  (:rodolfo_account_id, 'Bloqueio SISBAJUD: o que fazer nas primeiras 48h', 'estatico', 'aprovacao',
+   null, 'instagram'),
+  (:rodolfo_account_id, 'Busca e apreensão: o banco pode levar meu carro sem aviso?', 'carrossel', 'producao', null, 'instagram'),
+  (:rodolfo_account_id, 'Juros abusivos: como saber se a taxa do seu financiamento passou do limite', 'carrossel', 'pauta', null, 'instagram'),
+  (:rodolfo_account_id, 'Tarifa embutida no financiamento: você paga sem saber', 'estatico', 'pauta', null, 'instagram');
+
 -- ── Verificação (rodar depois) ─────────────────────────────────────────────
 -- select module_key, enabled from public.cc_account_modules where account_id = :rodolfo_account_id;
 -- select key, name, status, kind from public.os_agent_registry where account_id = :rodolfo_account_id order by kind, name;
+-- select title, kind, status from public.content_pieces where account_id = :rodolfo_account_id;
