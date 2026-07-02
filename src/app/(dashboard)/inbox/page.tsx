@@ -9,7 +9,7 @@ import { ConversationList } from "@/components/inbox/conversation-list";
 import { MessageThread } from "@/components/inbox/message-thread";
 import { ContactSidebar } from "@/components/inbox/contact-sidebar";
 import { toast } from "sonner";
-import { WifiOff } from "lucide-react";
+import { WifiOff, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Remembers the agent's show/hide choice for the desktop contact panel
@@ -72,6 +72,15 @@ export default function InboxPage() {
       }
       return next;
     });
+  }, []);
+
+  // Painel do contato no MOBILE = overlay de tela cheia com estado
+  // PRÓPRIO (não persiste): se compartilhasse o contactPanelOpen do
+  // desktop (default aberto), o overlay cobriria a thread assim que
+  // qualquer conversa abrisse no celular.
+  const [contactOverlayOpen, setContactOverlayOpen] = useState(false);
+  const handleToggleContactOverlay = useCallback(() => {
+    setContactOverlayOpen((prev) => !prev);
   }, []);
 
   // Collapsible conversation list (lg+ only — mobile already swaps
@@ -595,8 +604,10 @@ export default function InboxPage() {
   // before, unchanged.
   const hasActiveConv = !!activeConversation;
 
+  // dvh (não vh): em navegador mobile a barra de ferramentas dinâmica
+  // faz 100vh estourar a tela e cortar o composer.
   return (
-    <div className="-m-4 flex h-[calc(100vh-3.5rem)] flex-col overflow-hidden sm:-m-6">
+    <div className="-m-4 flex h-[calc(100dvh-3.5rem)] flex-col overflow-hidden sm:-m-6">
       {/* WhatsApp connection banner — in the flex column, not absolute,
           so it pushes the panels down instead of overlapping them. */}
       {whatsappConnected === false && (
@@ -663,18 +674,37 @@ export default function InboxPage() {
             onRefresh={handleManualRefresh}
             contactPanelOpen={contactPanelOpen}
             onToggleContactPanel={handleToggleContactPanel}
+            onToggleContactOverlay={handleToggleContactOverlay}
             listCollapsed={listCollapsed}
             onToggleList={handleToggleList}
           />
         </div>
 
-        {/* Right panel: Contact sidebar — desktop only, and only when the
-            agent hasn't collapsed it via the thread-header toggle (#258).
-            On mobile it's always hidden (the `lg:block` below), so the
-            toggle — which is itself desktop-only — never affects it. */}
+        {/* Right panel: Contact sidebar. No desktop é o painel lateral
+            fixo (#258). No mobile (< lg) vira um overlay de tela cheia —
+            o toggle no cabeçalho do thread abre/fecha (antes o contato
+            era inacessível no celular). */}
         {contactPanelOpen && (
           <div className="hidden lg:block">
             <ContactSidebar contact={activeContact} />
+          </div>
+        )}
+        {contactOverlayOpen && hasActiveConv && (
+          <div className="fixed inset-0 z-50 flex flex-col bg-background lg:hidden">
+            <div className="flex shrink-0 items-center justify-between border-b border-border bg-card px-3 py-2">
+              <span className="font-mono text-xs text-muted-foreground">inbox/contact</span>
+              <button
+                type="button"
+                onClick={handleToggleContactOverlay}
+                aria-label="Fechar painel do contato"
+                className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 [&>div]:w-full [&>div]:border-l-0">
+              <ContactSidebar contact={activeContact} />
+            </div>
           </div>
         )}
       </div>
