@@ -1096,10 +1096,22 @@ async function processarGerarArte(job) {
     }
 
     let previewUrl = null;
-    const rel = resultado.peca?.arquivo_preview;
-    if (!FAKE && rel) {
-      const abs = join(repo, rel);
-      if (existsSync(abs)) previewUrl = await uploadPreview(job.account_id, slug, abs);
+    if (!FAKE) {
+      // Não confiamos no caminho reportado pelo agente: tenta o dele, senão
+      // ESCANEIA producao/<slug>/ pelo primeiro PNG (a arte tem que existir).
+      const rel = resultado.peca?.arquivo_preview;
+      let abs = rel ? join(repo, rel) : null;
+      if (!abs || !existsSync(abs)) {
+        const dir = join(repo, 'producao', slug);
+        const png = existsSync(dir)
+          ? readdirSync(dir).filter((f) => f.toLowerCase().endsWith('.png')).sort()[0]
+          : null;
+        abs = png ? join(dir, png) : null;
+      }
+      if (!abs || !existsSync(abs)) {
+        throw new Error(`arte não encontrada em producao/${slug}/ — job não pode fechar sem PNG`);
+      }
+      previewUrl = await uploadPreview(job.account_id, slug, abs);
     }
 
     await rest('PATCH', `content_pieces?id=eq.${pieceId}&account_id=eq.${job.account_id}`, {
