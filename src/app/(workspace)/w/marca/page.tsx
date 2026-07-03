@@ -137,13 +137,13 @@ export default function MarcaPage() {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-primary">Marca</p>
+        <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-primary">Second-Brain</p>
         <h1 className="mt-1 font-mono text-2xl font-semibold tracking-tight text-foreground">
-          Fundação da sua marca
+          Second-Brain
         </h1>
         <p className="mt-1 max-w-2xl font-mono text-sm text-muted-foreground">
-          É daqui que a squad tira sua voz, seu cliente ideal e seus argumentos ao produzir
-          conteúdo. O que você editar aqui vale já na próxima peça.
+          A base de conhecimento que alimenta seus agentes: sua voz, seu cliente ideal e seus
+          argumentos. O que você editar aqui vale já na próxima peça.
         </p>
         <Link
           href="/w/content"

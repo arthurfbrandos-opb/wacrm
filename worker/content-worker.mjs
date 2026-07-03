@@ -52,7 +52,7 @@ export function montarPrompt(payload, historico = []) {
     '- Foto/fundo: use referencia/fundos-cliente/ (imagens dele) ou referencia/; NÃO pergunte caminho de foto.',
     '  ALTERNE os fundos entre as peças: veja producao/*/fundo-usado.txt (o que as anteriores usaram) e',
     '  escolha um DIFERENTE dos últimos; registre o arquivo escolhido em producao/<slug>/fundo-usado.txt.',
-    '- Fundação: referencia/fundacao-workspace/ é a versão MAIS RECENTE (editada por ele na tela Marca)',
+    '- Fundação: referencia/fundacao-workspace/ é a versão MAIS RECENTE (editada por ele na tela Second-Brain)',
     '  e PREVALECE sobre marca/*.md.',
     '- Publicação: a ferramenta agenda via Metricool depois que ele aprova — não oriente publicação manual.',
     '- A pauta vem de linha-editorial/calendario.md (ou fundacao-workspace/linha-editorial.md se existir).',
