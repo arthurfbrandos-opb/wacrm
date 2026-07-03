@@ -63,6 +63,30 @@ function MenuRow({ item, pathname }: { item: WorkspaceMenuItem; pathname: string
       </Link>
     );
   }
+  // Vitrine (Arthur 03/07): desligado mas com teaser navega pra tela-demonstração
+  // — o selo continua dizendo o estado real, a tela gera o desejo.
+  if (item.teaserHref) {
+    const isActive = pathname.startsWith(item.teaserHref);
+    return (
+      <Link
+        href={item.teaserHref}
+        title={item.state === "coming_soon" ? "Em breve — espia como vai ser" : "Não incluso no seu plano — espia como é"}
+        className={cn(
+          "flex items-center gap-2 rounded-lg px-3 py-2.5 font-mono text-sm font-medium transition-colors lg:py-2",
+          isActive
+            ? "bg-primary/10 text-primary"
+            : "text-muted-foreground opacity-70 hover:bg-muted hover:text-foreground hover:opacity-100",
+        )}
+      >
+        <span className="w-2 shrink-0 text-primary">{isActive ? "▸" : ""}</span>
+        <Icon className="h-4 w-4" />
+        <span className="flex-1">{item.label.toLowerCase()}</span>
+        <span className="rounded-full border border-border px-1.5 py-0.5 text-[9px] uppercase tracking-wider">
+          {item.state === "coming_soon" ? "em breve" : "não incluso"}
+        </span>
+      </Link>
+    );
+  }
   // Visível-desligado (D8): mostra o item + o motivo, nunca esconde.
   return (
     <div

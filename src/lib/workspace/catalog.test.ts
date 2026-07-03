@@ -122,3 +122,21 @@ describe('buildSquads', () => {
     expect(traffic.href).toBeUndefined()
   })
 })
+
+describe('vitrine (teaserHref) de módulos fora do plano', () => {
+  it('CRM off e Automation Studio coming_soon apontam pra tela-demonstração', () => {
+    const menu = buildWorkspaceMenu(buildModuleStates(CATALOG, RODOLFO_ROWS))
+    const byKey = Object.fromEntries(menu.map((m) => [m.key, m]))
+    expect(byKey.crm.href).toBeUndefined()
+    expect(byKey.crm.teaserHref).toBe('/w/crm')
+    expect(byKey.automation_studio.teaserHref).toBe('/w/automation-studio')
+  })
+  it('CRM ligado navega pro real e perde a vitrine', () => {
+    const menu = buildWorkspaceMenu(
+      buildModuleStates(CATALOG, [...RODOLFO_ROWS.filter((r) => r.module_key !== 'crm'), { module_key: 'crm', enabled: true }]),
+    )
+    const crm = menu.find((m) => m.key === 'crm')!
+    expect(crm.href).toBe('/dashboard')
+    expect(crm.teaserHref).toBeUndefined()
+  })
+})

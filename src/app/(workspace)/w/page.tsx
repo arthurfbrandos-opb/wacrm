@@ -293,6 +293,14 @@ export default function WorkspaceOverviewPage() {
                       >
                         {m.label}
                       </Link>
+                    ) : m.teaserHref ? (
+                      // Vitrine: desligado mas visitável — espia como é.
+                      <Link
+                        href={m.teaserHref}
+                        className="font-mono text-sm text-muted-foreground hover:text-primary"
+                      >
+                        {m.label}
+                      </Link>
                     ) : (
                       <span className="font-mono text-sm text-muted-foreground">{m.label}</span>
                     )}
