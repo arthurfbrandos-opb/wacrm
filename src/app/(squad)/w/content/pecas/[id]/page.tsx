@@ -224,8 +224,30 @@ export default function ContentPieceDetailPage() {
               {piece.meta?.fase === "conteudo" && !piece.preview_url ? null : (
                 <TerminalWindow title="pecas/preview">
                   <div className="p-4">
-                    <p className="font-mono text-sm font-medium text-foreground">Prévia</p>
-                    {piece.preview_url ? (
+                    <p className="font-mono text-sm font-medium text-foreground">
+                      Prévia
+                      {piece.meta?.previews && piece.meta.previews.length > 1
+                        ? ` — ${piece.meta.previews.length} slides (arrasta pro lado)`
+                        : ""}
+                    </p>
+                    {piece.meta?.previews && piece.meta.previews.length > 1 ? (
+                      // Carrossel: galeria completa, rolagem horizontal com snap.
+                      <div className="mt-3 flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2">
+                        {piece.meta.previews.map((url, i) => (
+                          <figure key={url} className="w-64 shrink-0 snap-start">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={url}
+                              alt={`Slide ${i + 1} — ${piece.title}`}
+                              className="w-full rounded-lg border border-border"
+                            />
+                            <figcaption className="mt-1 text-center font-mono text-[10px] text-muted-foreground">
+                              {i + 1}/{piece.meta?.previews?.length}
+                            </figcaption>
+                          </figure>
+                        ))}
+                      </div>
+                    ) : piece.preview_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={piece.preview_url}
