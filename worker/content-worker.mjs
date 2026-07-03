@@ -732,6 +732,29 @@ async function sincronizarFundacao(accountId) {
   if (arquivos.length) console.log(`[worker] fundação do workspace: ${arquivos.length} seção(ões) sincronizada(s)`);
 }
 
+/**
+ * Escaneia producao/<slug>/ e sobe TODOS os PNGs de entrega pro storage —
+ * carrossel = slide-*.png em ordem (galeria completa na tela); estático = o
+ * PNG único. Arquivos bg-* e foto* são insumo, não entrega. Não confia no
+ * caminho que o agente reporta. Retorna { previewUrl, previews } (vazio se
+ * nada foi renderizado).
+ */
+async function subirPreviewsDaPasta(accountId, slug) {
+  const dir = join(cfg().repo, 'producao', slug);
+  const todos = existsSync(dir)
+    ? readdirSync(dir).filter((f) => f.toLowerCase().endsWith('.png')).sort()
+    : [];
+  const slides = todos.filter((f) => /^slide-/i.test(f));
+  const escolhidos = slides.length ? slides : todos.filter((f) => !/^(bg-|foto)/i.test(f));
+  const previews = [];
+  for (let i = 0; i < escolhidos.length; i++) {
+    previews.push(
+      await uploadPreview(accountId, `${slug}-${String(i + 1).padStart(2, '0')}`, join(dir, escolhidos[i])),
+    );
+  }
+  return { previewUrl: previews[0] ?? null, previews };
+}
+
 /** Produz (chat OU geração direta) e persiste: peça + mensagem + ledger + job. */
 async function produzirEPersistir(job, prompt, tituloFake) {
   const { repo } = cfg();
@@ -773,12 +796,11 @@ async function produzirEPersistir(job, prompt, tituloFake) {
 
   let pieceId = null;
   if (resultado.peca) {
+    // Galeria completa (todos os slides), não só a capa reportada pelo agente.
     let previewUrl = null;
-    if (!FAKE && resultado.peca.arquivo_preview) {
-      const abs = join(cfg().repo, resultado.peca.arquivo_preview);
-      if (existsSync(abs)) {
-        previewUrl = await uploadPreview(job.account_id, resultado.peca.slug, abs);
-      }
+    let previews = [];
+    if (!FAKE && resultado.peca.slug) {
+      ({ previewUrl, previews } = await subirPreviewsDaPasta(job.account_id, resultado.peca.slug));
     }
     const pieceRows = await rest('POST', 'content_pieces', {
       account_id: job.account_id,
@@ -791,6 +813,7 @@ async function produzirEPersistir(job, prompt, tituloFake) {
       meta: {
         slug: resultado.peca.slug,
         job_id: job.id,
+        ...(previews.length > 1 ? { previews } : {}),
         ...(resultado.peca.roteiro ? { roteiro: resultado.peca.roteiro } : {}),
       },
     });
@@ -875,18 +898,22 @@ async function processarAjuste(job) {
   }
 
   let previewUrl = null;
-  if (!FAKE && resultado.peca?.arquivo_preview) {
-    const abs = join(cfg().repo, resultado.peca.arquivo_preview);
-    if (existsSync(abs)) {
-      previewUrl = await uploadPreview(job.account_id, resultado.peca.slug, abs);
-    }
+  let previews = [];
+  if (!FAKE && resultado.peca?.slug) {
+    ({ previewUrl, previews } = await subirPreviewsDaPasta(job.account_id, resultado.peca.slug));
   }
 
-  // Atualiza a MESMA peça e devolve pra aprovação.
+  // Atualiza a MESMA peça e devolve pra aprovação (meta MERGE — nunca replace).
+  const pecaAtualRows = await rest(
+    'GET',
+    `content_pieces?id=eq.${pieceId}&account_id=eq.${job.account_id}&select=meta`,
+  );
+  const metaAtual = pecaAtualRows?.[0]?.meta ?? {};
   await rest('PATCH', `content_pieces?id=eq.${pieceId}&account_id=eq.${job.account_id}`, {
     status: 'aprovacao',
     caption: resultado.peca?.legenda || null,
     ...(previewUrl ? { preview_url: previewUrl } : {}),
+    ...(previews.length > 1 ? { meta: { ...metaAtual, previews } } : {}),
     updated_at: new Date().toISOString(),
   });
 
@@ -1205,24 +1232,10 @@ async function processarGerarArte(job) {
     let previewUrl = null;
     let previews = [];
     if (!FAKE) {
-      // Não confiamos no caminho reportado pelo agente: ESCANEIA producao/<slug>/.
-      // Carrossel = TODOS os slide-*.png (a tela mostra a galeria completa);
-      // estático = o PNG único. bg-*/foto* são insumos, não entrega.
-      const dir = join(repo, 'producao', slug);
-      const todos = existsSync(dir)
-        ? readdirSync(dir).filter((f) => f.toLowerCase().endsWith('.png')).sort()
-        : [];
-      const slides = todos.filter((f) => /^slide-/i.test(f));
-      const escolhidos = slides.length ? slides : todos.filter((f) => !/^(bg-|foto)/i.test(f));
-      if (!escolhidos.length) {
+      ({ previewUrl, previews } = await subirPreviewsDaPasta(job.account_id, slug));
+      if (!previewUrl) {
         throw new Error(`arte não encontrada em producao/${slug}/ — job não pode fechar sem PNG`);
       }
-      for (let i = 0; i < escolhidos.length; i++) {
-        previews.push(
-          await uploadPreview(job.account_id, `${slug}-${String(i + 1).padStart(2, '0')}`, join(dir, escolhidos[i])),
-        );
-      }
-      previewUrl = previews[0];
     }
 
     await rest('PATCH', `content_pieces?id=eq.${pieceId}&account_id=eq.${job.account_id}`, {
