@@ -74,6 +74,28 @@ export async function POST(
     if (jobErr) return NextResponse.json({ error: jobErr.message }, { status: 500 });
   }
 
+  // Aprovação FINAL → salva os arquivos na pasta de conteúdos do Drive do
+  // cliente (se ele conectou a conta e escolheu a pasta no Picker).
+  if (approved && newStatus === "aprovada") {
+    const { data: gconn } = await db
+      .from("integration_connections")
+      .select("status, config")
+      .eq("account_id", accountId)
+      .eq("provider", "google_oauth")
+      .maybeSingle();
+    const temPasta =
+      gconn?.status === "connected" &&
+      Boolean((gconn.config as { conteudos_folder_id?: string } | null)?.conteudos_folder_id);
+    if (temPasta) {
+      await db.from("content_jobs").insert({
+        account_id: accountId,
+        kind: "salvar_drive",
+        payload: { piece_id: id },
+        created_by: userId,
+      });
+    }
+  }
+
   // Ajuste → refaz o CONTEÚDO (fase conteúdo) ou a peça toda (fase arte/legado).
   if (!approved) {
     const { error: jobErr } = await db.from("content_jobs").insert({

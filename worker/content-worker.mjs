@@ -1210,6 +1210,120 @@ async function processarGerarArte(job) {
   }
 }
 
+// ── Salvar no Drive do cliente (Ano/Mês/<linha|dia>/<peça>/) ────────────────
+
+async function ensureDriveFolder(token, parentId, name) {
+  const q = encodeURIComponent(
+    `name = '${name.replace(/'/g, "\\'")}' and '${parentId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+  );
+  const busca = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id)`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!busca.ok) throw new Error(`drive busca pasta HTTP ${busca.status}`);
+  const { files = [] } = await busca.json();
+  if (files[0]?.id) return files[0].id;
+  const cria = await fetch('https://www.googleapis.com/drive/v3/files?fields=id', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, parents: [parentId], mimeType: 'application/vnd.google-apps.folder' }),
+  });
+  if (!cria.ok) throw new Error(`drive cria pasta HTTP ${cria.status}`);
+  return (await cria.json()).id;
+}
+
+async function uploadDriveFile(token, parentId, name, buffer, mime) {
+  const boundary = `ns${Math.abs(Date.now())}`;
+  const meta = JSON.stringify({ name, parents: [parentId] });
+  const body = Buffer.concat([
+    Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n`),
+    Buffer.from(`--${boundary}\r\nContent-Type: ${mime}\r\n\r\n`),
+    buffer,
+    Buffer.from(`\r\n--${boundary}--`),
+  ]);
+  const res = await fetch(
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': `multipart/related; boundary=${boundary}` },
+      body,
+    },
+  );
+  if (!res.ok) throw new Error(`drive upload ${name} HTTP ${res.status}`);
+}
+
+/** SALVAR_DRIVE: peça aprovada → arquivos na pasta de conteúdos do cliente. */
+async function processarSalvarDrive(job) {
+  const pieceId = job.payload?.piece_id;
+  if (!pieceId) throw new Error('salvar_drive sem piece_id no payload');
+  const { repo } = cfg();
+
+  const oauth = await tokenGoogleOauth(job.account_id);
+  const pastaRaiz = oauth?.config?.conteudos_folder_id;
+  if (!pastaRaiz) {
+    // Sem pasta configurada não é erro do cliente — só não tem onde salvar.
+    await finalizarJob(job.id, { status: 'done', piece_id: pieceId });
+    console.log(`[worker] job ${job.id} (salvar drive) pulado — sem pasta de conteúdos configurada`);
+    return;
+  }
+
+  const rows = await rest(
+    'GET',
+    `content_pieces?id=eq.${pieceId}&account_id=eq.${job.account_id}&select=id,title,kind,caption,meta`,
+  );
+  const peca = rows?.[0];
+  if (!peca) throw new Error('peça do salvar_drive não encontrada');
+  const slug = peca.meta?.slug || String(peca.title).toLowerCase().replace(/[^\w]+/g, '-').slice(0, 60);
+
+  // Ano/Mês pela data planejada (ou hoje) · pasta da linha (período) ou do dia.
+  const dataRef = peca.meta?.planned_date || new Date().toISOString().slice(0, 10);
+  const [ano, mes, dia] = dataRef.split('-');
+  let pastaPeriodo = `dia ${dia}`;
+  if (peca.meta?.line_id) {
+    const linhas = await rest(
+      'GET',
+      `content_editorial_lines?id=eq.${peca.meta.line_id}&select=start_date,end_date`,
+    );
+    const l = linhas?.[0];
+    if (l) pastaPeriodo = `linha ${l.start_date} a ${l.end_date}`;
+  }
+
+  const idAno = await ensureDriveFolder(oauth.accessToken, pastaRaiz, ano);
+  const idMes = await ensureDriveFolder(oauth.accessToken, idAno, mes);
+  const idPeriodo = await ensureDriveFolder(oauth.accessToken, idMes, pastaPeriodo);
+  const idPeca = await ensureDriveFolder(oauth.accessToken, idPeriodo, slug);
+
+  let enviados = 0;
+  const dir = join(repo, 'producao', slug);
+  if (existsSync(dir)) {
+    const todos = readdirSync(dir).filter((f) => f.toLowerCase().endsWith('.png')).sort();
+    const slides = todos.filter((f) => /^slide-/i.test(f));
+    const escolhidos = slides.length ? slides : todos.filter((f) => !/^(bg-|foto)/i.test(f));
+    for (const f of escolhidos) {
+      await uploadDriveFile(oauth.accessToken, idPeca, f, readFileSync(join(dir, f)), 'image/png');
+      enviados++;
+    }
+  }
+  if (peca.caption) {
+    await uploadDriveFile(oauth.accessToken, idPeca, 'legenda.txt', Buffer.from(peca.caption, 'utf8'), 'text/plain');
+    enviados++;
+  }
+  if (peca.kind === 'video' && peca.meta?.roteiro) {
+    await uploadDriveFile(oauth.accessToken, idPeca, 'roteiro.md', Buffer.from(peca.meta.roteiro, 'utf8'), 'text/markdown');
+    enviados++;
+  }
+  if (!enviados) throw new Error(`nada pra salvar da peça ${slug} (sem arte/legenda/roteiro)`);
+
+  await rest('POST', 'os_events', {
+    account_id: job.account_id,
+    agent: 'squad-content',
+    kind: 'content.saved_to_drive',
+    summary: `Salvo no Drive: ${peca.title} (${enviados} arquivo(s) · ${ano}/${mes}/${pastaPeriodo})`,
+    ref: { piece_id: pieceId },
+  });
+  await finalizarJob(job.id, { status: 'done', piece_id: pieceId });
+  console.log(`[worker] job ${job.id} (salvar drive) done · ${enviados} arquivo(s) · ${ano}/${mes}/${pastaPeriodo}/${slug}`);
+}
+
 async function processar(job) {
   try {
     if (job.kind === 'chat') {
@@ -1226,6 +1340,8 @@ async function processar(job) {
       await processarProduzirPauta(job);
     } else if (job.kind === 'gerar_arte') {
       await processarGerarArte(job);
+    } else if (job.kind === 'salvar_drive') {
+      await processarSalvarDrive(job);
     } else {
       throw new Error(`kind não suportado ainda: ${job.kind}`);
     }
