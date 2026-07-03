@@ -1098,28 +1098,32 @@ async function processarGerarArte(job) {
     }
 
     let previewUrl = null;
+    let previews = [];
     if (!FAKE) {
-      // Não confiamos no caminho reportado pelo agente: tenta o dele, senão
-      // ESCANEIA producao/<slug>/ pelo primeiro PNG (a arte tem que existir).
-      const rel = resultado.peca?.arquivo_preview;
-      let abs = rel ? join(repo, rel) : null;
-      if (!abs || !existsSync(abs)) {
-        const dir = join(repo, 'producao', slug);
-        const png = existsSync(dir)
-          ? readdirSync(dir).filter((f) => f.toLowerCase().endsWith('.png')).sort()[0]
-          : null;
-        abs = png ? join(dir, png) : null;
-      }
-      if (!abs || !existsSync(abs)) {
+      // Não confiamos no caminho reportado pelo agente: ESCANEIA producao/<slug>/.
+      // Carrossel = TODOS os slide-*.png (a tela mostra a galeria completa);
+      // estático = o PNG único. bg-*/foto* são insumos, não entrega.
+      const dir = join(repo, 'producao', slug);
+      const todos = existsSync(dir)
+        ? readdirSync(dir).filter((f) => f.toLowerCase().endsWith('.png')).sort()
+        : [];
+      const slides = todos.filter((f) => /^slide-/i.test(f));
+      const escolhidos = slides.length ? slides : todos.filter((f) => !/^(bg-|foto)/i.test(f));
+      if (!escolhidos.length) {
         throw new Error(`arte não encontrada em producao/${slug}/ — job não pode fechar sem PNG`);
       }
-      previewUrl = await uploadPreview(job.account_id, slug, abs);
+      for (let i = 0; i < escolhidos.length; i++) {
+        previews.push(
+          await uploadPreview(job.account_id, `${slug}-${String(i + 1).padStart(2, '0')}`, join(dir, escolhidos[i])),
+        );
+      }
+      previewUrl = previews[0];
     }
 
     await rest('PATCH', `content_pieces?id=eq.${pieceId}&account_id=eq.${job.account_id}`, {
       status: 'aprovacao',
       ...(previewUrl ? { preview_url: previewUrl } : {}),
-      meta: { ...(peca.meta ?? {}), fase: 'arte' },
+      meta: { ...(peca.meta ?? {}), fase: 'arte', ...(previews.length > 1 ? { previews } : {}) },
       updated_at: new Date().toISOString(),
     });
     await rest('POST', 'content_chat_messages', {

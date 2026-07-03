@@ -35,6 +35,8 @@ export interface ContentPiece {
     pauta?: 'proposta' | 'aprovada'
     copy?: string
     fase?: 'conteudo' | 'arte'
+    /** carrossel: URLs de TODOS os slides (a tela mostra a galeria). */
+    previews?: string[]
     roteiro?: string
     video_url?: string
   } | null
