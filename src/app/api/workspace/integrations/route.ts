@@ -7,9 +7,10 @@ import { encrypt } from "@/lib/whatsapp/encryption";
 // mesmo util das wa_connections) e NUNCA volta pro navegador — nem cifrada:
 // o GET devolve só provider/status/config.
 
-// google_drive = pasta de FOTOS (fundos das artes) · google_drive_conteudos =
-// pasta onde os conteúdos prontos ficam salvos (Ano → Mês → linha editorial).
-const PROVIDERS = new Set(["metricool", "google_drive", "google_drive_conteudos"]);
+// google_oauth = conta Google conectada (OAuth + Picker · fotos e conteúdos).
+// Legado: google_drive (link público de fotos) · google_drive_conteudos (link
+// da pasta de conteúdos) — seguem aceitos como fallback.
+const PROVIDERS = new Set(["metricool", "google_drive", "google_drive_conteudos", "google_oauth"]);
 
 export async function GET() {
   let accountId: string;

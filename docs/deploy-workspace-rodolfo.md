@@ -57,6 +57,11 @@ No host do VPS (V1 = systemd no host; container fica como evolução):
    - Metricool: criar o template do MCP com o formato real de auth do `ai.metricool.com/mcp`
      (confirmar na doc oficial na hora — placeholder `{{METRICOOL_TOKEN}}`).
    - GOOGLE_API_KEY: criar no GCP (restrita à Drive API) — LEITURA da pasta de fotos.
+     **É UMA chave da NS pra TODOS os clientes** (identifica a plataforma; o acesso vem do
+     link-compartilhamento que cada cliente faz). Uma vez: projeto `ns-command-center` →
+     ativar Drive API → Credenciais → Chave de API → restringir à Drive API → cofre
+     orchestrator + /opt/wacrm-worker.env. Por cliente: pasta de fotos compartilhada
+     "qualquer pessoa com o link · Leitor" → link em Configurações → Google Drive.
    - Service account do Google (pendente · pedido Arthur 02/07): criar no GCP + Rodolfo
      compartilha a pasta de CONTEÚDOS com o e-mail dela (Editor) → liga o salvamento
      automático dos conteúdos prontos em `Ano/Mês/<linha-editorial>` (avulso: `Ano/Mês/<dia>`).
