@@ -525,7 +525,7 @@ async function finalizarJob(id, patch) {
 
 // ── Produção ────────────────────────────────────────────────────────────────
 
-function rodarClaude(prompt, repoDir, { mcpConfigPath } = {}) {
+function rodarClaudeUmaVez(prompt, repoDir, { mcpConfigPath } = {}, envExec = process.env) {
   return new Promise((resolve, reject) => {
     const args = [
       '-p', prompt,
@@ -539,7 +539,7 @@ function rodarClaude(prompt, repoDir, { mcpConfigPath } = {}) {
     const child = spawn('claude', args, {
       cwd: repoDir,
       shell: process.platform === 'win32',
-      env: { ...process.env },
+      env: { ...envExec },
     });
     let out = '';
     let err = '';
@@ -566,6 +566,30 @@ function rodarClaude(prompt, repoDir, { mcpConfigPath } = {}) {
       resolve({ result: out, costUsd: null, model: ENV.GERADOR_MODEL ?? null });
     });
   });
+}
+
+/** Falha transitória do provedor (capacidade/sobrecarga) — vale tentar o fallback. */
+export function erroTransitorioProvedor(msg) {
+  return /sem capacidade|overloaded|rate.?limit|API Error: 5\d\d|529/i.test(String(msg ?? ''));
+}
+
+// Primário = hudapi (env do serviço). Se cair por capacidade e existir
+// CLAUDE_FALLBACK_OAUTH_TOKEN (assinatura do Arthur · `claude setup-token`),
+// tenta UMA vez pela assinatura — sem base_url/api_key do primário no env.
+async function rodarClaude(prompt, repoDir, opts = {}) {
+  try {
+    return await rodarClaudeUmaVez(prompt, repoDir, opts);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    const token = ENV.CLAUDE_FALLBACK_OAUTH_TOKEN;
+    if (!erroTransitorioProvedor(msg) || !token) throw e;
+    console.log('[worker] provedor primário sem capacidade — fallback pela assinatura');
+    const envFb = { ...process.env, CLAUDE_CODE_OAUTH_TOKEN: token };
+    delete envFb.ANTHROPIC_BASE_URL;
+    delete envFb.ANTHROPIC_API_KEY;
+    delete envFb.ANTHROPIC_AUTH_TOKEN;
+    return rodarClaudeUmaVez(prompt, repoDir, opts, envFb);
+  }
 }
 
 async function uploadPreview(accountId, slug, absPath) {
