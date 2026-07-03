@@ -85,9 +85,13 @@ export function buildWorkspaceMenu(states: ModuleStates): WorkspaceMenuItem[] {
   const crm = moduleAvailability(states, 'crm')
   const studio = moduleAvailability(states, 'automation_studio')
   const marca = moduleAvailability(states, 'squad_content')
+  const content = moduleAvailability(states, 'squad_content')
   return [
     { key: 'overview', label: 'Visão geral', href: '/w', state: 'on' },
     { key: 'crm', label: 'Comercial / CRM', state: crm, ...(crm === 'on' ? { href: '/dashboard' } : {}) },
+    // Atalho direto pra ferramenta do dia a dia (auditoria 03/07: só chegava
+    // por squads → abrir ferramenta, 2 cliques pro destino mais usado).
+    { key: 'squad_content', label: 'Squad Content', state: content, ...(content === 'on' ? { href: '/w/content' } : {}) },
     { key: 'agentes', label: 'Agentes', href: '/w/agentes', state: 'on' },
     { key: 'squads', label: 'Squads', href: '/w/squads', state: 'on' },
     { key: 'marca', label: 'Marca', state: marca, ...(marca === 'on' ? { href: '/w/marca' } : {}) },
