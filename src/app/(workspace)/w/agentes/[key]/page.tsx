@@ -24,6 +24,68 @@ interface JobRow {
   status: "pending" | "running" | "done" | "failed";
   piece_id: string | null;
   error: string | null;
+  created_at: string;
+}
+
+// Etapas reais da produção (mesma experiência falada da linha editorial —
+// pedido Arthur 02/07: sem isso a tela parece travada e a pessoa clica de novo).
+// Avanço estimado pelo tempo; a última etapa fecha quando o job termina.
+const STEPS_PECA: { at: number; label: string }[] = [
+  { at: 0, label: "lendo a fundação da sua marca (tom de voz · cliente ideal)" },
+  { at: 25, label: "escrevendo a copy da peça" },
+  { at: 150, label: "renderizando a arte com as suas fotos" },
+  { at: 320, label: "finalizando e subindo pra sua aprovação" },
+];
+const STEPS_VIDEO: { at: number; label: string }[] = [
+  { at: 0, label: "lendo a fundação da sua marca" },
+  { at: 20, label: "escolhendo o ângulo do vídeo" },
+  { at: 60, label: "escrevendo o roteiro cena a cena" },
+  { at: 130, label: "preparando a legenda da publicação" },
+];
+
+function ProducaoSteps({ createdAt, video, pending }: { createdAt: string; video: boolean; pending: boolean }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const steps = video ? STEPS_VIDEO : STEPS_PECA;
+  const elapsed = Math.max(0, Math.floor((now - new Date(createdAt).getTime()) / 1000));
+  const currentIdx = pending ? 0 : steps.reduce((acc, s, i) => (elapsed >= s.at ? i : acc), 0);
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      {steps.map((s, i) => (
+        <div key={s.label} className="flex items-center gap-2">
+          {i < currentIdx ? (
+            <span className="w-3 text-center font-mono text-[10px] text-primary">✓</span>
+          ) : i === currentIdx ? (
+            <span className="flex w-3 justify-center">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-amber-300" />
+            </span>
+          ) : (
+            <span className="w-3 text-center font-mono text-[10px] text-muted-foreground/40">·</span>
+          )}
+          <span
+            className={
+              i === currentIdx
+                ? "font-mono text-xs text-foreground"
+                : i < currentIdx
+                  ? "font-mono text-xs text-muted-foreground"
+                  : "font-mono text-xs text-muted-foreground/50"
+            }
+          >
+            {s.label}
+          </span>
+        </div>
+      ))}
+      <p className="mt-1 font-mono text-[10px] text-muted-foreground/60">
+        {pending
+          ? "na fila — a squad pega em instantes"
+          : `${elapsed}s — a tela atualiza sozinha quando ficar pronta`}
+      </p>
+    </div>
+  );
 }
 
 // Tipo default da peça derivado do agente (o Gerador de Estático gera estático;
@@ -77,7 +139,7 @@ export default function UsarAgentePage() {
     const tick = async () => {
       const { data } = await supabase
         .from("content_jobs")
-        .select("id, status, piece_id, error")
+        .select("id, status, piece_id, error, created_at")
         .eq("id", jobId)
         .maybeSingle();
       if (data) {
@@ -198,12 +260,11 @@ export default function UsarAgentePage() {
               {job ? (
                 <div className="rounded-lg border border-border bg-card/40 p-3">
                   {emProducao ? (
-                    <div className="flex items-center gap-2">
-                      <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />
-                      <p className="font-mono text-xs text-muted-foreground">
-                        o agente está produzindo — pode levar alguns minutos…
-                      </p>
-                    </div>
+                    <ProducaoSteps
+                      createdAt={job.created_at}
+                      video={tipoDoAgente(agent.key) === "video"}
+                      pending={job.status === "pending"}
+                    />
                   ) : job.status === "done" ? (
                     <div className="flex items-center justify-between gap-2">
                       <p className="font-mono text-xs text-primary">
