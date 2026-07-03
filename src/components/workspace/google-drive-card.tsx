@@ -56,14 +56,23 @@ export function GoogleDriveCard({ connected, config, busy, onDisconnect, onChang
         }
         await loadPicker();
         const g = (window as any).google;
-        // Fotos = ARQUIVOS de imagem (multiseleção). Conteúdos = PASTA.
-        const view =
-          kind === "fotos"
-            ? new g.picker.DocsView(g.picker.ViewId.DOCS_IMAGES)
-            : new g.picker.DocsView(g.picker.ViewId.FOLDERS)
-                .setIncludeFolders(true)
-                .setSelectFolderEnabled(true)
-                .setMimeTypes("application/vnd.google-apps.folder");
+        // Fotos = ARQUIVOS de imagem (multiseleção), navegando pelas pastas do
+        // Drive — abre já dentro da pasta de fotos se ele escolheu uma antes.
+        // Conteúdos = PASTA.
+        let view;
+        if (kind === "fotos") {
+          view = new g.picker.DocsView(g.picker.ViewId.DOCS)
+            .setIncludeFolders(true)
+            .setSelectFolderEnabled(false)
+            .setMimeTypes("image/png,image/jpeg,image/webp,application/vnd.google-apps.folder");
+          const pastaAntiga = String(config["fotos_folder_id"] ?? "");
+          if (pastaAntiga) view = view.setParent(pastaAntiga);
+        } else {
+          view = new g.picker.DocsView(g.picker.ViewId.FOLDERS)
+            .setIncludeFolders(true)
+            .setSelectFolderEnabled(true)
+            .setMimeTypes("application/vnd.google-apps.folder");
+        }
         let builder = new g.picker.PickerBuilder()
           .setOAuthToken(tokenJson.access_token)
           .setDeveloperKey(PICKER_KEY)
@@ -71,7 +80,7 @@ export function GoogleDriveCard({ connected, config, busy, onDisconnect, onChang
           .addView(view)
           .setTitle(
             kind === "fotos"
-              ? "Escolha as FOTOS pras artes (pode selecionar várias)"
+              ? "Marque as FOTOS pras artes (navegue até a pasta · pode marcar várias)"
               : "Escolha a pasta de CONTEÚDOS",
           )
           .setCallback(async (data: any) => {
@@ -108,7 +117,7 @@ export function GoogleDriveCard({ connected, config, busy, onDisconnect, onChang
         setPicking(null);
       }
     },
-    [onChanged],
+    [onChanged, config],
   );
 
   const fotosFiles = Array.isArray(config["fotos_files"])
