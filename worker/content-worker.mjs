@@ -577,9 +577,76 @@ async function uploadPreview(accountId, slug, absPath) {
 // ── Fundos do cliente (Google Drive · pasta por link · fatia ⑥) ─────────────
 // Best-effort ANTES de produzir: baixa imagens novas da pasta conectada pra
 // referencia/fundos-cliente/ do repo-cérebro. Falha NUNCA bloqueia a produção.
+/** Access token da conta Google conectada (OAuth) — null se não conectada. */
+async function tokenGoogleOauth(accountId) {
+  const cid = ENV.GOOGLE_OAUTH_CLIENT_ID;
+  const secret = ENV.GOOGLE_OAUTH_CLIENT_SECRET;
+  if (!cid || !secret) return null;
+  const rows = await rest(
+    'GET',
+    `integration_connections?account_id=eq.${accountId}&provider=eq.google_oauth&status=eq.connected&select=credentials_enc,config`,
+  );
+  const conn = rows?.[0];
+  if (!conn?.credentials_enc) return null;
+  const keyHex = ENV.ENCRYPTION_KEY;
+  if (!keyHex) return null;
+  const refresh = decryptGcm(conn.credentials_enc, keyHex);
+  const res = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: cid,
+      client_secret: secret,
+      grant_type: 'refresh_token',
+      refresh_token: refresh,
+    }),
+  });
+  const json = await res.json().catch(() => null);
+  if (!res.ok || !json?.access_token) throw new Error(`refresh Google falhou HTTP ${res.status}`);
+  return { accessToken: json.access_token, config: conn.config ?? {} };
+}
+
+async function baixarFundos(files, baixar) {
+  const destDir = join(cfg().repo, 'referencia', 'fundos-cliente');
+  mkdirSync(destDir, { recursive: true });
+  let baixadas = 0;
+  for (const f of files) {
+    const safeName = String(f.name || f.id).replace(/[^\w.\-]+/g, '_');
+    const dest = join(destDir, safeName);
+    if (existsSync(dest)) continue; // já sincronizada
+    const dl = await baixar(f);
+    if (!dl.ok) continue;
+    writeFileSync(dest, Buffer.from(await dl.arrayBuffer()));
+    baixadas++;
+  }
+  if (baixadas) console.log(`[worker] fundos do cliente: ${baixadas} imagem(ns) nova(s) sincronizada(s)`);
+}
+
 async function sincronizarFundos(accountId) {
+  // Caminho 1 (preferido): conta Google conectada via OAuth + pasta do Picker.
+  const oauth = await tokenGoogleOauth(accountId).catch((e) => {
+    console.error(`[worker] oauth google indisponível (segue no fallback): ${e instanceof Error ? e.message : e}`);
+    return null;
+  });
+  if (oauth?.config?.fotos_folder_id) {
+    const q = encodeURIComponent(`'${oauth.config.fotos_folder_id}' in parents and mimeType contains 'image/' and trashed = false`);
+    const listRes = await fetch(
+      `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,mimeType)&pageSize=100`,
+      { headers: { Authorization: `Bearer ${oauth.accessToken}` } },
+    );
+    if (!listRes.ok) throw new Error(`drive list (oauth) HTTP ${listRes.status}`);
+    const { files = [] } = await listRes.json();
+    await baixarFundos(files, (f) =>
+      fetch(`https://www.googleapis.com/drive/v3/files/${f.id}?alt=media`, {
+        headers: { Authorization: `Bearer ${oauth.accessToken}` },
+      }),
+    );
+    return;
+  }
+
+  // Caminho 2 (legado): pasta pública por link + API key da NS.
   const apiKey = ENV.GOOGLE_API_KEY;
-  if (!apiKey) return; // sem API key da NS → agente usa referencia/ padrão
+  if (!apiKey) return; // sem nada configurado → agente usa referencia/ padrão
   const rows = await rest(
     'GET',
     `integration_connections?account_id=eq.${accountId}&provider=eq.google_drive&status=eq.connected&select=config`,
@@ -591,20 +658,9 @@ async function sincronizarFundos(accountId) {
   const listRes = await fetch(driveListUrl(folderId, apiKey));
   if (!listRes.ok) throw new Error(`drive list HTTP ${listRes.status}`);
   const { files = [] } = await listRes.json();
-
-  const destDir = join(cfg().repo, 'referencia', 'fundos-cliente');
-  mkdirSync(destDir, { recursive: true });
-  let baixadas = 0;
-  for (const f of files) {
-    const safeName = String(f.name || f.id).replace(/[^\w.\-]+/g, '_');
-    const dest = join(destDir, safeName);
-    if (existsSync(dest)) continue; // já sincronizada
-    const dl = await fetch(`https://www.googleapis.com/drive/v3/files/${f.id}?alt=media&key=${apiKey}`);
-    if (!dl.ok) continue;
-    writeFileSync(dest, Buffer.from(await dl.arrayBuffer()));
-    baixadas++;
-  }
-  if (baixadas) console.log(`[worker] fundos do cliente: ${baixadas} imagem(ns) nova(s) sincronizada(s)`);
+  await baixarFundos(files, (f) =>
+    fetch(`https://www.googleapis.com/drive/v3/files/${f.id}?alt=media&key=${apiKey}`),
+  );
 }
 
 /** Baixa a fundação editada na ferramenta e grava em referencia/fundacao-workspace/. */
