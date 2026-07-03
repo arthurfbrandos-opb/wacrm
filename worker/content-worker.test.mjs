@@ -4,6 +4,7 @@ import {
   decryptGcm,
   driveListUrl,
   extractDriveFolderId,
+  extrairLinksInstagram,
   fundacaoParaArquivos,
   montarPrompt,
   montarPromptAjuste,
@@ -369,3 +370,19 @@ describe('parsePublisher', () => {
     expect(parsePublisher('{"detalhe":"sem ok"}')).toBeNull()
   })
 })
+
+describe('extrairLinksInstagram', () => {
+  it('acha posts e reels no meio de texto livre, sem duplicar', () => {
+    const t =
+      'faz parecido com https://www.instagram.com/p/DAbC123xyz/ e também ' +
+      'https://instagram.com/reel/XyZ_9-8/?igsh=abc … de novo https://www.instagram.com/p/DAbC123xyz/';
+    const links = extrairLinksInstagram(t);
+    expect(links).toHaveLength(2);
+    expect(links[0]).toContain('/p/DAbC123xyz');
+    expect(links[1]).toContain('/reel/XyZ_9-8');
+  });
+  it('texto sem link do Instagram devolve vazio (outros sites não entram)', () => {
+    expect(extrairLinksInstagram('olha https://www.cnj.jus.br/sisbajud e www.google.com')).toEqual([]);
+    expect(extrairLinksInstagram('')).toEqual([]);
+  });
+});

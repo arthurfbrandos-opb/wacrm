@@ -732,6 +732,80 @@ async function sincronizarFundacao(accountId) {
   if (arquivos.length) console.log(`[worker] fundação do workspace: ${arquivos.length} seção(ões) sincronizada(s)`);
 }
 
+// ── Referência de links (Instagram via Apify · autorizado Arthur 03/07) ─────
+// Instagram bloqueia fetch anônimo — quando o cliente cola um link de post/reel
+// como exemplo ("faz parecido"), buscamos o conteúdo via Apify e entregamos ao
+// agente como referência. Falha NUNCA bloqueia a produção (segue sem).
+
+/** URLs de post/reel do Instagram dentro de um texto livre. */
+export function extrairLinksInstagram(texto) {
+  const m = String(texto ?? '').match(
+    /https?:\/\/(?:www\.)?instagram\.com\/(?:p|reel|reels|tv)\/[A-Za-z0-9_-]+\S*/g,
+  );
+  return m ? [...new Set(m)] : [];
+}
+
+async function buscarPostsInstagram(urls) {
+  const token = ENV.APIFY_TOKEN;
+  if (!token) return [];
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 120_000);
+  try {
+    const res = await fetch(
+      `https://api.apify.com/v2/acts/apify~instagram-scraper/run-sync-get-dataset-items?token=${token}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ directUrls: urls, resultsType: 'posts', resultsLimit: urls.length }),
+        signal: ctrl.signal,
+      },
+    );
+    if (!res.ok) throw new Error(`apify HTTP ${res.status}`);
+    const items = await res.json();
+    return Array.isArray(items) ? items : [];
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Se o texto do cliente tem link de Instagram, anexa ao prompt o conteúdo do
+ * post como referência (inspiração de estrutura/ângulo — nunca cópia literal).
+ */
+async function comReferenciaDeLinks(prompt, textoUsuario) {
+  const links = extrairLinksInstagram(textoUsuario);
+  if (!links.length) return prompt;
+  if (!ENV.APIFY_TOKEN) {
+    console.log('[worker] link de Instagram no pedido, mas sem APIFY_TOKEN — segue sem referência');
+    return prompt;
+  }
+  try {
+    const posts = await buscarPostsInstagram(links.slice(0, 3));
+    const blocos = posts
+      .map((p, i) => {
+        const legenda = String(p?.caption ?? '').slice(0, 2000);
+        if (!legenda) return null;
+        return `[${i + 1}] @${p?.ownerUsername ?? '?'} (${p?.type ?? 'post'}): "${legenda}"`;
+      })
+      .filter(Boolean);
+    if (!blocos.length) {
+      console.log('[worker] apify não devolveu legenda dos links — segue sem referência');
+      return prompt;
+    }
+    console.log(`[worker] referência de Instagram anexada (${blocos.length} post(s) via Apify)`);
+    return [
+      prompt,
+      '',
+      'CONTEÚDO DE REFERÊNCIA — post(s) de Instagram que o cliente mandou como exemplo.',
+      'Use como INSPIRAÇÃO de estrutura/ângulo/tom. NUNCA copie frases literais (é de outro perfil):',
+      ...blocos,
+    ].join('\n');
+  } catch (e) {
+    console.error(`[worker] busca de referência no Apify falhou (segue sem): ${e instanceof Error ? e.message : e}`);
+    return prompt;
+  }
+}
+
 /**
  * Escaneia producao/<slug>/ e sobe TODOS os PNGs de entrega pro storage —
  * carrossel = slide-*.png em ordem (galeria completa na tela); estático = o
@@ -785,7 +859,9 @@ async function produzirEPersistir(job, prompt, tituloFake) {
       },
     };
   } else {
-    const saida = await rodarClaude(prompt, repo);
+    // tituloFake = o texto do cliente (mensagem do chat / tema da geração) —
+    // é dele que saem links de Instagram usados como referência.
+    const saida = await rodarClaude(await comReferenciaDeLinks(prompt, tituloFake), repo);
     costUsd = saida.costUsd;
     model = saida.model;
     resultado = parseResultado(saida.result);
@@ -888,7 +964,10 @@ async function processarAjuste(job) {
       peca: { slug: job.payload?.slug ?? 'peca-fake', titulo: job.payload?.title ?? 'Peça', tipo: 'carrossel', legenda: 'Legenda ajustada (FAKE).', arquivo_preview: null },
     };
   } else {
-    const saida = await rodarClaude(montarPromptAjuste(job.payload), repo);
+    const saida = await rodarClaude(
+      await comReferenciaDeLinks(montarPromptAjuste(job.payload), job.payload?.note),
+      repo,
+    );
     costUsd = saida.costUsd;
     model = saida.model;
     resultado = parseResultado(saida.result);
@@ -912,6 +991,8 @@ async function processarAjuste(job) {
   await rest('PATCH', `content_pieces?id=eq.${pieceId}&account_id=eq.${job.account_id}`, {
     status: 'aprovacao',
     caption: resultado.peca?.legenda || null,
+    // Ajuste que mexeu no gancho muda o título — o card acompanha (achado 03/07).
+    ...(resultado.peca?.titulo ? { title: String(resultado.peca.titulo).slice(0, 300) } : {}),
     ...(previewUrl ? { preview_url: previewUrl } : {}),
     ...(previews.length > 1 ? { meta: { ...metaAtual, previews } } : {}),
     updated_at: new Date().toISOString(),
@@ -1129,14 +1210,17 @@ async function processarProduzirPauta(job) {
         console.error(`[worker] sync da fundação falhou (segue sem): ${e instanceof Error ? e.message : e}`),
       );
       const saida = await rodarClaude(
-        montarPromptProduzirPauta({
-          piece_id: pieceId,
-          titulo: peca.title,
-          tipo: peca.kind,
-          tema: peca.meta?.tema ?? '',
-          funil: peca.meta?.funil ?? '',
-          note: job.payload?.note ?? '',
-        }),
+        await comReferenciaDeLinks(
+          montarPromptProduzirPauta({
+            piece_id: pieceId,
+            titulo: peca.title,
+            tipo: peca.kind,
+            tema: peca.meta?.tema ?? '',
+            funil: peca.meta?.funil ?? '',
+            note: job.payload?.note ?? '',
+          }),
+          job.payload?.note,
+        ),
         repo,
       );
       costUsd = saida.costUsd;
