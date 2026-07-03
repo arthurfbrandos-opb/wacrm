@@ -30,6 +30,16 @@ vi.mock('./send-plan', () => ({
     mode: 'text',
   })),
 }))
+// Engate das réguas (fu1/fu-agendou): mocka a tag e o gatilho pra
+// asserção direta — sem tocar o engine real.
+const ensureTagMock = vi.fn(async (..._a: unknown[]) => 'tag-regua-id')
+vi.mock('./ensure-tag', () => ({
+  ensureTag: (...a: unknown[]) => ensureTagMock(...a),
+}))
+const runAutomationsMock = vi.fn(async (..._a: unknown[]) => {})
+vi.mock('@/lib/automations/engine', () => ({
+  runAutomationsForTrigger: (...a: unknown[]) => runAutomationsMock(...a),
+}))
 
 // Imported after env is set so BUBBLE_DELAY_MS=0 (no real waits between bubbles).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -264,6 +274,52 @@ describe('processDueTouches', () => {
     }))
     expect(send.sendText).not.toHaveBeenCalled()
     expect(touches.resolveTouch).toHaveBeenCalledWith(admin, 't1', 'done', 'sent_template')
+  })
+
+  it('reminder fora da janela persiste o TEXTO renderizado no inbox (não o placeholder [tipo])', async () => {
+    touches.listDueTouches.mockResolvedValue([
+      makeTouch({ type: 'reminder_24h', event_start_iso: '2099-01-01T10:00:00-03:00' }),
+    ])
+    calendarFind.mockResolvedValue({ events: [{ start_iso: '2099-01-01T10:00:00-03:00' }] })
+    sendPlan.resolveSendPlan.mockResolvedValue({ provider: 'meta', mode: 'template_required', windowOpen: false })
+    const admin = makeAdmin({ name: 'João Silva' })
+
+    await processDueTouches(admin, ACCOUNT)
+
+    const msg = admin.inserts.find((i: { table: string }) => i.table === 'messages') as
+      | { row: { content_text: string } }
+      | undefined
+    expect(msg).toBeTruthy()
+    expect(msg!.row.content_text).toContain('Lembrete rápido')
+    expect(msg!.row.content_text).toContain('amanhã, 01/01 às 10h')
+    expect(msg!.row.content_text).not.toContain('[reminder_24h]')
+  })
+
+  it('first_touch agendou (confirm) engata a régua fu-agendou (tag + gatilho)', async () => {
+    touches.listDueTouches.mockResolvedValue([makeTouch()])
+    calendarFind.mockResolvedValue({
+      events: [
+        {
+          start_iso: '2099-01-01T10:00:00-03:00',
+          end_iso: '2099-01-01T10:30:00-03:00',
+          summary: 'Diagnóstico',
+          meet_link: 'https://meet.example/abc',
+        },
+      ],
+    })
+    const admin = makeAdmin()
+
+    await processDueTouches(admin, ACCOUNT)
+
+    expect(ensureTagMock).toHaveBeenCalledWith(admin, ACCOUNT, 'u1', 'fu-agendou')
+    expect(runAutomationsMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accountId: ACCOUNT,
+        triggerType: 'tag_added',
+        contactId: 'c1',
+        context: expect.objectContaining({ tag_id: 'tag-regua-id', conversation_id: 'conv1' }),
+      }),
+    )
   })
 
   it('reminder_2h fora da janela Meta → template lembrete_2h com {{2}}="Hh"', async () => {

@@ -14,7 +14,7 @@ import { pedroFromEnv } from '@/lib/pkg/pedro/client'
 import { sendText, sendTemplate, setAccountPresence, accountHasMetaConfig } from './send'
 import { resolveSendPlan } from './send-plan'
 import { templateForTouch } from './touch-templates'
-import { FAP01_TEMPLATES, FAP01_TEMPLATE_LANG, renderAgendou, renderNaoAgendou } from './meta-templates'
+import { FAP01_TEMPLATES, FAP01_TEMPLATE_LANG, renderAgendou, renderNaoAgendou, renderTemplateBody } from './meta-templates'
 import {
   listDueTouches,
   resolveTouch,
@@ -87,6 +87,35 @@ async function persistAgentMessage(
   await admin.from('conversations').update({
     last_message_text: text, last_message_at: new Date().toISOString(), updated_at: new Date().toISOString(),
   }).eq('id', conversationId)
+}
+
+/**
+ * Marca o contato com a tag da régua e dispara o gatilho tag_added —
+ * compartilhado pelo chase (fu1) e pelo agendou (fu-agendou). O
+ * conversation_id no contexto se propaga pelos waits → toques no inbox.
+ */
+async function armReguaTag(
+  admin: Admin,
+  accountId: string,
+  opts: { contactId: string; conversationId: string; tag: string },
+): Promise<void> {
+  const { data: acct } = await admin
+    .from('accounts')
+    .select('owner_user_id')
+    .eq('id', accountId)
+    .maybeSingle()
+  const userId = (acct as { owner_user_id?: string } | null)?.owner_user_id
+  if (!userId) throw new Error('no owner_user_id for account')
+  const tagId = await ensureTag(admin, accountId, userId, opts.tag)
+  await admin
+    .from('contact_tags')
+    .upsert({ contact_id: opts.contactId, tag_id: tagId }, { onConflict: 'contact_id,tag_id', ignoreDuplicates: true })
+  runAutomationsForTrigger({
+    accountId,
+    triggerType: 'tag_added',
+    contactId: opts.contactId,
+    context: { tag_id: tagId, conversation_id: opts.conversationId },
+  }).catch((err: unknown) => console.error(`[sdr] ${opts.tag} trigger failed:`, err))
 }
 
 /**
@@ -247,6 +276,18 @@ async function processOne(admin: Admin, accountId: string, t: SdrTouchRow): Prom
           meetLink: ev.meet_link ?? '',
         })
       }
+      // Engate da régua do agendou: se ele não responder a confirmação
+      // (as 2 perguntas de qualificação), a automação "Follow-up Agendou"
+      // dá 1 toque +3h (cancel_on_reply mata se ele responder antes).
+      try {
+        await armReguaTag(admin, accountId, {
+          contactId: t.contact_id,
+          conversationId: t.conversation_id,
+          tag: 'fu-agendou',
+        })
+      } catch (err) {
+        console.error('[sdr] fu-agendou engate failed:', err)
+      }
       await resolveTouch(admin, t.id, 'done', 'confirm')
       return 'confirm'
     }
@@ -256,23 +297,11 @@ async function processOne(admin: Admin, accountId: string, t: SdrTouchRow): Prom
     // Engate FU1: marca o contato e dispara a régua (gatilho tag_added).
     // conversation_id no contexto se propaga pelos waits → toques no inbox.
     try {
-      const { data: acct } = await admin
-        .from('accounts')
-        .select('owner_user_id')
-        .eq('id', accountId)
-        .maybeSingle()
-      const userId = (acct as { owner_user_id?: string } | null)?.owner_user_id
-      if (!userId) throw new Error('no owner_user_id for account')
-      const fu1TagId = await ensureTag(admin, accountId, userId, 'fu1')
-      await admin
-        .from('contact_tags')
-        .upsert({ contact_id: t.contact_id, tag_id: fu1TagId }, { onConflict: 'contact_id,tag_id', ignoreDuplicates: true })
-      runAutomationsForTrigger({
-        accountId,
-        triggerType: 'tag_added',
+      await armReguaTag(admin, accountId, {
         contactId: t.contact_id,
-        context: { tag_id: fu1TagId, conversation_id: t.conversation_id },
-      }).catch((err) => console.error('[sdr] fu1 trigger failed:', err))
+        conversationId: t.conversation_id,
+        tag: 'fu1',
+      })
     } catch (err) {
       console.error('[sdr] fu1 engate failed:', err)
     }
@@ -315,7 +344,15 @@ async function processOne(admin: Admin, accountId: string, t: SdrTouchRow): Prom
     await sendTemplate(admin, accountId, {
       phone: t.phone, templateName: tpl.name, languageCode: tpl.lang, bodyParams,
     })
-    await persistAgentMessage(admin, t.conversation_id, `[${t.type}]`, 'meta', 'template')
+    // Persiste o TEXTO que o lead recebeu (o corpo aprovado renderizado) —
+    // o placeholder "[reminder_24h]" no inbox parecia disparo errado.
+    await persistAgentMessage(
+      admin,
+      t.conversation_id,
+      renderTemplateBody(tpl.body, bodyParams),
+      'meta',
+      'template',
+    )
     await resolveTouch(admin, t.id, 'done', 'sent_template')
     return 'sent_template'
   }
