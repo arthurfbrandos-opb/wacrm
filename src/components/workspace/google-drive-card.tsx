@@ -173,9 +173,9 @@ export function GoogleDriveCard({ connected, config, busy, onDisconnect, onChang
               </div>
             ))}
             <p className="rounded-lg border border-dashed border-border px-3 py-2 font-mono text-[11px] text-muted-foreground">
-              ▸ salvar conteúdos aprovados na pasta:{" "}
-              <span className="uppercase tracking-wider">em breve</span> — as fotos já valem na
-              próxima arte.
+              {conteudosId
+                ? "▸ cada conteúdo que você APROVAR é salvo nessa pasta, organizado em Ano/Mês/linha editorial."
+                : "▸ escolhe a pasta de conteúdos e cada peça que você aprovar é salva lá automaticamente (Ano/Mês/linha)."}
             </p>
             <button
               type="button"
