@@ -547,14 +547,23 @@ function rodarClaude(prompt, repoDir, { mcpConfigPath } = {}) {
     child.stderr.on('data', (d) => (err += d));
     child.on('error', reject);
     child.on('close', (code) => {
-      if (code !== 0) return reject(new Error(`claude exit ${code}: ${err.slice(0, 400)}`));
+      // O motivo real da falha vem no JSON do stdout (campo result), não no
+      // stderr — que só traz warnings (ex.: stdin). E o CLI às vezes sai com
+      // código 0 mesmo em erro de API (is_error: true) — checar os dois.
+      let parsed = null;
       try {
-        const parsed = JSON.parse(out);
-        resolve({ result: parsed.result ?? '', costUsd: parsed.total_cost_usd ?? null, model: parsed.model ?? ENV.GERADOR_MODEL ?? null });
+        parsed = JSON.parse(out);
       } catch {
-        // Sem JSON de envelope — usa stdout cru como resultado.
-        resolve({ result: out, costUsd: null, model: ENV.GERADOR_MODEL ?? null });
+        // sem envelope JSON — stdout cru
       }
+      if (code !== 0 || parsed?.is_error) {
+        const motivo = String(parsed?.result || err || '').trim() || `exit ${code}`;
+        return reject(new Error(`agente falhou: ${motivo.slice(0, 300)}`));
+      }
+      if (parsed) {
+        return resolve({ result: parsed.result ?? '', costUsd: parsed.total_cost_usd ?? null, model: parsed.model ?? ENV.GERADOR_MODEL ?? null });
+      }
+      resolve({ result: out, costUsd: null, model: ENV.GERADOR_MODEL ?? null });
     });
   });
 }
