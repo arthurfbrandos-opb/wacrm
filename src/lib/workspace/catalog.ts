@@ -72,6 +72,11 @@ export interface WorkspaceMenuItem {
   label: string
   /** Presente só quando o item navega (state === 'on'). */
   href?: string
+  /**
+   * Vitrine (Arthur 03/07): módulo fora do plano/em breve continua clicável —
+   * abre uma tela-demonstração pra gerar desejo, com o selo honesto de estado.
+   */
+  teaserHref?: string
   state: ModuleAvailability
 }
 
@@ -87,13 +92,23 @@ export function buildWorkspaceMenu(states: ModuleStates): WorkspaceMenuItem[] {
   const marca = moduleAvailability(states, 'squad_content')
   return [
     { key: 'overview', label: 'Visão geral', href: '/w', state: 'on' },
-    { key: 'crm', label: 'Comercial / CRM', state: crm, ...(crm === 'on' ? { href: '/dashboard' } : {}) },
+    {
+      key: 'crm',
+      label: 'Comercial / CRM',
+      state: crm,
+      ...(crm === 'on' ? { href: '/dashboard' } : { teaserHref: '/w/crm' }),
+    },
     { key: 'agentes', label: 'Agentes', href: '/w/agentes', state: 'on' },
     { key: 'squads', label: 'Squads', href: '/w/squads', state: 'on' },
     // Second-Brain (ex-Marca · Arthur 03/07): base de conhecimento do cliente —
     // hoje fundação da marca, depois o que mais alimentar os agentes.
     { key: 'marca', label: 'Second-Brain', state: marca, ...(marca === 'on' ? { href: '/w/marca' } : {}) },
-    { key: 'automation_studio', label: 'Automation Studio', state: studio, ...(studio === 'on' ? { href: '/w/automation-studio' } : {}) },
+    {
+      key: 'automation_studio',
+      label: 'Automation Studio',
+      state: studio,
+      ...(studio === 'on' ? { href: '/w/automation-studio' } : { teaserHref: '/w/automation-studio' }),
+    },
     { key: 'config', label: 'Configurações', href: '/w/config', state: 'on' },
   ]
 }
