@@ -553,6 +553,53 @@ describe("send_ai — Meta window-aware (régua Meta-only)", () => {
   });
 });
 
+describe("tag_added — filtro pela tag do trigger_config", () => {
+  const moveStep = {
+    id: "s1", automation_id: "a1", step_type: "move_deal",
+    position: 0, parent_step_id: null,
+    step_config: { pipeline_id: "pl-x", stage_id: "st-x" },
+  };
+  function tagAutomation(cfg: Record<string, unknown>) {
+    return [{
+      id: "a1", account_id: ACCOUNT, user_id: "u1",
+      trigger_type: "tag_added", trigger_config: cfg, is_active: true,
+    }];
+  }
+
+  it("NÃO roda quando o contexto traz OUTRA tag", async () => {
+    h.state.owned = { id: "c1" };
+    h.state.automations = tagAutomation({ tag_id: "tag-fu1" });
+    h.state.steps = [moveStep];
+    await runAutomationsForTrigger({
+      accountId: ACCOUNT, triggerType: "tag_added", contactId: "c1",
+      context: { tag_id: "tag-agendou" },
+    });
+    expect(h.state.updateCalls.filter((u) => u.table === "deals")).toHaveLength(0);
+  });
+
+  it("roda quando a tag do contexto bate com a do config", async () => {
+    h.state.owned = { id: "c1" };
+    h.state.automations = tagAutomation({ tag_id: "tag-fu1" });
+    h.state.steps = [moveStep];
+    await runAutomationsForTrigger({
+      accountId: ACCOUNT, triggerType: "tag_added", contactId: "c1",
+      context: { tag_id: "tag-fu1" },
+    });
+    expect(h.state.updateCalls.filter((u) => u.table === "deals")).toHaveLength(1);
+  });
+
+  it("config sem tag_id roda pra qualquer tag (compat)", async () => {
+    h.state.owned = { id: "c1" };
+    h.state.automations = tagAutomation({});
+    h.state.steps = [moveStep];
+    await runAutomationsForTrigger({
+      accountId: ACCOUNT, triggerType: "tag_added", contactId: "c1",
+      context: { tag_id: "tag-qualquer" },
+    });
+    expect(h.state.updateCalls.filter((u) => u.table === "deals")).toHaveLength(1);
+  });
+});
+
 describe("cancel_on_reply", () => {
   it("deletes pending executions for the contact scoped to the account", async () => {
     h.state.automations = [{ id: "a1", account_id: ACCOUNT, cancel_on_reply: true }];

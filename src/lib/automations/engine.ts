@@ -841,6 +841,14 @@ async function resolveConversationId(args: ExecuteArgs): Promise<string> {
 }
 
 function triggerMatches(automation: Automation, ctx: AutomationContext | undefined): boolean {
+  // tag_added com tag_id no config = régua de UMA tag específica (fu1,
+  // fu-agendou, …). Sem tag_id no config, mantém o comportamento antigo
+  // (roda pra qualquer tag) por compatibilidade.
+  if (automation.trigger_type === 'tag_added') {
+    const cfg = automation.trigger_config as { tag_id?: string } | null
+    if (cfg?.tag_id) return (ctx as { tag_id?: string } | undefined)?.tag_id === cfg.tag_id
+    return true
+  }
   if (automation.trigger_type !== 'keyword_match') return true
   const cfg = automation.trigger_config as KeywordMatchTriggerConfig
   if (!cfg?.keywords || cfg.keywords.length === 0) return false
