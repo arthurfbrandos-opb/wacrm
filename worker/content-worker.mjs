@@ -629,11 +629,21 @@ async function baixarFundos(files, baixar) {
 }
 
 async function sincronizarFundos(accountId) {
-  // Caminho 1 (preferido): conta Google conectada via OAuth + pasta do Picker.
+  // Caminho 1 (preferido): conta Google conectada via OAuth. Fotos = ARQUIVOS
+  // escolhidos no Picker (fotos_files) — o escopo drive.file não lê o que já
+  // existia numa pasta, só o que foi escolhido item a item (provado 02/07).
   const oauth = await tokenGoogleOauth(accountId).catch((e) => {
     console.error(`[worker] oauth google indisponível (segue no fallback): ${e instanceof Error ? e.message : e}`);
     return null;
   });
+  if (Array.isArray(oauth?.config?.fotos_files) && oauth.config.fotos_files.length) {
+    await baixarFundos(oauth.config.fotos_files, (f) =>
+      fetch(`https://www.googleapis.com/drive/v3/files/${f.id}?alt=media`, {
+        headers: { Authorization: `Bearer ${oauth.accessToken}` },
+      }),
+    );
+    return;
+  }
   if (oauth?.config?.fotos_folder_id) {
     const q = encodeURIComponent(`'${oauth.config.fotos_folder_id}' in parents and mimeType contains 'image/' and trashed = false`);
     const listRes = await fetch(
