@@ -15,9 +15,10 @@ import {
   type NewLineInput,
 } from "@/lib/workspace/editorial";
 import {
-  FUNIL_LABEL,
+  FUNIL_CHIP,
   KIND_LABEL,
   piecePropostaPendente,
+  producaoEtapa,
   STATUS_LABEL,
   type ContentPiece,
 } from "@/lib/workspace/content";
@@ -252,6 +253,62 @@ function GerandoSteps({ createdAt }: { createdAt: string }) {
   );
 }
 
+// Linha do histórico expandível — clica e gerencia as peças dela igual à atual
+// (uma linha "encerrada" ainda pode ter peça no meio do ciclo).
+function LinhaHistorico({
+  line,
+  pieces,
+  onChanged,
+}: {
+  line: EditorialLine;
+  pieces: ContentPiece[];
+  onChanged: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const noTick = { open: false, n: 0 };
+  return (
+    <div className="rounded-lg border border-border bg-card/40">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left transition-colors hover:bg-muted/40"
+      >
+        <span className="font-mono text-xs text-muted-foreground">
+          {fmtPeriodo(line)} · {mixLabel(line.mix)}
+          {pieces.length ? ` · ${pieces.length} conteúdo(s)` : ""}
+        </span>
+        <span className="flex items-center gap-2">
+          <span
+            className={`rounded-full border px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider ${LINE_STATUS[line.status].cls}`}
+          >
+            {LINE_STATUS[line.status].label}
+          </span>
+          <span className="font-mono text-xs text-muted-foreground">{open ? "▾" : "▸"}</span>
+        </span>
+      </button>
+      {open ? (
+        <div className="border-t border-border/60 px-3 py-2.5">
+          {pieces.length === 0 ? (
+            <p className="font-mono text-xs text-muted-foreground">▸ sem peças nesta linha.</p>
+          ) : (
+            <ul className="flex flex-col gap-2">
+              {pieces
+                .slice()
+                .sort((a, b) =>
+                  String(a.meta?.planned_date ?? "").localeCompare(String(b.meta?.planned_date ?? "")),
+                )
+                .map((p) => (
+                  <PautaItem key={p.id} piece={p} allTick={noTick} onChanged={onChanged} />
+                ))}
+            </ul>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 // Barra de aprovação em bloco: a pauta nasce como PROPOSTA (fora do kanban e
 // do calendário) — aqui o cliente aprova tudo de uma vez.
 function PautaAprovarTudo({
@@ -342,10 +399,14 @@ function PautaItem({
     }
   }
 
+  const etapa = producaoEtapa(piece);
   const chip = proposta
     ? { label: "ideia · aprovar", cls: "border-amber-300/40 bg-amber-300/10 text-amber-300" }
-    : piece.status === "producao"
-      ? { label: "produzindo…", cls: "border-amber-300/40 bg-amber-300/10 text-amber-300" }
+    : etapa
+      ? {
+          label: etapa === "copy" ? "produzindo copy…" : "produzindo imagem…",
+          cls: "border-amber-300/40 bg-amber-300/10 text-amber-300",
+        }
       : piece.status === "aprovacao"
         ? { label: "pra aprovar", cls: "border-[#A78BD8]/40 bg-[#A78BD8]/10 text-[#A78BD8]" }
         : { label: STATUS_LABEL[piece.status], cls: "border-border text-muted-foreground" };
@@ -365,9 +426,15 @@ function PautaItem({
               ? DATE_FMT.format(new Date(`${piece.meta.planned_date}T12:00:00`))
               : ""}{" "}
             · {KIND_LABEL[piece.kind]}
-            {piece.meta?.funil ? ` · ${FUNIL_LABEL[piece.meta.funil]}` : ""}
           </span>
         </span>
+        {piece.meta?.funil && FUNIL_CHIP[piece.meta.funil] ? (
+          <span
+            className={`shrink-0 rounded-full border px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider ${FUNIL_CHIP[piece.meta.funil].cls}`}
+          >
+            {FUNIL_CHIP[piece.meta.funil].label}
+          </span>
+        ) : null}
         {piece.status === "producao" ? (
           <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-amber-300" />
         ) : null}
@@ -429,9 +496,9 @@ function PautaItem({
             </div>
           ) : piece.status === "producao" ? (
             <p className="font-mono text-xs text-muted-foreground">
-              {piece.meta?.fase === "conteudo" || piece.meta?.copy || piece.meta?.roteiro
-                ? "▸ a squad está fazendo a arte — volta pra sua aprovação já já."
-                : "▸ a squad está escrevendo o conteúdo — você aprova o texto antes da arte."}
+              {etapa === "imagem"
+                ? "▸ a squad está produzindo a imagem — volta pra sua aprovação já já."
+                : "▸ a squad está escrevendo a copy — você aprova o texto antes da imagem."}
             </p>
           ) : piece.status === "aprovacao" ? (
             <Link
@@ -668,19 +735,15 @@ export default function LinhaEditorialPage() {
             <TerminalWindow title="linha/historico">
               <div className="flex flex-col gap-2 p-4">
                 {historico.map((l) => (
-                  <div
+                  <LinhaHistorico
                     key={l.id}
-                    className="flex items-center justify-between gap-2 rounded-lg border border-border bg-card/40 px-3 py-2"
-                  >
-                    <span className="font-mono text-xs text-muted-foreground">
-                      {fmtPeriodo(l)} · {mixLabel(l.mix)}
-                    </span>
-                    <span
-                      className={`rounded-full border px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider ${LINE_STATUS[l.status].cls}`}
-                    >
-                      {LINE_STATUS[l.status].label}
-                    </span>
-                  </div>
+                    line={l}
+                    pieces={(pieces ?? []).filter((p) => p.meta?.line_id === l.id)}
+                    onChanged={() => {
+                      reload();
+                      reloadPieces();
+                    }}
+                  />
                 ))}
               </div>
             </TerminalWindow>

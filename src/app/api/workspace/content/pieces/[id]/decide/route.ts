@@ -57,9 +57,15 @@ export async function POST(
   const artePendente = approved && faseConteudo && piece.kind !== "video";
   const newStatus = approved ? (artePendente ? "producao" : "aprovada") : "producao";
 
+  // Ajuste na fase de conteúdo volta a ESCREVER copy — limpa a fase pra tela
+  // mostrar "produzindo copy" (e não "imagem").
+  const metaUpdate =
+    !approved && faseConteudo
+      ? { meta: { ...((piece.meta as Record<string, unknown> | null) ?? {}), fase: null } }
+      : {};
   const { error: upErr } = await db
     .from("content_pieces")
-    .update({ status: newStatus, updated_at: new Date().toISOString() })
+    .update({ status: newStatus, updated_at: new Date().toISOString(), ...metaUpdate })
     .eq("id", id)
     .eq("account_id", accountId);
   if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
