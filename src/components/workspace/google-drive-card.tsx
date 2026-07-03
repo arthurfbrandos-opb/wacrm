@@ -2,8 +2,10 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // Card "Google Drive" das Configurações — o cliente conecta a PRÓPRIA conta
-// (OAuth) e escolhe as pastas pelo Google Picker (seletor nativo do Drive):
-//   · pasta de FOTOS (fundos das artes — o worker sincroniza antes de cada arte)
+// (OAuth) e escolhe pelo Google Picker (seletor nativo do Drive):
+//   · as FOTOS pras artes (seleção múltipla de ARQUIVOS — o escopo drive.file
+//     só enxerga o que foi escolhido no Picker; pasta não dá leitura do que já
+//     existia dentro, provado por efeito 02/07)
 //   · pasta de CONTEÚDOS (onde os aprovados são salvos em Ano/Mês/linha)
 // O refresh token fica cifrado no servidor; aqui só circula um access token
 // de curta duração (da conta do próprio cliente) pro Picker abrir.
@@ -54,34 +56,52 @@ export function GoogleDriveCard({ connected, config, busy, onDisconnect, onChang
         }
         await loadPicker();
         const g = (window as any).google;
-        const view = new g.picker.DocsView(g.picker.ViewId.FOLDERS)
-          .setIncludeFolders(true)
-          .setSelectFolderEnabled(true)
-          .setMimeTypes("application/vnd.google-apps.folder");
-        const picker = new g.picker.PickerBuilder()
+        // Fotos = ARQUIVOS de imagem (multiseleção). Conteúdos = PASTA.
+        const view =
+          kind === "fotos"
+            ? new g.picker.DocsView(g.picker.ViewId.DOCS_IMAGES)
+            : new g.picker.DocsView(g.picker.ViewId.FOLDERS)
+                .setIncludeFolders(true)
+                .setSelectFolderEnabled(true)
+                .setMimeTypes("application/vnd.google-apps.folder");
+        let builder = new g.picker.PickerBuilder()
           .setOAuthToken(tokenJson.access_token)
           .setDeveloperKey(PICKER_KEY)
           .setAppId(PROJECT_NUMBER)
           .addView(view)
-          .setTitle(kind === "fotos" ? "Escolha a pasta de FOTOS" : "Escolha a pasta de CONTEÚDOS")
+          .setTitle(
+            kind === "fotos"
+              ? "Escolha as FOTOS pras artes (pode selecionar várias)"
+              : "Escolha a pasta de CONTEÚDOS",
+          )
           .setCallback(async (data: any) => {
             if (data.action !== g.picker.Action.PICKED) {
               if (data.action === g.picker.Action.CANCEL) setPicking(null);
               return;
             }
-            const doc = data.docs?.[0];
-            if (!doc?.id) return;
+            const docs = (data.docs ?? []).filter((d: any) => d?.id);
+            if (!docs.length) return;
+            const body =
+              kind === "fotos"
+                ? {
+                    kind,
+                    files: docs.map((d: any) => ({ id: d.id, name: d.name ?? "" })),
+                  }
+                : { kind, folder_id: docs[0].id, folder_name: docs[0].name ?? "" };
             const res = await fetch("/api/workspace/integrations/google/picker", {
               method: "PATCH",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ kind, folder_id: doc.id, folder_name: doc.name ?? "" }),
+              body: JSON.stringify(body),
             });
             const json = (await res.json().catch(() => ({}))) as { error?: string };
             if (!res.ok) setErr(json.error ?? `erro ${res.status}`);
             setPicking(null);
             onChanged();
-          })
-          .build();
+          });
+        if (kind === "fotos") {
+          builder = builder.enableFeature(g.picker.Feature.MULTISELECT_ENABLED);
+        }
+        const picker = builder.build();
         picker.setVisible(true);
       } catch (e) {
         setErr(e instanceof Error ? e.message : String(e));
@@ -91,8 +111,9 @@ export function GoogleDriveCard({ connected, config, busy, onDisconnect, onChang
     [onChanged],
   );
 
-  const fotosNome = String(config["fotos_folder_name"] ?? "");
-  const fotosId = String(config["fotos_folder_id"] ?? "");
+  const fotosFiles = Array.isArray(config["fotos_files"])
+    ? (config["fotos_files"] as { id?: string; name?: string }[])
+    : [];
   const conteudosNome = String(config["conteudos_folder_name"] ?? "");
   const conteudosId = String(config["conteudos_folder_id"] ?? "");
 
@@ -141,12 +162,19 @@ export function GoogleDriveCard({ connected, config, busy, onDisconnect, onChang
           <div className="mt-4 flex flex-col gap-2">
             {(
               [
-                { kind: "fotos" as const, rotulo: "Pasta de fotos", nome: fotosNome, id: fotosId },
+                {
+                  kind: "fotos" as const,
+                  rotulo: "Fotos pras artes",
+                  valor: fotosFiles.length
+                    ? `${fotosFiles.length} foto(s) escolhida(s)`
+                    : "",
+                  cta: fotosFiles.length ? "trocar" : "escolher fotos",
+                },
                 {
                   kind: "conteudos" as const,
                   rotulo: "Pasta de conteúdos",
-                  nome: conteudosNome,
-                  id: conteudosId,
+                  valor: conteudosId ? `📁 ${conteudosNome || conteudosId}` : "",
+                  cta: conteudosId ? "trocar" : "escolher pasta",
                 },
               ]
             ).map((p) => (
@@ -159,7 +187,7 @@ export function GoogleDriveCard({ connected, config, busy, onDisconnect, onChang
                     {p.rotulo}
                   </p>
                   <p className="truncate font-mono text-xs text-foreground">
-                    {p.id ? `📁 ${p.nome || p.id}` : "— nenhuma escolhida —"}
+                    {p.valor || "— nenhuma escolhida —"}
                   </p>
                 </div>
                 <button
@@ -168,7 +196,7 @@ export function GoogleDriveCard({ connected, config, busy, onDisconnect, onChang
                   onClick={() => void escolher(p.kind)}
                   className="rounded-md border border-primary/40 bg-primary/10 px-2.5 py-1.5 font-mono text-xs text-primary transition-colors hover:bg-primary/20 disabled:opacity-50"
                 >
-                  {picking === p.kind ? "abrindo…" : p.id ? "trocar" : "escolher pasta"}
+                  {picking === p.kind ? "abrindo…" : p.cta}
                 </button>
               </div>
             ))}

@@ -284,7 +284,9 @@ function LinhaHistorico({
           >
             {LINE_STATUS[line.status].label}
           </span>
-          <span className="font-mono text-xs text-muted-foreground">{open ? "▾" : "▸"}</span>
+          <span className="rounded-md border border-border bg-muted px-2.5 py-1 font-mono text-[11px] text-foreground">
+            {open ? "recolher ▴" : "expandir ▾"}
+          </span>
         </span>
       </button>
       {open ? (
@@ -613,24 +615,19 @@ export default function LinhaEditorialPage() {
       ) : (
         <>
           {atual ? (
-            <TerminalWindow
-              title="linha/atual"
-              action={
+            <TerminalWindow title="linha/atual">
+              <div className="flex flex-col gap-3 p-4">
+                {/* Cabeçalho inteiro clicável — recolhida, clicar em cima expande. */}
                 <button
                   type="button"
                   onClick={() => setLineOpen((v) => !v)}
-                  className="rounded-md border border-border bg-muted px-2.5 py-1 font-mono text-[11px] text-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+                  aria-expanded={lineOpen}
+                  className="-m-2 flex flex-wrap items-center justify-between gap-2 rounded-md p-2 text-left transition-colors hover:bg-muted/40"
                 >
-                  {lineOpen ? "recolher ▴" : "expandir ▾"}
-                </button>
-              }
-            >
-              <div className="flex flex-col gap-3 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="font-mono text-sm font-semibold text-foreground">
+                  <span className="font-mono text-sm font-semibold text-foreground">
                     {fmtPeriodo(atual)} · {mixLabel(atual.mix)}
-                  </p>
-                  <div className="flex items-center gap-2">
+                  </span>
+                  <span className="flex items-center gap-2">
                     {!lineOpen && pecasDaAtual.length > 0 ? (
                       <span className="font-mono text-[10px] text-muted-foreground">
                         {pecasDaAtual.length} conteúdo(s)
@@ -644,8 +641,11 @@ export default function LinhaEditorialPage() {
                     >
                       {LINE_STATUS[atual.status].label}
                     </span>
-                  </div>
-                </div>
+                    <span className="rounded-md border border-border bg-muted px-2.5 py-1 font-mono text-[11px] text-foreground">
+                      {lineOpen ? "recolher ▴" : "expandir ▾"}
+                    </span>
+                  </span>
+                </button>
                 {lineOpen ? (
                   <>
                     {atual.themes ? (
