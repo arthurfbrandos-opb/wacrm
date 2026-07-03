@@ -11,11 +11,13 @@ import { useContentPieces } from "@/hooks/use-content-pieces";
 import { useWorkspaceModules } from "@/hooks/use-workspace-modules";
 import { squadKanbanEnabled } from "@/lib/workspace/catalog";
 import {
+  FUNIL_CHIP,
   groupByStatus,
   KANBAN_COLUMNS,
   KIND_LABEL,
   pieceDeletable,
   piecePropostaPendente,
+  producaoEtapa,
   type ContentPiece,
   type PieceStatus,
 } from "@/lib/workspace/content";
@@ -34,6 +36,12 @@ const STATUS_COLOR: Record<PieceStatus, string> = {
 
 function PieceCard({ piece, onDeleted }: { piece: ContentPiece; onDeleted: () => void }) {
   const dateIso = piece.scheduled_at ?? piece.published_at;
+  const dataCard = dateIso
+    ? new Date(dateIso)
+    : piece.meta?.planned_date
+      ? new Date(`${piece.meta.planned_date}T12:00:00`)
+      : null;
+  const etapa = producaoEtapa(piece);
   const [deleting, setDeleting] = useState(false);
 
   async function excluir(e: React.MouseEvent) {
@@ -74,18 +82,32 @@ function PieceCard({ piece, onDeleted }: { piece: ContentPiece; onDeleted: () =>
         <img
           src={piece.preview_url}
           alt=""
-          className="mb-2 aspect-[4/5] w-full rounded-md border border-border object-cover"
+          className="mb-2 h-24 w-full rounded-md border border-border object-cover object-top"
         />
       ) : null}
       <p className="line-clamp-2 text-sm font-medium text-foreground">{piece.title}</p>
-      <div className="mt-2 flex items-center justify-between gap-1">
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        {/* Data da publicação em evidência (agendada > publicada > planejada). */}
+        {dataCard ? (
+          <span className="rounded-md border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px] font-semibold text-foreground">
+            {DATE_FMT.format(dataCard)}
+          </span>
+        ) : null}
         <span className="rounded-full border border-border px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-muted-foreground">
           {KIND_LABEL[piece.kind]}
         </span>
-        <span className="font-mono text-[10px] text-muted-foreground">
-          {piece.channel ?? ""}
-          {dateIso ? ` · ${DATE_FMT.format(new Date(dateIso))}` : ""}
-        </span>
+        {piece.meta?.funil && FUNIL_CHIP[piece.meta.funil] ? (
+          <span
+            className={`rounded-full border px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider ${FUNIL_CHIP[piece.meta.funil].cls}`}
+          >
+            {FUNIL_CHIP[piece.meta.funil].label}
+          </span>
+        ) : null}
+        {etapa ? (
+          <span className="rounded-full border border-amber-300/40 bg-amber-300/10 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-amber-300">
+            {etapa}
+          </span>
+        ) : null}
       </div>
     </Link>
   );

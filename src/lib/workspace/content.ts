@@ -78,6 +78,23 @@ export const FUNIL_LABEL: Record<string, string> = {
   fundo: 'fundo de funil',
 }
 
+/** Chip colorido por andar de funil (linha editorial + kanban + detalhe). */
+export const FUNIL_CHIP: Record<string, { label: string; cls: string }> = {
+  topo: { label: 'topo', cls: 'border-[#60A5FA]/40 bg-[#60A5FA]/10 text-[#60A5FA]' },
+  meio: { label: 'meio', cls: 'border-[#F59E0B]/40 bg-[#F59E0B]/10 text-[#F59E0B]' },
+  fundo: { label: 'fundo', cls: 'border-[#4ADE80]/40 bg-[#4ADE80]/10 text-[#4ADE80]' },
+}
+
+/**
+ * Pura: o que a squad está produzindo AGORA nesta peça? 'copy' = escrevendo o
+ * texto (antes da aprovação do conteúdo) · 'imagem' = renderizando a arte
+ * (conteúdo já aprovado, meta.fase presente). Null se não está em produção.
+ */
+export function producaoEtapa(piece: ContentPiece): 'copy' | 'imagem' | null {
+  if (piece.status !== 'producao') return null
+  return piece.meta?.fase ? 'imagem' : 'copy'
+}
+
 /**
  * Pura: a peça pode ser excluída pelo cliente? Publicada nunca sai (histórico).
  * Agendada também não: o agendamento já vive no Metricool — deletar só o card
