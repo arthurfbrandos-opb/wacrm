@@ -40,6 +40,25 @@ export default function WorkspaceConfigPage() {
     void refetch();
   }, [refetch]);
 
+  // Retorno do OAuth do Google (?google=ok|<erro>) — mostra o resultado e limpa a URL.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get("google");
+    if (!q) return;
+    if (q === "ok") {
+      setFeedback("Google Drive conectado — agora escolha as pastas.");
+    } else {
+      const motivo: Record<string, string> = {
+        "sem-sessao": "sessão expirou no meio — entra de novo e reconecta",
+        "estado-invalido": "a volta do Google não bateu com o início (tenta de novo)",
+        "sem-refresh": "o Google não devolveu a autorização completa — desconecta o app na sua conta Google (myaccount.google.com → Segurança → Conexões de terceiros) e conecta de novo",
+        "erro-banco": "falha ao salvar — tenta de novo",
+        erro: "a troca com o Google falhou — tenta de novo (se repetir, me avisa)",
+      };
+      setError(`Conexão com o Google não fechou: ${motivo[q] ?? q}`);
+    }
+    window.history.replaceState({}, "", "/w/config");
+  }, []);
+
   const metricool = connections?.find((c) => c.provider === "metricool");
   const metricoolOn = metricool?.status === "connected";
   const googleOauth = connections?.find((c) => c.provider === "google_oauth");

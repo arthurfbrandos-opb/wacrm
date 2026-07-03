@@ -18,19 +18,33 @@ export async function GET(request: Request) {
   let accountId: string;
   try {
     ({ accountId } = await requireRole("admin"));
-  } catch {
+  } catch (e) {
+    console.error("[google/callback] sem sessão/role:", e instanceof Error ? e.message : e);
     return volta("sem-sessao");
   }
 
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
+  const gErr = url.searchParams.get("error");
+  if (gErr) {
+    console.error(`[google/callback] google devolveu error=${gErr}`);
+    return volta(`google-${gErr}`.slice(0, 60));
+  }
   const jar = await cookies();
   const nonce = jar.get("g_oauth_state")?.value;
-  if (!code || !state || !nonce || state !== nonce) return volta("estado-invalido");
+  if (!code || !state || !nonce || state !== nonce) {
+    console.error(
+      `[google/callback] estado inválido · code=${!!code} state=${!!state} nonce=${!!nonce} match=${state === nonce}`,
+    );
+    return volta("estado-invalido");
+  }
 
   try {
     const tokens = await exchangeCode(origin, code);
-    if (!tokens.refresh_token) return volta("sem-refresh");
+    if (!tokens.refresh_token) {
+      console.error("[google/callback] resposta sem refresh_token");
+      return volta("sem-refresh");
+    }
 
     const db = supabaseAdmin();
     const { error } = await db.from("integration_connections").upsert(
@@ -44,7 +58,10 @@ export async function GET(request: Request) {
       },
       { onConflict: "account_id,provider" },
     );
-    if (error) return volta("erro-banco");
+    if (error) {
+      console.error("[google/callback] upsert falhou:", error.message);
+      return volta("erro-banco");
+    }
 
     await db.from("os_audit").insert({
       account_id: accountId,
@@ -54,7 +71,8 @@ export async function GET(request: Request) {
       detail: {},
     });
     return volta("ok");
-  } catch {
+  } catch (e) {
+    console.error("[google/callback] exceção:", e instanceof Error ? e.message : e);
     return volta("erro");
   }
 }
